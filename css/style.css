@@ -205,3 +205,12 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   .stage-wrap { min-width: 0; font-size: 11px; }
   .keys { grid-template-columns: 1fr; }
 }
+.mtable { border-collapse: collapse; width: 100%; font-size: 13px; }
+.mtable th, .mtable td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: center; }
+.mtable th:first-child { text-align: left; white-space: nowrap; }
+.mtable th.moon { padding-left: 22px; font-weight: 500; color: #c8d3e6; }
+.mtable td { color: #56627a; font-size: 16px; }
+.mtable td.done { color: var(--accent2); }
+.mtable td.na { color: #2c3547; font-size: 12px; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+.enc b { white-space: normal; text-align: right; }

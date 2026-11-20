@@ -25,11 +25,15 @@ then visit http://localhost:8000.
 - **Flight physics**: thrust with altitude-dependent Isp, fuel flow through the part tree (boosters drain first through crossfeed),
   off-centre thrust torque, side-booster separation, RCS translation, atmospheric drag, fin stability,
   reaction wheels and engine gimbal, parachutes, terrain and oceans, crash and landing detection.
-- **Orbital mechanics**: patched-conic gravity with a moving moon and sphere-of-influence changes, apoapsis/periapsis readouts,
-  time warp up to 100,000× (RK4 integration on rails).
-- **Map view**: predicted trajectory through SOI changes, encounter preview, impact marker.
+- **Solar system**: the star Helion with six planets and seven moons, all original: scorched Cinder; home world Verdan and
+  its moon Pallid; desert Ochre (Pip, Shard); the gas giant Tempest (Gale with air and seas, volcanic Ember, icy Frost); frozen
+  Glacis; and distant Umbra. Each has its own gravity, terrain, colours, and in some cases air and seas. Gas giants have no surface.
+- **Orbital mechanics**: patched-conic gravity through a tree of spheres of influence with exact frame corrections for moving
+  bodies, apoapsis/periapsis readouts, and time warp up to 1,000,000× (RK4 on rails with steps that never skip an SOI boundary).
+- **Map view**: every orbit in the system, focus any body (F, or click it), the predicted path through every SOI change with
+  ghosts of planets where they'll be when you arrive, and the next encounters in the HUD.
 - **SAS**: hold heading, prograde, retrograde, radial up and down.
-- **Milestones**: from first liftoff to a round trip to Pallid.
+- **Milestones**: first launch steps at home, then reach, orbit, land on and return from every world.
 
 ## Controls
 
@@ -55,11 +59,12 @@ Del removes, Ctrl+Z / Ctrl+Shift+Z undo and redo, X toggles symmetry.
 node tests/run.js
 ```
 
-Headless checks for staging, fuel flow, symmetry, save migration, and autopilot flights of the example rockets to orbit.
+Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
+spheres of influence, frame accelerations, stable orbits around nested moons, and interplanetary encounter prediction.
 
 ## Code layout
 
-- `js/data.js`: constants, parts, bodies, terrain, orbit maths and trajectory prediction
+- `js/data.js`: constants, parts, milestones, the solar system, gravity, terrain, orbit maths and trajectory prediction
 - `js/vessel.js`: craft model: part tree and layout, fuel groups, automatic staging, mass properties, Δv simulation, example craft
 - `js/render.js`: part, flame, terrain and launch pad drawing
 - `js/flight.js`: simulation loop, time warp, camera, map view, HUD

@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'flight.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, wrapPi, clamp, PHYS_DT, WARPS, isEngine };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -217,6 +217,89 @@ test('Pallid Lander stack stages in the right order', () => {
   const stages = G.stageListFrom(G.resolveStages(d, geo));
   const ids = (s) => s.map((u) => geo.find((g) => g.uid === u).id).sort().join(',');
   assert(stages.map(ids).join(' | ') === 'bison | decoupler,kestrel | decoupler,wren | chute', stages.map(ids).join(' | '));
+});
+
+
+console.log('Solar system');
+test('sphere of influence lookup finds the deepest body', () => {
+  const B = G.BODY_BY_ID, t = 1234;
+  const at = (b, dx, dy) => { const p = G.bodyPos(b, t); return G.soiBody(p[0] + dx, p[1] + dy, t).id; };
+  assert(G.soiBody(0, 500010, t).id === 'verdan', 'pad');
+  assert(at(B.pallid, 0, 160000) === 'pallid', 'Pallid surface');
+  assert(at(B.gale, 0, 500000) === 'gale', 'Gale');
+  assert(at(B.tempest, 0, 8e6) === 'tempest', 'Tempest');
+  assert(at(B.ochre, 0, 1e6) === 'ochre', 'near Ochre');
+  assert(at(B.pip, 0, 30000) === 'pip', 'Pip');
+  assert(G.soiBody(2e9, 0, t).id === 'helion', 'deep space');
+});
+test('every moon sits inside its planet\'s sphere of influence', () => {
+  for (const b of G.BODIES) if (b.parent && !b.parent.star) assert(b.orbitR + b.soi < b.parent.soi, b.name);
+});
+test('body accelerations match their motion (frame correction is right)', () => {
+  for (const b of [G.BODY_BY_ID.pallid, G.GALE, G.SUN, G.OCHRE]) {
+    const t = 5e5, h = 5;
+    const p0 = G.bodyPos(b, t - h), p1 = G.bodyPos(b, t), p2 = G.bodyPos(b, t + h);
+    const ax = (p0[0] - 2 * p1[0] + p2[0]) / (h * h), ay = (p0[1] - 2 * p1[1] + p2[1]) / (h * h);
+    const s = G.bodyState(b, t);
+    const mag = Math.hypot(s[4], s[5]);
+    assert(Math.hypot(ax - s[4], ay - s[5]) < Math.max(1e-6, mag * 2e-3), `${b.name}: numeric (${ax}, ${ay}) vs (${s[4]}, ${s[5]})`);
+  }
+});
+test('a circular orbit around Gale (a moon of a moon\'s planet) holds under warp', () => {
+  const { F } = G;
+  G.flightStart(G.PRESETS['Orbiter I'](), 'Probe');
+  const c = F.craft; c.landed = null; c.throttle = 0;
+  F.t = 2e6;
+  const s = G.bodyState(G.GALE, F.t), r = G.GALE.R + 120000, v = Math.sqrt(G.GALE.mu / r);
+  c.pos = [s[0] + r, s[1]]; c.vel = [s[2], s[3] + v];
+  F.debris = [];
+  const o1 = G.orbitElements(G.GALE, c.pos[0], c.pos[1], c.vel[0], c.vel[1], F.t);
+  F.warp = 8;
+  const t0 = F.t;
+  for (let i = 0; i < 20000 && F.t - t0 < o1.period * 2; i++) G.railsStep((1 / 60) * G.WARPS[F.warp]);
+  const b = G.soiBody(c.pos[0], c.pos[1], F.t);
+  const o2 = G.orbitElements(b, c.pos[0], c.pos[1], c.vel[0], c.vel[1], F.t);
+  assert(b === G.GALE, 'drifted out of Gale\'s SOI into ' + b.name);
+  assert(Math.abs(o2.rp - o1.rp) < 500 && Math.abs(o2.ra - o1.ra) < 500, `Pe ${o1.rp - r}→${o2.rp - r}, Ap ${o1.ra - r}→${o2.ra - r}`);
+});
+test('a Hohmann transfer from Verdan\'s orbit predicts an Ochre encounter', () => {
+  const mu = G.SUN.mu, r1 = G.BODY_BY_ID.verdan.orbitR + 3e8, r2 = G.OCHRE.orbitR;
+  const tt = Math.PI * Math.sqrt(Math.pow((r1 + r2) / 2, 3) / mu);
+  const t0 = 0;
+  // depart opposite where Ochre will be on arrival
+  const sun = G.bodyState(G.SUN, t0);
+  const oA = G.OCHRE.phase0 + G.OCHRE.n * (t0 + tt);
+  const dep = oA - Math.PI;
+  const v = Math.sqrt(mu / r1) * Math.sqrt((2 * r2) / (r1 + r2));
+  const x = sun[0] + r1 * Math.cos(dep), y = sun[1] + r1 * Math.sin(dep);
+  const vx = sun[2] - v * Math.sin(dep), vy = sun[3] + v * Math.cos(dep);
+  assert(G.soiBody(x, y, t0) === G.SUN, 'start should be in Helion\'s SOI');
+  const pred = G.predictPath(x, y, vx, vy, t0);
+  const enc = (G.findEncounter(pred) || []).find((e) => e.kind === 'enc');
+  assert(enc && enc.body === G.OCHRE, 'events: ' + JSON.stringify(pred.events.map((e) => e.type + ':' + (e.to ? e.to.id : e.b ? e.b.id : ''))));
+  assert(Math.abs(enc.t - tt) < tt * 0.1, `arrival ${enc.t.toFixed(0)} vs ${tt.toFixed(0)}`);
+});
+test('burning to escape velocity shows "Leaving Verdan" on the predicted path', () => {
+  const r = 600000, v = Math.sqrt((2 * G.BODY_BY_ID.verdan.mu) / r) * 1.05;
+  const pred = G.predictPath(r, 0, 0, v, 0);
+  const evs = G.findEncounter(pred) || [];
+  assert(evs.length && evs[0].kind === 'exit' && evs[0].body.id === 'verdan', JSON.stringify(evs.map((e) => e.kind)));
+});
+test('sinking into the gas giant destroys the craft', () => {
+  const { F } = G;
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Diver');
+  const c = F.craft; c.landed = null;
+  F.t = 1e6;
+  const s = G.bodyState(G.TEMPEST, F.t);
+  c.pos = [s[0], s[1] + G.TEMPEST.R + 2]; c.vel = [s[2], s[3] - 0.5];
+  for (let i = 0; i < 400 && !c.dead; i++) G.physStep(G.PHYS_DT);
+  assert(c.dead, 'should be crushed');
+  assert(/Crushed/.test(F.deathReason), F.deathReason);
+});
+test('old Pallid milestone ids carry over', () => {
+  G.Store.set('milestones', { moonLand: 123, orbit: 5 });
+  const m = G.loadMilestones();
+  assert(m.land_pallid === 123 && !m.moonLand && m.orbit === 5, JSON.stringify(m));
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

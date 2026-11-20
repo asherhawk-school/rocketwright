@@ -308,8 +308,21 @@ function drawBodyWorld(ctx, b, t, cam, viewR, zoom) {
     }
   }
   ctx.closePath();
-  ctx.fillStyle = b.colSoil;
+  ctx.fillStyle = b.gas ? b.colLand : b.colSoil;
   ctx.fill();
+  if (b.gas) {
+    // cloud bands, level with the viewer's horizon
+    ctx.save();
+    ctx.clip();
+    ctx.translate(cx, cy);
+    ctx.rotate(camAng - Math.PI / 2);
+    const cols = ['rgba(150,100,55,0.35)', 'rgba(255,240,215,0.3)', 'rgba(120,80,45,0.3)'];
+    for (let i = -9; i <= 9; i++) {
+      ctx.fillStyle = cols[(i + 9) % 3];
+      ctx.fillRect(-b.R, b.R * (i / 10) - b.R * 0.03, 2 * b.R, b.R * (0.04 + 0.03 * ((i * 7 + 9) % 3)));
+    }
+    ctx.restore();
+  }
   ctx.strokeStyle = b.colLand;
   ctx.lineWidth = Math.max(5 / zoom, 1.5);
   ctx.beginPath();
@@ -357,4 +370,17 @@ function drawPad(ctx, cam, viewR) {
   ctx.fillRect(tx + tw, oy + th - 6, 3.4, 0.5);
   ctx.fillStyle = '#ff4030';
   ctx.beginPath(); ctx.arc(tx + tw / 2, oy + th + 0.4, 0.45, 0, TAU); ctx.fill();
+}
+
+/* The star, seen from up close: a bright disc with a glow. */
+function drawStarWorld(ctx, b, t, cam, viewR) {
+  const bp = bodyPos(b, t);
+  const x = bp[0] - cam[0], y = bp[1] - cam[1];
+  if (Math.hypot(x, y) - b.R * 2.5 > viewR) return;
+  const g = ctx.createRadialGradient(x, y, b.R * 0.9, x, y, b.R * 2.5);
+  g.addColorStop(0, 'rgba(255,220,120,0.8)'); g.addColorStop(1, 'rgba(255,160,40,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(x, y, b.R * 2.5, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#fff3c4';
+  ctx.beginPath(); ctx.arc(x, y, b.R, 0, TAU); ctx.fill();
 }

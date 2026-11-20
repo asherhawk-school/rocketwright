@@ -1,15 +1,14 @@
 'use strict';
 /* Rocketwright — flight scene: physics, time warp, camera, map view, HUD. */
 
-const WARPS = [1, 2, 3, 4, 10, 50, 100, 1000, 10000, 100000];
-const WARP_ALT = [0, 0, 0, 0, 0, 2000, 5000, 15000, 40000, 100000];
+const WARPS = [1, 2, 3, 4, 10, 50, 100, 1000, 10000, 100000, 1000000];
 const PHYS_DT = 0.02;
 const SAS_MODES = ['off', 'stab', 'pro', 'retro', 'radout', 'radin'];
 const PATH_COLORS = ['#4fd1ff', '#ffb347', '#c792ff', '#7dffa8'];
 
 const F = {
   running: false, paused: false, craft: null, debris: [], particles: [],
-  t: 0, acc: 0, warp: 0, zoom: 6, mapZoom: 0, map: false, mapFocus: 0,
+  t: 0, acc: 0, warp: 0, zoom: 6, mapZoom: 0, map: false, mapFocus: 'soi',
   rotOffset: 0, lastBody: null, sas: 'stab', hold: null, userRot: 0,
   keys: Object.create(null), pred: null, predTick: 0, orbit: null, encounter: null,
   flags: null, flightMilestones: [], deadTimer: 0, endShown: false,
@@ -26,7 +25,7 @@ function initFlightView() {
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
-  for (const id of ['hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc',
+  for (const id of ['hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
     'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'bRcs', 'hNext', 'hPitch',
     'bRecover', 'bMap', 'msg', 'mapHint']) F.hud[id] = document.getElementById(id);
   resizeFlight();
@@ -55,9 +54,9 @@ function flightStart(design, name) {
   c.vel = [0, 0];
   c.landed = { body: HOME, rx: c.pos[0], ry: c.pos[1] };
   Object.assign(F, {
-    craft: c, debris: [], particles: [], t: 0, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 0,
+    craft: c, debris: [], particles: [], t: 0, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi',
     deadTimer: 0, endShown: false, pred: null, encounter: null, orbit: null, lastBody: HOME, rotOffset: 0, paused: false,
-    flags: { space: false, moon: false, landedMoon: false, maxAlt: 0 }, flightMilestones: [], running: true,
+    flags: { space: false, maxAlt: 0, visited: [], landedOn: [] }, flightMilestones: [], running: true,
     dvTick: 0, dvCache: null, rcsTx: 0, rcsTy: 0,
   });
   F.zoom = clamp((F.H * 0.42) / (c.length + 8), 2, 30);
@@ -148,7 +147,7 @@ function warpAllowed(idx) {
   const b = soiBody(c.pos[0], c.pos[1], F.t);
   const bp = bodyPos(b, F.t);
   const alt = Math.hypot(c.pos[0] - bp[0], c.pos[1] - bp[1]) - b.R;
-  return alt >= (b.atmo ? b.atmo.top : 5000) + WARP_ALT[idx];
+  return alt >= warpMinAlt(b, idx);
 }
 
 function enforceWarp() {
@@ -188,7 +187,7 @@ function flightUpdate(dt) {
     const oldUp = Math.atan2(c.pos[1] - po[1], c.pos[0] - po[0]);
     const newUp = Math.atan2(c.pos[1] - pn[1], c.pos[0] - pn[0]);
     F.rotOffset = wrapPi(F.rotOffset + newUp - oldUp);
-    flash(b === MOON ? 'Entered Pallid\'s sphere of influence' : 'Left Pallid. Back in Verdan\'s sphere of influence', 4);
+    flash(b.parent === F.lastBody ? `Entered ${b.name}'s sphere of influence` : `Left ${F.lastBody.name}. Now orbiting ${b.name}`, 4);
   }
   F.lastBody = b;
   F.rotOffset *= Math.exp(-dt * 1.5);
@@ -198,7 +197,7 @@ function flightUpdate(dt) {
   if (c.landed || c.dead) { F.pred = null; F.encounter = null; }
   else if (F.predTick <= 0) {
     F.pred = predictPath(c.pos[0], c.pos[1], c.vel[0], c.vel[1], F.t);
-    F.encounter = findEncounter(F.pred, b);
+    F.encounter = findEncounter(F.pred);
     F.predTick = F.map ? 3 : 15;
   }
   updateParticles(dt * Math.min(w, 4));
@@ -320,6 +319,7 @@ function contact(c, b, t, player) {
   const bp = bodyPos(b, t), bv = bodyVel(b, t);
   const pen = penetration(c, b, bp);
   if (pen.maxPen <= 0) return;
+  if (b.gas || b.star) { explode(c, player, 0, b.star ? `Burned up in ${b.name}` : `Crushed in the depths of ${b.name}`); return; }
   const rx = c.pos[0] - bp[0], ry = c.pos[1] - bp[1], r = Math.hypot(rx, ry);
   const ux = rx / r, uy = ry / r;
   const speed = Math.hypot(c.vel[0] - bv[0], c.vel[1] - bv[1]);
@@ -339,7 +339,7 @@ function contact(c, b, t, player) {
   if (player) onTouchdown(b, pen.water, speed);
 }
 
-function explode(c, player, speed) {
+function explode(c, player, speed, why) {
   c.dead = true;
   const n = player ? 70 : 35;
   for (let i = 0; i < n; i++) {
@@ -353,7 +353,8 @@ function explode(c, player, speed) {
   if (player) {
     F.deadTimer = 2.2;
     F.warp = 0;
-    flash(`Vessel destroyed at ${speed.toFixed(1)} m/s`, 4);
+    F.deathReason = why || `Hit the ground at ${speed.toFixed(1)} m/s`;
+    flash(why || `Vessel destroyed at ${speed.toFixed(1)} m/s`, 4);
   }
 }
 
@@ -374,14 +375,12 @@ function railsStep(simDt) {
   let rem = simDt, n = 0;
   while (rem > 1e-6 && n < 4000) {
     const b = soiBody(s[0], s[1], F.t);
-    const bp = bodyPos(b, F.t);
-    const r = Math.hypot(s[0] - bp[0], s[1] - bp[1]);
-    const dt = Math.min(rem, clamp(0.002 * TAU * Math.sqrt((r * r * r) / b.mu), 0.05, 300));
+    const dt = Math.min(rem, stepLimit(b, s[0], s[1], s[2], s[3], F.t, 0.002, 2e4));
     rk4Step(b, s, F.t, dt);
     F.t += dt; rem -= dt; n++;
     const nb = soiBody(s[0], s[1], F.t), np = bodyPos(nb, F.t);
     const alt = Math.hypot(s[0] - np[0], s[1] - np[1]) - nb.R;
-    if (alt < (nb.atmo ? nb.atmo.top : 5000) + WARP_ALT[F.warp]) {
+    if (alt < warpMinAlt(nb, F.warp)) {
       c.pos = [s[0], s[1]]; c.vel = [s[2], s[3]];
       while (F.warp > 3 && !warpAllowed(F.warp)) F.warp--;
       break;
@@ -450,35 +449,42 @@ function updateParticles(dt) {
   F.particles = F.particles.filter((p) => p.life > 0);
 }
 
-function findEncounter(pred, cur) {
+/* The next couple of things that will happen on the predicted path. */
+function findEncounter(pred) {
   if (!pred) return null;
-  const ev = pred.events.find((e) => e.type === 'soi');
-  if (cur === HOME && ev && ev.to === MOON) {
-    let minD = Infinity;
-    for (let i = ev.idx; i < pred.pts.length; i++) {
-      const p = pred.pts[i];
-      if (p.b !== MOON) break;
-      const m = bodyPos(MOON, p.t);
-      minD = Math.min(minD, Math.hypot(p.x - m[0], p.y - m[1]));
-    }
-    return { kind: 'enc', t: ev.t, pe: minD - MOON.R };
+  const out = [];
+  for (const ev of pred.events) {
+    if (ev.type === 'soi') {
+      if (ev.to.parent === ev.from) {
+        let minD = Infinity;
+        for (let i = ev.idx; i < pred.pts.length && pred.pts[i].b === ev.to; i++) {
+          const p = pred.pts[i], m = bodyPos(ev.to, p.t);
+          minD = Math.min(minD, Math.hypot(p.x - m[0], p.y - m[1]));
+        }
+        out.push({ kind: 'enc', body: ev.to, t: ev.t, pe: minD - ev.to.R });
+      } else out.push({ kind: 'exit', body: ev.from, t: ev.t });
+    } else if (ev.type === 'impact') out.push({ kind: 'impact', body: ev.b, t: ev.t });
+    if (out.length >= 2) break;
   }
-  if (cur === MOON && ev && ev.to === HOME) return { kind: 'exit', t: ev.t };
-  const imp = pred.events.find((e) => e.type === 'impact');
-  if (imp) return { kind: 'impact', t: imp.t, body: imp.b };
-  return null;
+  return out.length ? out : null;
+}
+
+function describeEvent(e, now) {
+  const when = fmtDur(e.t - now);
+  if (e.kind === 'enc') return [`${e.body.name} encounter`, `in ${when} · Pe ${e.pe > 0 ? fmtDist(e.pe) : 'impact'}`];
+  if (e.kind === 'exit') return [`Leaving ${e.body.name}`, `in ${when}`];
+  return [`Impact on ${e.body.name}`, `in ${when}`];
 }
 
 /* ---------------- milestones ---------------- */
 
 function award(id) {
-  const got = Store.get('milestones', {});
+  const got = loadMilestones();
   if (!F.flightMilestones.includes(id)) F.flightMilestones.push(id);
   if (got[id]) return;
   got[id] = Date.now();
   Store.set('milestones', got);
-  const m = MILESTONES.find((x) => x.id === id);
-  if (m) toast(`Milestone reached: ${m.name}`);
+  toast(`Milestone reached: ${milestoneName(id)}`);
 }
 
 function checkMilestones(b) {
@@ -491,21 +497,27 @@ function checkMilestones(b) {
     if (!c.landed && alt > 40) award('liftoff');
     if (alt > 10000) award('alt10k');
     if (alt > 70000) { award('space'); F.flags.space = true; }
+  } else if (!b.star) {
+    F.flags.space = true;
+    award('soi_' + b.id);
+    if (!F.flags.visited.includes(b.id)) F.flags.visited.push(b.id);
   }
   const o = F.orbit;
-  if (o && !c.landed && o.e < 1) {
+  if (o && !c.landed && o.e < 1 && !b.star) {
     const pe = o.rp - b.R;
-    if (b === HOME && pe > 70000) award('orbit');
-    if (b === MOON && pe > 3000) award('moonOrbit');
+    if (pe > (b.atmo ? b.atmo.top : 3000)) award(b === HOME ? 'orbit' : 'orbit_' + b.id);
   }
-  if (b === MOON) { award('moonSoi'); F.flags.moon = true; }
 }
 
 function onTouchdown(b, water, speed) {
   flash(`${water ? 'Splashdown' : 'Touchdown'} on ${b.name} at ${speed.toFixed(1)} m/s`, 4);
-  if (b === MOON) { award('moonLand'); F.flags.landedMoon = true; }
-  if (b === HOME && F.flags.space) award('splash');
-  if (b === HOME && F.flags.landedMoon) award('roundTrip');
+  if (b !== HOME) {
+    award('land_' + b.id);
+    if (!F.flags.landedOn.includes(b.id)) F.flags.landedOn.push(b.id);
+    return;
+  }
+  if (F.flags.space) award('splash');
+  for (const id of F.flags.landedOn) award('return_' + id);
 }
 
 /* ---------------- rendering ---------------- */
@@ -538,10 +550,11 @@ function renderWorld() {
   const up = Math.atan2(c.pos[1] - bp[1], c.pos[0] - bp[0]);
   const rot = Math.PI / 2 - up + F.rotOffset;
   const alt = Math.hypot(c.pos[0] - bp[0], c.pos[1] - bp[1]) - b.R;
-  const sk = b === HOME ? Math.pow(Math.max(0, 1 - Math.max(0, alt) / 62000), 1.6) : 0;
+  const sky = b.sky || ['#000006', '#03040c'];
+  const sk = b.atmo && b.sky ? Math.pow(Math.max(0, 1 - Math.max(0, alt) / (b.atmo.top * 0.9)), 1.6) * Math.min(1, 0.45 + b.atmo.rho0) : 0;
   const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, mixColor('#000006', '#3f84dc', sk));
-  g.addColorStop(1, mixColor('#03040c', '#a8d4ff', sk));
+  g.addColorStop(0, mixColor('#000006', sky[0], sk));
+  g.addColorStop(1, mixColor('#03040c', sky[1], sk));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
   drawStars(1 - sk * 1.5, -rot);
@@ -553,14 +566,16 @@ function renderWorld() {
   ctx.scale(z, -z);
   ctx.rotate(rot);
 
-  // atmosphere halo when zoomed far out
-  const hp = bodyPos(HOME, t);
-  if (HOME.R * z < 3000) {
-    const hx = hp[0] - cam[0], hy = hp[1] - cam[1];
-    const gr = ctx.createRadialGradient(hx, hy, HOME.R * 0.98, hx, hy, HOME.R + HOME.atmo.top * 1.3);
-    gr.addColorStop(0, 'rgba(110,170,255,0.55)'); gr.addColorStop(1, 'rgba(110,170,255,0)');
+  // atmosphere halos when zoomed far out
+  for (const ab of BODIES) {
+    if (!ab.atmo || ab.R * z >= 3000) continue;
+    const ap = bodyPos(ab, t), hx = ap[0] - cam[0], hy = ap[1] - cam[1], ro = ab.R + ab.atmo.top * 1.3;
+    if (Math.hypot(hx, hy) - ro > viewR) continue;
+    const [cr, cg, cb] = hexToRgb(ab.sky ? ab.sky[1] : '#6eaaff');
+    const gr = ctx.createRadialGradient(hx, hy, ab.R * 0.98, hx, hy, ro);
+    gr.addColorStop(0, `rgba(${cr},${cg},${cb},0.55)`); gr.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
     ctx.fillStyle = gr;
-    ctx.beginPath(); ctx.arc(hx, hy, HOME.R + HOME.atmo.top * 1.3, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(hx, hy, ro, 0, TAU); ctx.fill();
   }
   // clouds
   if (b === HOME && alt < 30000 && z > 0.02) {
@@ -580,8 +595,10 @@ function renderWorld() {
       ctx.restore();
     }
   }
-  drawBodyWorld(ctx, HOME, t, cam, viewR, z);
-  drawBodyWorld(ctx, MOON, t, cam, viewR, z);
+  for (const wb of BODIES) {
+    if (wb.star) drawStarWorld(ctx, wb, t, cam, viewR);
+    else drawBodyWorld(ctx, wb, t, cam, viewR, z);
+  }
   drawPad(ctx, cam, viewR);
 
   const pressure = atmo(b, alt).p;
@@ -629,17 +646,36 @@ function renderWorld() {
   }
 }
 
+/* Map focus is 'soi' (the body you're orbiting), 'vessel', or a body. */
+function mapFocusBody(sb) { return F.mapFocus === 'soi' ? sb : F.mapFocus === 'vessel' ? null : F.mapFocus; }
 function mapFocusPos(sb) {
-  const c = F.craft;
-  switch (F.mapFocus) {
-    case 1: return c.pos;
-    case 2: return bodyPos(HOME, F.t);
-    case 3: return bodyPos(MOON, F.t);
-    default: return bodyPos(sb, F.t);
-  }
+  const fb = mapFocusBody(sb);
+  return fb ? bodyPos(fb, F.t) : F.craft.pos;
 }
 function mapFocusName(sb) {
-  return ['Current body (' + sb.name + ')', 'Vessel', 'Verdan', 'Pallid'][F.mapFocus];
+  const fb = mapFocusBody(sb);
+  return F.mapFocus === 'soi' ? `${sb.name} (current)` : fb ? fb.name : 'vessel';
+}
+function fitZoom(b) {
+  const m = Math.min(F.W, F.H);
+  return b.star ? m / (OCHRE.orbitR * 2.6) : m / (b.R * 8);
+}
+function cycleMapFocus() {
+  const order = ['soi', 'vessel', ...BODIES];
+  F.mapFocus = order[(order.indexOf(F.mapFocus) + 1) % order.length];
+  const c = F.craft, sb = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
+  const fb = mapFocusBody(sb);
+  if (fb) F.mapZoom = fitZoom(fb);
+}
+/* Click a planet on the map to focus it. */
+function mapClick(sx, sy) {
+  if (!F.mapScreen) return;
+  let best = null, bd = Infinity;
+  for (const m of F.mapScreen) {
+    const d = Math.hypot(sx - m.x, sy - m.y);
+    if (d < Math.max(14, m.r) && d < bd) { bd = d; best = m.b; }
+  }
+  if (best) { F.mapFocus = best; F.mapZoom = fitZoom(best); }
 }
 
 function renderMap() {
@@ -649,41 +685,78 @@ function renderMap() {
   drawStars(0.55, 0);
   const sb = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], t);
   const foc = mapFocusPos(sb);
-  if (!F.mapZoom) F.mapZoom = Math.min(W, H) / (sb.R * 8);
+  if (!F.mapZoom) F.mapZoom = fitZoom(sb);
   const z = F.mapZoom;
   const S = (x, y) => [W / 2 + (x - foc[0]) * z, H / 2 - (y - foc[1]) * z];
   const circle = (x, y, r) => { ctx.beginPath(); ctx.arc(x, y, Math.max(r, 0.5), 0, TAU); };
   ctx.font = '12px system-ui, sans-serif';
   ctx.textAlign = 'center';
-
-  // moon orbit
-  const [hx, hy] = S(0, 0);
-  ctx.strokeStyle = 'rgba(180,190,210,0.18)'; ctx.lineWidth = 1;
-  circle(hx, hy, MOON.orbitR * z); ctx.stroke();
-  // home
-  const atmR = (HOME.R + HOME.atmo.top) * z;
-  const ga = ctx.createRadialGradient(hx, hy, HOME.R * z, hx, hy, atmR);
-  ga.addColorStop(0, 'rgba(100,170,255,0.45)'); ga.addColorStop(1, 'rgba(100,170,255,0.05)');
-  ctx.fillStyle = ga; circle(hx, hy, atmR); ctx.fill();
-  const gh = ctx.createRadialGradient(hx - HOME.R * z * 0.3, hy - HOME.R * z * 0.3, 0, hx, hy, HOME.R * z);
-  gh.addColorStop(0, '#5aa0e0'); gh.addColorStop(0.6, '#3b7a3a'); gh.addColorStop(1, '#22456e');
-  ctx.fillStyle = gh; circle(hx, hy, Math.max(HOME.R * z, 3)); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.75)';
   const bodyLabel = (name, x, y, rpx) => ctx.fillText(name, x, rpx > 40 ? y + 4 : y - Math.max(rpx, 3) - 8);
-  bodyLabel('Verdan', hx, hy, HOME.R * z);
-  // moon
-  const mp = bodyPos(MOON, t);
-  const [mx, my] = S(mp[0], mp[1]);
-  ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,200,120,0.25)';
-  circle(mx, my, MOON.soi * z); ctx.stroke(); ctx.setLineDash([]);
-  ctx.fillStyle = MOON.colMap; circle(mx, my, Math.max(MOON.R * z, 2.5)); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.75)';
-  bodyLabel('Pallid', mx, my, MOON.R * z);
+  const onScreen = (x, y, r) => x + r > -50 && x - r < W + 50 && y + r > -50 && y - r < H + 50;
 
-  // predicted path
+  // orbits
+  ctx.lineWidth = 1;
+  for (const b of BODIES) {
+    if (!b.parent) continue;
+    const pp = bodyPos(b.parent, t), [px, py] = S(pp[0], pp[1]), r = b.orbitR * z;
+    if (r < 4 || r > 2e7) continue;
+    ctx.strokeStyle = b === sb || b === sb.parent || b.parent === sb ? 'rgba(160,200,255,0.32)' : 'rgba(180,190,210,0.14)';
+    circle(px, py, r); ctx.stroke();
+  }
+  // bodies
+  F.mapScreen = [];
+  for (const b of BODIES) {
+    const bp = bodyPos(b, t), [x, y] = S(bp[0], bp[1]);
+    const rpx = b.R * z;
+    // only label moons when their planet's system is big enough on screen
+    const visible = b.star || !b.parent || b.parent.star || b.orbitR * z > 18;
+    if (!visible || !onScreen(x, y, Math.max(rpx, b.soi * z))) continue;
+    F.mapScreen.push({ b, x, y, r: Math.max(rpx, 6) });
+    if (b.star) {
+      const gr = ctx.createRadialGradient(x, y, 0, x, y, Math.max(rpx * 2.5, 18));
+      gr.addColorStop(0, 'rgba(255,240,180,1)'); gr.addColorStop(0.4, 'rgba(255,200,80,0.6)'); gr.addColorStop(1, 'rgba(255,160,40,0)');
+      ctx.fillStyle = gr; circle(x, y, Math.max(rpx * 2.5, 18)); ctx.fill();
+      ctx.fillStyle = '#fff3c4'; circle(x, y, Math.max(rpx, 5)); ctx.fill();
+    } else {
+      if (b.atmo && rpx > 2) {
+        const atmR = (b.R + b.atmo.top) * z;
+        const [cr, cg, cb] = hexToRgb(b.sky ? b.sky[1] : '#6eaaff');
+        const ga = ctx.createRadialGradient(x, y, rpx, x, y, atmR);
+        ga.addColorStop(0, `rgba(${cr},${cg},${cb},0.45)`); ga.addColorStop(1, `rgba(${cr},${cg},${cb},0.05)`);
+        ctx.fillStyle = ga; circle(x, y, atmR); ctx.fill();
+      }
+      const rr = Math.max(rpx, b.parent && b.parent.star ? 3.5 : 2.5);
+      const gh = ctx.createRadialGradient(x - rr * 0.35, y - rr * 0.35, 0, x, y, rr);
+      gh.addColorStop(0, mixColor(b.colMap, '#ffffff', 0.35)); gh.addColorStop(0.7, b.colMap); gh.addColorStop(1, mixColor(b.colMap, '#000000', 0.45));
+      ctx.fillStyle = gh; circle(x, y, rr); ctx.fill();
+      if (b === HOME && rpx > 6) { // a hint of land on the home world
+        ctx.fillStyle = 'rgba(80,150,70,0.55)';
+        ctx.beginPath(); ctx.ellipse(x - rr * 0.2, y - rr * 0.1, rr * 0.45, rr * 0.3, 0.6, 0, TAU); ctx.fill();
+      }
+      if (b.gas && rpx > 4) {
+        ctx.save(); circle(x, y, rr); ctx.clip();
+        ctx.fillStyle = 'rgba(140,90,50,0.35)';
+        for (const f of [-0.5, -0.15, 0.25, 0.6]) ctx.fillRect(x - rr, y + f * rr, 2 * rr, rr * 0.14);
+        ctx.restore();
+      }
+      const sp = b.soi * z;
+      if (sp > 14 && sp < 6000) {
+        ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,200,120,0.22)';
+        circle(x, y, sp); ctx.stroke(); ctx.setLineDash([]);
+      }
+    }
+    ctx.fillStyle = b === sb ? '#ffffff' : 'rgba(255,255,255,0.7)';
+    bodyLabel(b.name, x, y, rpx);
+  }
+
+  // predicted path, segment by segment. Each segment is drawn in the frame of the body it is in,
+  // anchored where that body will be when the craft arrives (a "ghost").
   if (F.pred) {
     const pts = F.pred.pts;
-    let seg = -1, ref = null, curB = null, first = true;
+    const anchor = pts.every((p) => inHomeSystem(p.b)) ? HOME : SUN;
+    const an = bodyPos(anchor, t);
+    const place = (b, tau) => { const p = bodyPos(b, tau), a = bodyPos(anchor, tau); return [p[0] - a[0] + an[0], p[1] - a[1] + an[1]]; };
+    let seg = -1, ref = null, curB = null, first = true, last = null;
     const ghosts = [];
     ctx.lineWidth = 2;
     for (let i = 0; i < pts.length; i++) {
@@ -691,29 +764,26 @@ function renderMap() {
       if (p.b !== curB) {
         if (i > 0) ctx.stroke();
         seg++; curB = p.b; first = true;
-        ref = p.b === MOON ? bodyPos(MOON, i === 0 ? t : p.t) : null;
-        if (ref && i > 0) ghosts.push(ref);
+        ref = place(p.b, i === 0 || p.b === anchor ? t : p.t);
+        if (i > 0 && !p.b.star && !(p.b === anchor)) ghosts.push({ b: p.b, ref });
         ctx.strokeStyle = PATH_COLORS[seg % PATH_COLORS.length];
         ctx.beginPath();
       }
-      let x = p.x, y = p.y;
-      if (ref) { const m = bodyPos(MOON, p.t); x = p.x - m[0] + ref[0]; y = p.y - m[1] + ref[1]; }
-      const s = S(x, y);
-      if (first) { ctx.moveTo(s[0], s[1]); first = false; } else ctx.lineTo(s[0], s[1]);
+      const bpos = bodyPos(p.b, p.t);
+      const s2 = S(p.x - bpos[0] + ref[0], p.y - bpos[1] + ref[1]);
+      if (first) { ctx.moveTo(s2[0], s2[1]); first = false; } else ctx.lineTo(s2[0], s2[1]);
+      last = s2;
     }
     ctx.stroke();
-    for (const gp of ghosts) {
-      const [gx, gy] = S(gp[0], gp[1]);
-      ctx.setLineDash([3, 4]); ctx.strokeStyle = 'rgba(255,179,71,0.8)'; ctx.lineWidth = 1;
-      circle(gx, gy, Math.max(MOON.R * z, 3)); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = '#ffb347'; ctx.fillText('Pallid at encounter', gx, gy + Math.max(MOON.R * z, 3) + 16);
+    for (const g of ghosts) {
+      const [gx, gy] = S(g.ref[0], g.ref[1]), rr = Math.max(g.b.R * z, 4);
+      ctx.setLineDash([3, 4]); ctx.strokeStyle = 'rgba(255,179,71,0.85)'; ctx.lineWidth = 1;
+      circle(gx, gy, rr); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#ffb347'; ctx.fillText(`${g.b.name} at encounter`, gx, gy + rr + 16);
     }
     const imp = F.pred.events.find((e) => e.type === 'impact');
-    if (imp) {
-      const p = pts[imp.idx];
-      let x = p.x, y = p.y;
-      if (p.b === MOON && pts[0].b === MOON) { const m = bodyPos(MOON, p.t); x = p.x - m[0] + mp[0]; y = p.y - m[1] + mp[1]; }
-      const [ix, iy] = S(x, y);
+    if (imp && last) {
+      const [ix, iy] = last;
       ctx.strokeStyle = '#ff5d5d'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.moveTo(ix - 6, iy - 6); ctx.lineTo(ix + 6, iy + 6); ctx.moveTo(ix + 6, iy - 6); ctx.lineTo(ix - 6, iy + 6); ctx.stroke();
       ctx.fillStyle = '#ff8080'; ctx.fillText('Impact', ix, iy - 12);
@@ -833,15 +903,15 @@ function updateHud() {
     for (const k of ['hAp', 'hPe', 'hTAp', 'hTPe', 'hPer']) h[k].textContent = '—';
   }
   const enc = F.encounter;
-  if (enc) {
-    h.hEncRow.classList.remove('hidden');
-    if (enc.kind === 'enc') { h.hEncLabel.textContent = 'Pallid encounter'; h.hEnc.textContent = `in ${fmtDur(enc.t - t)} · Pe ${fmtDist(enc.pe)}`; }
-    else if (enc.kind === 'exit') { h.hEncLabel.textContent = 'Leaving Pallid'; h.hEnc.textContent = `in ${fmtDur(enc.t - t)}`; }
-    else { h.hEncLabel.textContent = 'Impact'; h.hEnc.textContent = `in ${fmtDur(enc.t - t)}`; }
-  } else h.hEncRow.classList.add('hidden');
+  const rows = [[h.hEncRow, h.hEncLabel, h.hEnc], [h.hEnc2Row, h.hEnc2Label, h.hEnc2]];
+  rows.forEach(([row, lab, val], i) => {
+    const e = enc && enc[i];
+    row.classList.toggle('hidden', !e);
+    if (e) { const [l, v] = describeEvent(e, t); lab.textContent = l; val.textContent = v; }
+  });
 
   h.hClock.textContent = fmtClock(t);
-  h.hWarp.textContent = WARPS[F.warp] + '×' + (F.warp > 3 ? '' : F.warp > 0 ? ' (physics)' : '');
+  h.hWarp.textContent = fmtNum(WARPS[F.warp]) + '×' + (F.warp > 3 ? '' : F.warp > 0 ? ' (physics)' : '');
   h.thrFill.style.height = Math.round(c.throttle * 100) + '%';
   h.thrPct.textContent = Math.round(c.throttle * 100) + '%';
 

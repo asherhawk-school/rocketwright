@@ -124,74 +124,183 @@ const PART_DEFS = {
 };
 const CATEGORIES = ['Command', 'Fuel', 'Engines', 'Coupling', 'Structure', 'Utility'];
 
+/* Verdan milestones; every other body gets its own (see bodyMilestones). */
 const MILESTONES = [
   { id: 'liftoff', name: 'Liftoff', desc: 'Leave the launch pad.' },
   { id: 'alt10k', name: 'Into the Blue', desc: 'Reach 10 km altitude.' },
   { id: 'space', name: 'Edge of Space', desc: 'Climb above 70 km, the top of Verdan\'s atmosphere.' },
   { id: 'orbit', name: 'Orbit!', desc: 'Reach a stable orbit around Verdan (periapsis above 70 km).' },
   { id: 'splash', name: 'Safe Return', desc: 'Land or splash down on Verdan after reaching space.' },
-  { id: 'moonSoi', name: 'Pallid Encounter', desc: 'Enter Pallid\'s sphere of influence.' },
-  { id: 'moonOrbit', name: 'Lunar Orbit', desc: 'Reach a stable orbit around Pallid.' },
-  { id: 'moonLand', name: 'Footprints', desc: 'Land safely on Pallid.' },
-  { id: 'roundTrip', name: 'Round Trip', desc: 'Land on Pallid, then come home safely to Verdan.' },
 ];
+const MILESTONE_KINDS = [
+  { k: 'soi', label: 'Reach', desc: (b) => `Enter ${b.name}'s sphere of influence.` },
+  { k: 'orbit', label: 'Orbit', desc: (b) => `Reach a stable orbit around ${b.name}.` },
+  { k: 'land', label: 'Land', desc: (b) => `Land safely on ${b.name}.`, solid: true },
+  { k: 'return', label: 'Return', desc: (b) => `Land on ${b.name}, then come home safely to Verdan.`, solid: true },
+];
+/* Old saves used these ids for Pallid. */
+const OLD_MILESTONE_IDS = { moonSoi: 'soi_pallid', moonOrbit: 'orbit_pallid', moonLand: 'land_pallid', roundTrip: 'return_pallid' };
+function loadMilestones() {
+  const got = Store.get('milestones', {});
+  let changed = false;
+  for (const [o, n] of Object.entries(OLD_MILESTONE_IDS)) if (got[o]) { got[n] = got[n] || got[o]; delete got[o]; changed = true; }
+  if (changed) Store.set('milestones', got);
+  return got;
+}
+function milestoneName(id) {
+  const m = MILESTONES.find((x) => x.id === id);
+  if (m) return m.name;
+  const [k, bid] = id.split('_');
+  const kind = MILESTONE_KINDS.find((x) => x.k === k), b = BODY_BY_ID[bid];
+  return kind && b ? `${kind.label} ${b.name}` : id;
+}
 
-/* ---------- celestial bodies ---------- */
-const HOME = {
-  id: 'verdan', name: 'Verdan', R: 500000, mu: 9.81 * 500000 * 500000, atmo: { top: 70000, rho0: 1.2, H: 5600 },
-  ocean: true, soi: Infinity, orbitR: 0,
-  colLand: '#4f8f3a', colSoil: '#5a4632', colWater: '#2a66ad', colMap: '#3d78c0',
-};
-const MOON = {
-  id: 'pallid', name: 'Pallid', R: 150000, mu: 1.62 * 150000 * 150000, atmo: null, ocean: false,
-  orbitR: 9.0e6, phase0: 2.4,
-  colLand: '#b4b4b9', colSoil: '#77777d', colMap: '#b0b0b6',
-};
-MOON.n = Math.sqrt(HOME.mu / Math.pow(MOON.orbitR, 3));
-MOON.soi = MOON.orbitR * Math.pow(MOON.mu / HOME.mu, 0.4);
-const BODIES = [HOME, MOON];
+/* ---------- celestial bodies ----------
+   A tree rooted at the star Helion. Orbits are circular and in one plane. The world frame is centred on
+   (and moves with) Verdan, so everything near home stays small and precise; other bodies move around it. */
+function makeBody(o) {
+  return Object.assign({
+    parent: null, orbitR: 0, phase0: 0, atmo: null, ocean: false, gas: false, star: false, children: [],
+    terrain: [], hOff: 0, sky: null, colLand: '#999999', colSoil: '#666666', colWater: '#2a66ad', colMap: '#999999',
+  }, o);
+}
+const SUN = makeBody({ id: 'helion', name: 'Helion', R: 2.0e8, mu: 1.2e18, star: true,
+  colMap: '#ffd35a', colLand: '#fff1b8', colSoil: '#ffb52e', desc: 'The star at the centre of the system. Do not get close.' });
+const CINDER = makeBody({ id: 'cinder', name: 'Cinder', parent: SUN, orbitR: 4.5e9, phase0: 4.0, R: 220000, mu: 3.5 * 2.2e5 * 2.2e5,
+  terrain: [[1400, 3, 0.2], [700, 8, 1.7], [300, 21, 0.9], [120, 57, 2.5], [40, 173, 0.4], [12, 601, 1.2], [4, 1999, 0]],
+  colLand: '#8a5a44', colSoil: '#4e3326', colMap: '#a0624a', desc: 'A scorched, airless rock close to Helion.' });
+const HOME = makeBody({ id: 'verdan', name: 'Verdan', parent: SUN, orbitR: 1.4e10, phase0: 0.3, R: 500000, mu: 9.81 * 500000 * 500000,
+  atmo: { top: 70000, rho0: 1.2, H: 5600 }, ocean: true, pad: true, hOff: 150,
+  terrain: [[380, 3, 0.4], [240, 7, 1.3], [130, 17, 2.1], [55, 41, 0.7], [22, 113, 1.9], [7, 457, 0.3], [2.5, 1601, 0]],
+  sky: ['#3f84dc', '#a8d4ff'], colLand: '#4f8f3a', colSoil: '#5a4632', colWater: '#2a66ad', colMap: '#3d78c0',
+  desc: 'Home. Oceans, hills and a thick blue sky.' });
+const MOON = makeBody({ id: 'pallid', name: 'Pallid', parent: HOME, orbitR: 9.0e6, phase0: 2.4, R: 150000, mu: 1.62 * 150000 * 150000,
+  terrain: [[900, 2, 1], [520, 5, 0.3], [260, 13, 2], [110, 37, 0.5], [45, 97, 1.1], [14, 331, 0.5], [4, 1201, 2.2]],
+  colLand: '#b4b4b9', colSoil: '#77777d', colMap: '#b0b0b6', desc: 'Verdan\'s grey moon. No air.' });
+const OCHRE = makeBody({ id: 'ochre', name: 'Ochre', parent: SUN, orbitR: 2.1e10, phase0: 1.2, R: 320000, mu: 3.0 * 3.2e5 * 3.2e5,
+  atmo: { top: 42000, rho0: 0.15, H: 5000 },
+  terrain: [[1800, 2, 2.2], [900, 5, 0.6], [420, 14, 1.9], [160, 39, 0.2], [60, 101, 2.8], [18, 377, 1.4], [5, 1303, 0.7]],
+  sky: ['#b86a4a', '#e8b48a'], colLand: '#c9743a', colSoil: '#7d4524', colMap: '#d07a3e', desc: 'A dusty red desert world with thin air.' });
+const PIP = makeBody({ id: 'pip', name: 'Pip', parent: OCHRE, orbitR: 1.5e6, phase0: 0.7, R: 25000, mu: 0.2 * 2.5e4 * 2.5e4,
+  terrain: [[900, 3, 0.5], [400, 7, 2.0], [150, 19, 1.1], [50, 53, 0.3], [12, 211, 2.4]],
+  colLand: '#8c8070', colSoil: '#5b5248', colMap: '#9a8d7c', desc: 'A lumpy little moon of Ochre.' });
+const SHARD = makeBody({ id: 'shard', name: 'Shard', parent: OCHRE, orbitR: 3.5e6, phase0: 3.6, R: 40000, mu: 0.3 * 4e4 * 4e4,
+  terrain: [[1500, 2, 1.5], [600, 6, 0.1], [250, 15, 2.2], [80, 47, 1.0], [20, 157, 0.6]],
+  colLand: '#7f7a86', colSoil: '#4c4852', colMap: '#8f8a96', desc: 'Ochre\'s outer moon, a jagged chunk of rock.' });
+const TEMPEST = makeBody({ id: 'tempest', name: 'Tempest', parent: SUN, orbitR: 6.0e10, phase0: 5.1, R: 6.0e6, mu: 8 * 6e6 * 6e6, gas: true,
+  atmo: { top: 300000, rho0: 1.5, H: 30000 }, sky: ['#7a5a3a', '#d8b27a'],
+  colLand: '#e2c79c', colSoil: '#b08a5a', colMap: '#d9b47e', desc: 'A banded gas giant. There is no surface: go too deep and you are crushed.' });
+const GALE = makeBody({ id: 'gale', name: 'Gale', parent: TEMPEST, orbitR: 3.0e7, phase0: 0.9, R: 400000, mu: 6 * 4e5 * 4e5,
+  atmo: { top: 55000, rho0: 0.9, H: 6000 }, ocean: true, hOff: 80,
+  terrain: [[500, 3, 1.1], [300, 8, 2.3], [140, 19, 0.4], [60, 47, 1.6], [20, 131, 2.9], [6, 503, 0.8]],
+  sky: ['#2f8a8a', '#9ad8c8'], colLand: '#3f8f7a', colSoil: '#3d4a3a', colWater: '#1f6f7a', colMap: '#4a9a8a',
+  desc: 'Tempest\'s largest moon, with air and teal seas.' });
+const EMBER = makeBody({ id: 'ember', name: 'Ember', parent: TEMPEST, orbitR: 5.5e7, phase0: 2.2, R: 120000, mu: 1.2 * 1.2e5 * 1.2e5,
+  terrain: [[1100, 3, 2.0], [500, 9, 0.8], [220, 23, 1.7], [90, 61, 0.2], [25, 199, 2.6], [8, 701, 1.0]],
+  colLand: '#5a2a1e', colSoil: '#2e1712', colMap: '#c0442a', desc: 'A volcanic moon of black rock and red glow.' });
+const FROST = makeBody({ id: 'frost', name: 'Frost', parent: TEMPEST, orbitR: 1.0e8, phase0: 4.4, R: 200000, mu: 1.8 * 2e5 * 2e5,
+  terrain: [[600, 2, 0.6], [300, 6, 1.9], [120, 17, 2.7], [50, 43, 1.2], [15, 149, 0.3], [5, 557, 2.0]],
+  colLand: '#dfe9f2', colSoil: '#9fb2c4', colMap: '#e3eef7', desc: 'An icy outer moon of Tempest.' });
+const GLACIS = makeBody({ id: 'glacis', name: 'Glacis', parent: SUN, orbitR: 1.0e11, phase0: 2.7, R: 350000, mu: 4 * 3.5e5 * 3.5e5,
+  atmo: { top: 30000, rho0: 0.25, H: 5000 },
+  terrain: [[700, 2, 2.9], [350, 7, 1.4], [160, 18, 0.5], [60, 49, 2.2], [20, 163, 1.6], [6, 619, 0.2]],
+  sky: ['#6f9ac0', '#d4ecfa'], colLand: '#cfe6f5', colSoil: '#8fb3cf', colMap: '#bfe3f7', desc: 'A frozen ocean world far from Helion.' });
+const UMBRA = makeBody({ id: 'umbra', name: 'Umbra', parent: SUN, orbitR: 1.6e11, phase0: 0.1, R: 120000, mu: 0.6 * 1.2e5 * 1.2e5,
+  terrain: [[1600, 2, 0.4], [700, 5, 2.4], [300, 13, 1.3], [100, 37, 0.6], [30, 121, 2.0], [9, 433, 1.5]],
+  colLand: '#4a3d5c', colSoil: '#2a2236', colMap: '#6a5a84', desc: 'A dark dwarf world at the edge of the system.' });
+
+const BODIES = [SUN, CINDER, HOME, MOON, OCHRE, PIP, SHARD, TEMPEST, GALE, EMBER, FROST, GLACIS, UMBRA];
+SUN.soi = Infinity;
+for (const b of BODIES) {
+  if (!b.parent) continue;
+  b.parent.children.push(b);
+  b.n = Math.sqrt(b.parent.mu / Math.pow(b.orbitR, 3));
+  b.soi = b.orbitR * Math.pow(b.mu / b.parent.mu, 0.4);
+}
+const BODY_BY_ID = Object.fromEntries(BODIES.map((b) => [b.id, b]));
+const HOME_CHAIN = new Set([HOME, SUN]);
 const PAD_PHI = Math.PI / 2;
 
-function bodyPos(b, t) {
-  if (!b.orbitR) return [0, 0];
-  const a = b.phase0 + b.n * t;
-  return [b.orbitR * Math.cos(a), b.orbitR * Math.sin(a)];
+/* Position, velocity and acceleration of `b` relative to the world origin (Verdan), as
+   [x, y, vx, vy, ax, ay]. Offsets are summed only up to the nearest ancestor shared with Verdan,
+   so nearby bodies keep full precision. Cached per body for the last time asked. */
+function bodyState(b, t) {
+  if (b === HOME) return [0, 0, 0, 0, 0, 0];
+  if (b._t === t) return b._s;
+  let anc = b;
+  while (!HOME_CHAIN.has(anc)) anc = anc.parent;
+  const s = [0, 0, 0, 0, 0, 0];
+  const add = (x, sign) => {
+    for (; x !== anc; x = x.parent) {
+      const a = x.phase0 + x.n * t, c = Math.cos(a), sn = Math.sin(a), r = x.orbitR, n = x.n;
+      s[0] += sign * r * c; s[1] += sign * r * sn;
+      s[2] -= sign * r * n * sn; s[3] += sign * r * n * c;
+      s[4] -= sign * n * n * r * c; s[5] -= sign * n * n * r * sn;
+    }
+  };
+  add(b, 1);
+  add(HOME, -1);
+  b._t = t;
+  b._s = s;
+  return s;
 }
-function bodyVel(b, t) {
-  if (!b.orbitR) return [0, 0];
-  const a = b.phase0 + b.n * t, s = b.orbitR * b.n;
-  return [-s * Math.sin(a), s * Math.cos(a)];
-}
+function inHomeSystem(b) { for (let x = b; x; x = x.parent) if (x === HOME) return true; return false; }
+function bodyPos(b, t) { const s = bodyState(b, t); return [s[0], s[1]]; }
+function bodyVel(b, t) { const s = bodyState(b, t); return [s[2], s[3]]; }
+
+/* Deepest sphere of influence containing the point. */
 function soiBody(x, y, t) {
-  const m = bodyPos(MOON, t);
-  return Math.hypot(x - m[0], y - m[1]) < MOON.soi ? MOON : HOME;
+  let b = SUN;
+  outer: for (;;) {
+    for (const c of b.children) {
+      const s = bodyState(c, t);
+      if (Math.hypot(x - s[0], y - s[1]) < c.soi) { b = c; continue outer; }
+    }
+    return b;
+  }
 }
-/* Gravity from the body whose sphere of influence we are in (patched conics).
-   Inside the moon's SOI we add the moon's own acceleration so motion relative to it is Keplerian. */
+
+/* Gravity from the body whose sphere of influence we are in (patched conics), plus that body's own
+   acceleration in the world frame, so motion relative to it is exactly Keplerian. */
 function gravAcc(b, x, y, t) {
-  const bp = bodyPos(b, t);
-  const dx = x - bp[0], dy = y - bp[1];
+  const s = bodyState(b, t);
+  const dx = x - s[0], dy = y - s[1];
   const r2 = dx * dx + dy * dy, r = Math.sqrt(r2);
   const k = -b.mu / (r2 * r);
-  let ax = dx * k, ay = dy * k;
-  if (b.orbitR) { const n2 = b.n * b.n; ax -= n2 * bp[0]; ay -= n2 * bp[1]; }
-  return [ax, ay];
+  return [dx * k + s[4], dy * k + s[5]];
 }
 
 function terrainH(b, phi) {
-  if (b === HOME) {
-    const h = 380 * Math.sin(3 * phi + 0.4) + 240 * Math.sin(7 * phi + 1.3) + 130 * Math.sin(17 * phi + 2.1) +
-      55 * Math.sin(41 * phi + 0.7) + 22 * Math.sin(113 * phi + 1.9) + 7 * Math.sin(457 * phi + 0.3) +
-      2.5 * Math.sin(1601 * phi) + 150;
-    const d = Math.abs(wrapPi(phi - PAD_PHI));
-    const k = smoothstep(0.0004, 0.006, d);
-    return h * k + 4 * (1 - k);
+  let h = b.hOff;
+  for (const [a, f, p] of b.terrain) h += a * Math.sin(f * phi + p);
+  if (b.pad) {
+    const k = smoothstep(0.0004, 0.006, Math.abs(wrapPi(phi - PAD_PHI)));
+    h = h * k + 4 * (1 - k);
   }
-  return 900 * Math.sin(2 * phi + 1) + 520 * Math.sin(5 * phi + 0.3) + 260 * Math.sin(13 * phi + 2) +
-    110 * Math.sin(37 * phi + 0.5) + 45 * Math.sin(97 * phi + 1.1) + 14 * Math.sin(331 * phi + 0.5) +
-    4 * Math.sin(1201 * phi + 2.2);
+  return h;
 }
 function groundAlt(b, phi) { const h = terrainH(b, phi); return b.ocean ? Math.max(h, 0) : h; }
+
+/* Lowest altitude for time warp level `idx` (rails warp only), scaled by the body's size. */
+const WARP_ALT = [0, 0, 0, 0, 0, 2000, 5000, 15000, 40000, 100000, 300000];
+function warpBase(b) { return b.star ? b.R * 0.5 : b.atmo ? b.atmo.top : Math.max(3000, b.R * 0.03); }
+function warpMinAlt(b, idx) { return idx <= 3 ? -Infinity : warpBase(b) + WARP_ALT[idx] * Math.max(0.1, b.R / HOME.R); }
+
+/* Largest safe integration step: a fraction of the local orbit, and short enough not to jump
+   over a sphere-of-influence boundary. */
+function stepLimit(b, x, y, vx, vy, t, frac, cap) {
+  const s = bodyState(b, t);
+  const rx = x - s[0], ry = y - s[1], r = Math.hypot(rx, ry);
+  let dt = frac * TAU * Math.sqrt((r * r * r) / b.mu);
+  const v = Math.hypot(vx - s[2], vy - s[3]) + 1;
+  for (const c of b.children) {
+    const p = bodyState(c, t);
+    const d = Math.hypot(x - p[0], y - p[1]) - c.soi;
+    dt = Math.min(dt, Math.max(20, (0.3 * d) / (v + c.orbitR * c.n)));
+  }
+  if (b.parent) dt = Math.min(dt, Math.max(20, (0.3 * (b.soi - r)) / v));
+  return clamp(dt, 0.05, cap);
+}
 
 function atmo(b, alt) {
   if (!b.atmo || alt >= b.atmo.top) return { rho: 0, p: 0 };
@@ -259,10 +368,8 @@ function predictPath(x, y, vx, vy, t0) {
   let bp = bodyPos(b, t);
   let lastAng = Math.atan2(y - bp[1], x - bp[0]);
   let swept = 0, switches = 0;
-  for (let i = 0; i < 5000; i++) {
-    bp = bodyPos(b, t);
-    const r = Math.hypot(s[0] - bp[0], s[1] - bp[1]);
-    const dt = clamp(0.004 * TAU * Math.sqrt((r * r * r) / b.mu), 0.5, 600);
+  for (let i = 0; i < 6000; i++) {
+    const dt = stepLimit(b, s[0], s[1], s[2], s[3], t, 0.004, 2e6);
     rk4Step(b, s, t, dt);
     t += dt;
     const nb = soiBody(s[0], s[1], t);
@@ -272,7 +379,7 @@ function predictPath(x, y, vx, vy, t0) {
       bp = bodyPos(b, t);
       lastAng = Math.atan2(s[1] - bp[1], s[0] - bp[0]);
       pts.push({ x: s[0], y: s[1], t, b });
-      if (switches >= 3) break;
+      if (switches >= 4) break;
       continue;
     }
     bp = bodyPos(b, t);
@@ -283,8 +390,7 @@ function predictPath(x, y, vx, vy, t0) {
     pts.push({ x: s[0], y: s[1], t, b });
     if (rr < b.R + groundAlt(b, ang)) { events.push({ type: 'impact', b, t, idx: pts.length - 1 }); break; }
     if (swept > TAU + 0.01) break;
-    if (b === HOME && rr > MOON.orbitR * 2.5) { events.push({ type: 'escape', t }); break; }
-    if (t - t0 > 8e6) break;
+    if (t - t0 > 3e8) break;
   }
   return { pts, events };
 }

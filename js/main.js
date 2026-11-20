@@ -74,7 +74,12 @@ its Δv (how much speed it can add) and TWR (thrust-to-weight; above 1 to lift o
 when you're slow. Touch down under 6 m/s (12 m/s with landing legs, 10 m/s in water).</p>
 <h3>Reaching Pallid</h3>
 <p>From orbit, burn prograde when Pallid is rising over the horizon, about 110° ahead of you. Watch the map until your path shows a
-<b>Pallid encounter</b>. Pallid has no air, so you have to land with your engine. Pack landing legs.</p>`;
+<b>Pallid encounter</b>. Pallid has no air, so you have to land with your engine. Pack landing legs.</p>
+<h3>Other worlds</h3>
+<p>Verdan orbits the star <b>Helion</b> with six planets: hot <b>Cinder</b>, desert <b>Ochre</b> (moons Pip and Shard), the gas
+giant <b>Tempest</b> (moons Gale, Ember and Frost), icy <b>Glacis</b> and distant <b>Umbra</b>. To reach one, burn prograde from
+orbit to escape Verdan (try about 1,000 m/s for Ochre), then use the map: zoom out, click a planet to focus it, and adjust your
+burn until the path shows an encounter. Time warp goes up to 1,000,000× in deep space. Tempest has no surface, so don't sink into it.</p>`;
 
 function showHelp() {
   const wasRunning = F.running;
@@ -82,11 +87,23 @@ function showHelp() {
 }
 
 function showMilestones() {
-  const got = Store.get('milestones', {});
+  const got = loadMilestones();
   const items = MILESTONES.map((m) => `<li class="${got[m.id] ? 'done' : ''}"><span class="chk">${got[m.id] ? '★' : '☆'}</span>
     <div><b>${m.name}</b><div class="muted">${m.desc}</div></div></li>`).join('');
-  const n = MILESTONES.filter((m) => got[m.id]).length;
-  showModal(`<h2>Milestones · ${n}/${MILESTONES.length}</h2><ul class="milestones">${items}</ul>`,
+  let total = MILESTONES.length, n = MILESTONES.filter((m) => got[m.id]).length;
+  const rows = BODIES.filter((b) => b !== HOME && !b.star).map((b) => {
+    const cells = MILESTONE_KINDS.map((k) => {
+      if (k.solid && b.gas) return '<td class="na">—</td>';
+      const id = `${k.k}_${b.id}`;
+      total++;
+      if (got[id]) n++;
+      return `<td class="${got[id] ? 'done' : ''}" title="${k.desc(b)}">${got[id] ? '★' : '☆'}</td>`;
+    }).join('');
+    const depth = b.parent === SUN ? '' : ' class="moon"';
+    return `<tr><th${depth} title="${b.desc}"><span class="dot" style="background:${b.colMap}"></span>${b.name}</th>${cells}</tr>`;
+  }).join('');
+  showModal(`<h2>Milestones · ${n}/${total}</h2><ul class="milestones">${items}</ul>
+    <h3>Worlds</h3><table class="mtable"><tr><th></th>${MILESTONE_KINDS.map((k) => `<th>${k.label}</th>`).join('')}</tr>${rows}</table>`,
     [{ label: 'Close', cls: 'primary', fn: hideModal }]);
 }
 
@@ -102,7 +119,7 @@ function openMenu() {
 }
 
 function showCrashModal() {
-  showModal(`<h2>Vessel destroyed</h2><p>${F.craftName} was lost after ${fmtClock(F.t).slice(3)}.</p>
+  showModal(`<h2>Vessel destroyed</h2><p>${F.craftName} was lost after ${fmtClock(F.t).slice(3)}. ${F.deathReason || ''}.</p>
     <p class="muted">Tip: land under 6 m/s, or 12 m/s with landing legs. Deploy the parachute well before the ground.</p>`, [
     { label: 'Revert to launch', cls: 'primary', fn: () => { hideModal(); flightStart(F.design, F.craftName); } },
     { label: 'Back to hangar', fn: showHangar },
@@ -110,12 +127,13 @@ function showCrashModal() {
 }
 
 function recover() {
-  const names = F.flightMilestones.map((id) => MILESTONES.find((m) => m.id === id)).filter(Boolean).map((m) => `<li>★ ${m.name}</li>`).join('');
+  const names = F.flightMilestones.map((id) => `<li>★ ${milestoneName(id)}</li>`).join('');
+  const visited = F.flags.visited.map((id) => BODY_BY_ID[id].name + (F.flags.landedOn.includes(id) ? ' (landed)' : '')).join(', ');
   F.endShown = true;
   showModal(`<h2>Vessel recovered</h2>
     <div class="kv"><span>Mission time</span><b>${fmtClock(F.t).slice(3)}</b></div>
     <div class="kv"><span>Highest altitude</span><b>${fmtDist(F.flags.maxAlt)}</b></div>
-    <div class="kv"><span>Visited Pallid</span><b>${F.flags.landedMoon ? 'Landed!' : F.flags.moon ? 'Yes' : 'No'}</b></div>
+    <div class="kv"><span>Worlds visited</span><b>${visited || 'None yet'}</b></div>
     ${names ? `<h3>Milestones this flight</h3><ul class="plain">${names}</ul>` : ''}`, [
     { label: 'Back to hangar', cls: 'primary', fn: showHangar },
     { label: 'Fly again', fn: () => { hideModal(); flightStart(F.design, F.craftName); } },
@@ -161,7 +179,7 @@ function onKeyDown(e) {
     case 'KeyX': if (!c.dead) c.throttle = 0; break;
     case 'KeyT': setSas(F.sas === 'off' ? 'stab' : 'off'); break;
     case 'KeyR': toggleRcs(); break;
-    case 'KeyF': F.mapFocus = (F.mapFocus + 1) % 4; if (F.mapFocus !== 1) F.mapZoom = 0; break;
+    case 'KeyF': cycleMapFocus(); break;
     case 'Escape': openMenu(); break;
     case 'Equal': case 'NumpadAdd': zoomBy(1.25); break;
     case 'Minus': case 'NumpadSubtract': zoomBy(0.8); break;
@@ -170,7 +188,7 @@ function onKeyDown(e) {
   }
 }
 function zoomBy(f) {
-  if (F.map) F.mapZoom = clamp(F.mapZoom * f, 1e-6, 2);
+  if (F.map) F.mapZoom = clamp(F.mapZoom * f, 1e-10, 2);
   else F.zoom = clamp(F.zoom * f, 2e-5, 40);
 }
 
@@ -178,6 +196,7 @@ function wireUi() {
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', (e) => { F.keys[e.code] = false; });
   window.addEventListener('blur', () => { for (const k in F.keys) F.keys[k] = false; });
+  $('game').addEventListener('click', (e) => { if (F.map) mapClick(e.clientX, e.clientY); });
   $('game').addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
   window.addEventListener('resize', () => { if (!F.running) { Hangar.view = null; drawBuild(); } });
 
