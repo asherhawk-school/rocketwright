@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rocketwright</title>
+<meta name="description" content="Build rockets, fly them to orbit and land on the moon. A 2D spaceflight sandbox that runs in your browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2c5 5 6 12 4 20h-8c-2-8-1-15 4-20z' fill='%23eef1f5'/%3E%3Cpath d='M12 22h8l-1 4h-6z' fill='%23555'/%3E%3Cpath d='M14 26h4l-2 5z' fill='%23ff9a3c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="hangar" class="screen">
+  <header class="topbar">
+    <div class="brand"><span class="logo">▲</span>ROCKETWRIGHT<span class="sub">Hangar</span></div>
+    <div class="topbtns">
+      <button id="btnMilestones">Milestones</button>
+      <button id="btnHelp">How to play</button>
+    </div>
+  </header>
+  <div class="hangar-body">
+    <aside id="palette" class="panel"></aside>
+    <main id="buildArea">
+      <canvas id="buildCanvas"></canvas>
+      <div id="buildHint">Click a part to add it below the selected part · click the rocket to select · Del removes · Shift+↑/↓ moves</div>
+      <div id="selTools" class="hidden">
+        <span id="selName"></span>
+        <button id="selUp" title="Move up">▲</button>
+        <button id="selDown" title="Move down">▼</button>
+        <button id="selDel" title="Remove">✕</button>
+      </div>
+    </main>
+    <aside id="stats" class="panel">
+      <label class="field">Craft name<input id="craftName" maxlength="32" autocomplete="off"></label>
+      <select id="loadSelect"></select>
+      <div class="row"><button id="btnSave">Save</button><button id="btnClear">Clear</button></div>
+      <div id="statSummary"></div>
+      <h3>Staging <span class="muted small">(Space fires each step)</span></h3>
+      <div id="stageList"></div>
+      <div id="warnings"></div>
+      <button id="btnLaunch" class="launch">LAUNCH</button>
+    </aside>
+  </div>
+</div>
+
+<div id="flight" class="screen hidden">
+  <canvas id="game"></canvas>
+
+  <div id="hudTop" class="hud">
+    <div class="label">ALTITUDE</div>
+    <div id="hAlt" class="big">0 m</div>
+    <div class="row-mini">
+      <span>Speed <b id="hSpd">0</b></span>
+      <span>Vertical <b id="hVs">0</b></span>
+      <span id="hRadarW">Radar <b id="hRadar">0</b></span>
+    </div>
+  </div>
+
+  <div id="hudLeft" class="hud card">
+    <div class="card-title" id="hBody">Verdan</div>
+    <div class="kv"><span>Apoapsis</span><b id="hAp">—</b></div>
+    <div class="kv"><span>Periapsis</span><b id="hPe">—</b></div>
+    <div class="kv"><span>Time to Ap</span><b id="hTAp">—</b></div>
+    <div class="kv"><span>Time to Pe</span><b id="hTPe">—</b></div>
+    <div class="kv"><span>Period</span><b id="hPer">—</b></div>
+    <div class="kv enc hidden" id="hEncRow"><span id="hEncLabel">Encounter</span><b id="hEnc"></b></div>
+  </div>
+
+  <div id="hudRight" class="hud card">
+    <div id="hClock" class="clock">T+ 00:00:00</div>
+    <div class="warp">
+      <button id="bWarpDn" title="Slower (,)">◀◀</button>
+      <span id="hWarp">1×</span>
+      <button id="bWarpUp" title="Faster (.)">▶▶</button>
+    </div>
+    <div class="btnrow">
+      <button id="bMap">Map (M)</button>
+      <button id="bMenu">Menu (Esc)</button>
+    </div>
+    <button id="bRecover" class="hidden primary">Recover vessel</button>
+  </div>
+
+  <div id="hudBottom" class="hud">
+    <div class="nav-wrap card">
+      <canvas id="navball" style="width:150px;height:150px"></canvas>
+      <div id="hPitch" class="pitch">PITCH 90°</div>
+      <div id="sasBtns">
+        <button data-sas="off" title="SAS off (1)">Off</button>
+        <button data-sas="stab" title="Hold heading (2)">Hold</button>
+        <button data-sas="pro" title="Prograde (3)">Pro</button>
+        <button data-sas="retro" title="Retrograde (4)">Retro</button>
+        <button data-sas="radout" title="Radial out / up (5)">Up</button>
+        <button data-sas="radin" title="Radial in / down (6)">Down</button>
+      </div>
+    </div>
+    <div class="thr-wrap card">
+      <div class="label">THR</div>
+      <div id="thrBar"><div id="thrFill"></div></div>
+      <div id="thrPct">0%</div>
+    </div>
+    <div class="stage-wrap card">
+      <div class="kv"><span>Stage Δv</span><b id="hDv">—</b></div>
+      <div class="kv"><span>Total Δv</span><b id="hDvT">—</b></div>
+      <div class="kv"><span>TWR</span><b id="hTwr">0.00</b></div>
+      <div class="fuel" id="fLiqRow"><span>Fuel</span><div class="bar"><div id="fLiq"></div></div></div>
+      <div class="fuel" id="fSolRow"><span>Solid</span><div class="bar solid"><div id="fSol"></div></div></div>
+      <div id="hNext" class="next"></div>
+      <button id="bStage" class="stage-btn">STAGE <small>(Space)</small></button>
+    </div>
+  </div>
+
+  <div id="touchPad" class="hud">
+    <button data-hold="vRotL">⟲</button>
+    <button data-hold="vRotR">⟳</button>
+    <button data-hold="vThrUp">THR +</button>
+    <button data-hold="vThrDn">THR −</button>
+  </div>
+
+  <div id="mapHint" class="hidden"></div>
+  <div id="msg"></div>
+</div>
+
+<div id="toast"></div>
+<div id="modal" class="hidden"><div class="modal-card" id="modalCard"></div></div>
+
+<script src="js/data.js"></script>
+<script src="js/vessel.js"></script>
+<script src="js/render.js"></script>
+<script src="js/flight.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
