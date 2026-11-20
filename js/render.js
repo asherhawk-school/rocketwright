@@ -1,6 +1,7 @@
 'use strict';
 /* Rocketwright — drawing helpers shared by the hangar and flight views.
-   All part drawing happens in "local" metres: x lateral, y up along the stack, nose at y = 0. */
+   Parts are drawn in craft-local metres: x lateral, y up. Each part knows its own x, top, bot and
+   whether it is mirrored (side parts on the left). */
 
 function cylGrad(ctx, x0, x1, c0, c1, c2) {
   const g = ctx.createLinearGradient(x0, 0, x1, 0);
@@ -13,119 +14,179 @@ function poly(ctx, pts) {
   for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
   ctx.closePath();
 }
+const OUTLINE = 'rgba(12,15,22,0.9)';
+const METAL = ['#9aa0a8', '#f4f5f7', '#858b94'];
+const DARK = ['#3a3f47', '#7b838f', '#30343b'];
 
-function drawPart(ctx, p, lw, footY) {
-  const d = p.def, top = p.top, bot = p.bot, h = d.h;
+/* Draw one part. In the part's own frame +x points away from the craft centreline for side parts. */
+function drawPart(ctx, p, lw) {
+  const d = p.def, h = d.h, top = p.top, bot = p.bot;
+  const hw = d.w / 2, hb = (d.wb !== undefined ? d.wb : d.w) / 2;
+  ctx.save();
+  ctx.translate(p.x, 0);
+  if (p.flip) ctx.scale(-1, 1);
   ctx.lineWidth = lw;
-  ctx.strokeStyle = 'rgba(12,15,22,0.9)';
+  ctx.strokeStyle = OUTLINE;
   ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
   switch (d.kind) {
     case 'pod': {
-      ctx.fillStyle = cylGrad(ctx, -1, 1, '#8a9099', '#f2f4f7', '#727882');
-      poly(ctx, [[-1, bot + 0.12], [1, bot + 0.12], [0.42, top], [-0.42, top]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = cylGrad(ctx, -hb, hb, '#8a9099', '#f2f4f7', '#727882');
+      poly(ctx, [[-hb, bot + 0.12], [hb, bot + 0.12], [hw * 0.93, top], [-hw * 0.93, top]]); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#6b4a2e';
-      poly(ctx, [[-1.02, bot], [1.02, bot], [1.0, bot + 0.14], [-1.0, bot + 0.14]]); ctx.fill(); ctx.stroke();
+      poly(ctx, [[-hb - 0.02, bot], [hb + 0.02, bot], [hb, bot + 0.14], [-hb, bot + 0.14]]); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#1d3a5c';
       poly(ctx, [[-0.32, bot + 0.62], [0.32, bot + 0.62], [0.24, bot + 1.0], [-0.24, bot + 1.0]]); ctx.fill();
       ctx.fillStyle = 'rgba(160,215,255,0.55)';
       poly(ctx, [[-0.26, bot + 0.66], [-0.06, bot + 0.66], [-0.12, bot + 0.95], [-0.2, bot + 0.95]]); ctx.fill();
-      ctx.fillStyle = '#c94a2c'; ctx.fillRect(-0.42, top - 0.08, 0.84, 0.08);
+      ctx.fillStyle = '#c94a2c'; ctx.fillRect(-hw * 0.93, top - 0.08, hw * 1.86, 0.08);
       break;
     }
     case 'chute': {
-      ctx.fillStyle = cylGrad(ctx, -0.5, 0.5, '#9c3a1f', '#f06a3c', '#8a321a');
-      poly(ctx, [[-0.42, bot], [0.42, bot], [0.3, top], [-0.3, top]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#9c3a1f', '#f06a3c', '#8a321a');
+      poly(ctx, [[-hw * 0.93, bot], [hw * 0.93, bot], [hw * 0.66, top], [-hw * 0.66, top]]); ctx.fill(); ctx.stroke();
       break;
     }
     case 'wheel': {
-      ctx.fillStyle = cylGrad(ctx, -1, 1, '#3a3f47', '#7b838f', '#30343b');
-      ctx.fillRect(-1, bot, 2, h); ctx.strokeRect(-1, bot, 2, h);
-      ctx.fillStyle = '#e0b030'; ctx.fillRect(-1, bot + h * 0.4, 2, h * 0.2);
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, ...DARK);
+      ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#e0b030'; ctx.fillRect(-hw, bot + h * 0.4, 2 * hw, h * 0.2);
       break;
     }
     case 'tank': {
-      ctx.fillStyle = cylGrad(ctx, -1, 1, '#9aa0a8', '#f4f5f7', '#858b94');
-      ctx.fillRect(-1, bot, 2, h); ctx.strokeRect(-1, bot, 2, h);
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, ...METAL);
+      ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
       ctx.fillStyle = '#3b414b';
-      ctx.fillRect(-1, top - 0.1, 2, 0.1); ctx.fillRect(-1, bot, 2, 0.1);
+      ctx.fillRect(-hw, top - 0.1, 2 * hw, 0.1); ctx.fillRect(-hw, bot, 2 * hw, 0.1);
       if (h > 1.5) {
-        ctx.fillStyle = '#2b2f36';
+        ctx.fillStyle = hw > 1.2 ? '#c8642c' : '#2b2f36';
         const n = Math.round(h / 1.8);
-        for (let i = 1; i <= n; i++) { const y = bot + (h * i) / (n + 1); ctx.fillRect(-1, y - 0.06, 2, 0.12); }
+        for (let i = 1; i <= n; i++) { const y = bot + (h * i) / (n + 1); ctx.fillRect(-hw, y - 0.06, 2 * hw, 0.12); }
       }
-      // fuel gauge
       const frac = d.fuel ? p.fuel / d.fuel : 0;
-      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(0.62, bot + 0.18, 0.14, h - 0.36);
-      ctx.fillStyle = '#f0a030'; ctx.fillRect(0.62, bot + 0.18, 0.14, (h - 0.36) * frac);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(hw * 0.62, bot + 0.18, 0.14, h - 0.36);
+      ctx.fillStyle = '#f0a030'; ctx.fillRect(hw * 0.62, bot + 0.18, 0.14, (h - 0.36) * frac);
+      break;
+    }
+    case 'radtank': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, ...METAL);
+      ctx.beginPath(); ctx.roundRect(-hw, bot, 2 * hw, h, hw * 0.9); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#2b2f36'; ctx.fillRect(-hw, bot + h * 0.47, 2 * hw, 0.1);
+      const frac = d.fuel ? p.fuel / d.fuel : 0;
+      ctx.fillStyle = '#f0a030'; ctx.fillRect(hw * 0.25, bot + 0.3, 0.1, (h - 0.6) * frac);
+      break;
+    }
+    case 'monotank': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#7f9a86', '#e4f2e6', '#6f8a76');
+      ctx.beginPath(); ctx.ellipse(0, bot + h / 2, hw, h / 2, 0, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = '#3d5a45'; ctx.beginPath(); ctx.moveTo(-hw, bot + h / 2); ctx.lineTo(hw, bot + h / 2); ctx.stroke();
       break;
     }
     case 'decoupler': {
-      ctx.fillStyle = '#2a2e35'; ctx.fillRect(-1.04, bot, 2.08, h); ctx.strokeRect(-1.04, bot, 2.08, h);
-      ctx.fillStyle = '#e8b923'; ctx.fillRect(-1.04, bot + h * 0.38, 2.08, h * 0.24);
+      ctx.fillStyle = '#2a2e35'; ctx.fillRect(-hw - 0.04, bot, 2 * hw + 0.08, h); ctx.strokeRect(-hw - 0.04, bot, 2 * hw + 0.08, h);
+      ctx.fillStyle = '#e8b923'; ctx.fillRect(-hw - 0.04, bot + h * 0.38, 2 * hw + 0.08, h * 0.24);
       break;
     }
-    case 'legs': {
-      const fy = footY !== undefined ? footY : bot - 0.9;
-      ctx.strokeStyle = '#59606b'; ctx.lineWidth = 0.14; ctx.lineCap = 'round';
-      for (const s of [-1, 1]) {
-        ctx.beginPath();
-        ctx.moveTo(s * 0.95, top - 0.1); ctx.lineTo(s * 2.3, fy + 0.1);
-        ctx.moveTo(s * 0.95, bot + 0.05); ctx.lineTo(s * 1.75, lerp(bot, fy, 0.55));
-        ctx.stroke();
-      }
-      ctx.fillStyle = '#3a3f47';
-      for (const s of [-1, 1]) ctx.fillRect(s * 2.3 - 0.35, fy, 0.7, 0.12);
-      ctx.lineWidth = lw; ctx.strokeStyle = 'rgba(12,15,22,0.9)';
-      ctx.fillStyle = cylGrad(ctx, -1, 1, '#4a505a', '#9aa2ad', '#40454d');
-      ctx.fillRect(-1, bot, 2, h); ctx.strokeRect(-1, bot, 2, h);
+    case 'raddec': {
+      ctx.fillStyle = '#2a2e35'; ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = d.crossfeed ? '#4fd1ff' : '#e8b923'; ctx.fillRect(-hw * 0.3, bot + 0.1, hw * 0.6, h - 0.2);
+      break;
+    }
+    case 'adapter': {
+      ctx.fillStyle = cylGrad(ctx, -Math.max(hw, hb), Math.max(hw, hb), ...METAL);
+      poly(ctx, [[-hb, bot], [hb, bot], [hw, top], [-hw, top]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#3b414b'; ctx.fillRect(-hb, bot, 2 * hb, 0.08); ctx.fillRect(-hw, top - 0.08, 2 * hw, 0.08);
+      break;
+    }
+    case 'nose': {
+      ctx.fillStyle = cylGrad(ctx, -hb, hb, ...METAL);
+      ctx.beginPath();
+      ctx.moveTo(-hb, bot); ctx.lineTo(hb, bot);
+      ctx.quadraticCurveTo(hb, bot + h * 0.75, hw, top);
+      ctx.lineTo(-hw, top);
+      ctx.quadraticCurveTo(-hb, bot + h * 0.75, -hb, bot);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#c8402f'; ctx.fillRect(-hb, bot, 2 * hb, 0.12);
+      break;
+    }
+    case 'pylon': {
+      ctx.fillStyle = '#4a505a'; ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.strokeStyle = '#9aa2ad'; ctx.lineWidth = Math.max(lw, 0.05);
+      ctx.beginPath();
+      for (let y = bot; y < top - 0.01; y += 2 * hw) { ctx.moveTo(-hw, y); ctx.lineTo(hw, Math.min(top, y + 2 * hw)); }
+      ctx.stroke();
       break;
     }
     case 'fins': {
       ctx.fillStyle = '#c23b2a';
-      for (const s of [-1, 1]) {
-        poly(ctx, [[s * 1, top + 0.6], [s * 1.85, bot - 0.5], [s * 1.85, bot - 1.1], [s * 1, bot - 0.7]]);
-        ctx.fill(); ctx.stroke();
-      }
-      ctx.fillStyle = cylGrad(ctx, -1, 1, '#4a505a', '#9aa2ad', '#40454d');
-      ctx.fillRect(-1, bot, 2, h); ctx.strokeRect(-1, bot, 2, h);
+      poly(ctx, [[-hw, top], [hw, bot + h * 0.32], [hw, bot], [-hw, bot]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      poly(ctx, [[-hw, top], [-hw + 0.12, top - 0.2], [-hw + 0.12, bot], [-hw, bot]]); ctx.fill();
+      break;
+    }
+    case 'legs': {
+      const fx = p.footX !== undefined ? Math.abs(p.footX - p.x) : 1.3;
+      const fy = p.footY !== undefined ? p.footY : bot - 0.9;
+      ctx.strokeStyle = '#59606b'; ctx.lineWidth = 0.14;
+      ctx.beginPath();
+      ctx.moveTo(-hw + 0.15, top - 0.15); ctx.lineTo(fx, fy + 0.1);
+      ctx.moveTo(-hw + 0.15, bot + 0.1); ctx.lineTo(lerp(-hw, fx, 0.6), lerp(bot, fy, 0.55));
+      ctx.stroke();
+      ctx.fillStyle = '#3a3f47'; ctx.fillRect(fx - 0.35, fy, 0.7, 0.12);
+      ctx.lineWidth = lw; ctx.strokeStyle = OUTLINE;
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#4a505a', '#9aa2ad', '#40454d');
+      ctx.fillRect(-hw, bot, 2 * hw * 0.55, h); ctx.strokeRect(-hw, bot, 2 * hw * 0.55, h);
+      break;
+    }
+    case 'rcs': {
+      ctx.fillStyle = '#d8d0b8'; ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#2f3238';
+      poly(ctx, [[hw, bot + h * 0.35], [hw + 0.15, bot + h * 0.25], [hw + 0.15, bot + h * 0.75], [hw, bot + h * 0.65]]); ctx.fill();
+      poly(ctx, [[-0.08, top], [0.08, top], [0.13, top + 0.12], [-0.13, top + 0.12]]); ctx.fill();
+      poly(ctx, [[-0.08, bot], [0.08, bot], [0.13, bot - 0.12], [-0.13, bot - 0.12]]); ctx.fill();
       break;
     }
     case 'engine': {
       const mh = h * 0.3, bw = d.bell / 2;
       ctx.fillStyle = '#3a3f48';
-      poly(ctx, [[-1, top], [1, top], [0.55, top - mh], [-0.55, top - mh]]); ctx.fill(); ctx.stroke();
+      poly(ctx, [[-hw, top], [hw, top], [hw * 0.55, top - mh], [-hw * 0.55, top - mh]]); ctx.fill(); ctx.stroke();
       ctx.fillStyle = cylGrad(ctx, -bw, bw, '#2a2d33', '#9aa0aa', '#24272c');
-      const yb = top - mh;
+      const yb = top - mh, tw = Math.min(0.38, hw * 0.4);
       ctx.beginPath();
-      ctx.moveTo(-0.38, yb); ctx.lineTo(0.38, yb);
-      ctx.quadraticCurveTo(0.42, lerp(yb, bot, 0.65), bw, bot);
+      ctx.moveTo(-tw, yb); ctx.lineTo(tw, yb);
+      ctx.quadraticCurveTo(tw * 1.1, lerp(yb, bot, 0.65), bw, bot);
       ctx.lineTo(-bw, bot);
-      ctx.quadraticCurveTo(-0.42, lerp(yb, bot, 0.65), -0.38, yb);
+      ctx.quadraticCurveTo(-tw * 1.1, lerp(yb, bot, 0.65), -tw, yb);
       ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#5b616b'; ctx.fillRect(-bw, bot, 2 * bw, 0.07);
       break;
     }
     case 'srb': {
-      const nz = 0.55;
-      ctx.fillStyle = cylGrad(ctx, -0.92, 0.92, '#a7abb2', '#fbfbfb', '#8f949c');
-      ctx.fillRect(-0.92, bot + nz, 1.84, h - nz); ctx.strokeRect(-0.92, bot + nz, 1.84, h - nz);
+      const nz = Math.min(0.55, h * 0.18), bw = hw * 0.92;
+      ctx.fillStyle = cylGrad(ctx, -bw, bw, '#a7abb2', '#fbfbfb', '#8f949c');
+      ctx.fillRect(-bw, bot + nz, 2 * bw, h - nz); ctx.strokeRect(-bw, bot + nz, 2 * bw, h - nz);
       ctx.fillStyle = '#c8402f';
-      for (const f of [0.18, 0.55]) ctx.fillRect(-0.92, bot + nz + (h - nz) * f, 1.84, 0.3);
-      ctx.fillStyle = '#3b414b'; ctx.fillRect(-0.92, top - 0.12, 1.84, 0.12);
+      for (const f of [0.18, 0.55]) ctx.fillRect(-bw, bot + nz + (h - nz) * f, 2 * bw, 0.3);
+      ctx.fillStyle = '#3b414b'; ctx.fillRect(-bw, top - 0.12, 2 * bw, 0.12);
       ctx.fillStyle = '#2f3238';
-      poly(ctx, [[-0.35, bot + nz], [0.35, bot + nz], [0.62, bot], [-0.62, bot]]); ctx.fill(); ctx.stroke();
+      poly(ctx, [[-bw * 0.38, bot + nz], [bw * 0.38, bot + nz], [bw * 0.67, bot], [-bw * 0.67, bot]]); ctx.fill(); ctx.stroke();
       break;
     }
   }
+  ctx.restore();
 }
+
+function flameHalfWidth(d) { return d.kind === 'srb' ? (d.w / 2) * 0.62 : d.bell / 2; }
 
 function drawFlame(ctx, p, pressure, flick) {
   const d = p.def;
-  const bw = d.kind === 'srb' ? 0.62 : d.bell / 2;
+  const bw = flameHalfWidth(d);
   const vac = 1 - clamp(pressure, 0, 1);
   const L = (2.5 + 6 * p.burn) * (1 + 1.6 * vac) * Math.pow(d.thrust / 150, 0.35) * flick;
   const w1 = bw * (0.6 + 2.2 * vac);
   const y0 = p.bot;
+  ctx.save();
+  ctx.translate(p.x, 0);
   const g = ctx.createLinearGradient(0, y0, 0, y0 - L);
   if (d.kind === 'srb') {
     g.addColorStop(0, 'rgba(255,245,210,0.95)'); g.addColorStop(0.3, 'rgba(255,160,50,0.8)'); g.addColorStop(1, 'rgba(255,60,0,0)');
@@ -142,6 +203,7 @@ function drawFlame(ctx, p, pressure, flick) {
   ctx.beginPath();
   ctx.moveTo(-bw * 0.4, y0); ctx.lineTo(bw * 0.4, y0); ctx.lineTo(0, y0 - L * 0.35);
   ctx.fill();
+  ctx.restore();
 }
 
 function drawCanopy(ctx, c) {
@@ -150,6 +212,8 @@ function drawCanopy(ctx, c) {
   const y0 = cp.top;
   const s = Math.sqrt(c.chuteArea) * 0.6;
   const L = s * 1.1 + 2;
+  ctx.save();
+  ctx.translate(cp.x, 0);
   ctx.strokeStyle = 'rgba(235,235,235,0.85)';
   ctx.lineWidth = 0.05;
   ctx.beginPath();
@@ -169,6 +233,7 @@ function drawCanopy(ctx, c) {
   ctx.quadraticCurveTo(s * 0.3, y0 + L + s * 0.8, s * 0.33, y0 + L + s * 0.13);
   ctx.quadraticCurveTo(0, y0 + L + s * 0.22, -s * 0.33, y0 + L + s * 0.13);
   ctx.fill();
+  ctx.restore();
 }
 
 /* Draw a craft in world space; ctx is already in world-metre coordinates centred on `cam`. */
@@ -176,14 +241,21 @@ function drawCraft(ctx, c, cam, zoom, pressure) {
   ctx.save();
   ctx.translate(c.pos[0] - cam[0], c.pos[1] - cam[1]);
   ctx.rotate(c.angle - Math.PI / 2);
-  ctx.translate(0, -c.yc);
+  ctx.translate(-c.xc, -c.yc);
   if (c.chuteArea > 1 && c.hasChute) drawCanopy(ctx, c);
   ctx.globalCompositeOperation = 'lighter';
   const flick = 0.9 + Math.random() * 0.2;
   for (const p of c.parts) if (p.burn > 0) drawFlame(ctx, p, pressure, flick);
+  if (c.rcsFiring > 0.05) {
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    for (const p of c.rcsParts) {
+      const s = p.flip ? -1 : 1;
+      ctx.beginPath(); ctx.arc(p.x + s * (p.def.w / 2 + 0.35), (p.top + p.bot) / 2, 0.25 + Math.random() * 0.2, 0, TAU); ctx.fill();
+    }
+  }
   ctx.globalCompositeOperation = 'source-over';
   const lw = Math.max(0.03, 1 / zoom);
-  for (const p of c.parts) drawPart(ctx, p, lw, p.def.legs ? c.footY : undefined);
+  for (const p of c.parts) drawPart(ctx, p, lw);
   ctx.restore();
 }
 
@@ -195,13 +267,13 @@ function drawPartIcon(canvas, id) {
   canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
   const ctx = canvas.getContext('2d');
   const def = PART_DEFS[id];
-  const p = { def, top: 0, bot: -def.h, fuel: def.fuel || 0, solid: def.solid || 0 };
-  let extentX = 1.1, yTop = 0, yBot = -def.h;
-  if (def.kind === 'fins') { extentX = 1.95; yTop = 0.6; yBot = -def.h - 1.1; }
-  if (def.kind === 'legs') { extentX = 2.7; yBot = -def.h - 0.9; }
-  const s = Math.min((W - 6) / (2 * extentX), (H - 6) / (yTop - yBot));
-  ctx.setTransform(dpr * s, 0, 0, -dpr * s, (dpr * W) / 2, dpr * (H / 2 + ((yTop + yBot) / 2) * s));
-  drawPart(ctx, p, 1 / s, -def.h - 0.9);
+  const p = { def, x: 0, top: 0, bot: -def.h, flip: false, fuel: def.fuel || 0, solid: def.solid || 0, mono: def.mono || 0 };
+  let x0 = -maxWidth(def) / 2 - 0.1, x1 = maxWidth(def) / 2 + 0.1, yTop = 0, yBot = -def.h;
+  if (def.kind === 'legs') { p.footX = 1.3; p.footY = -def.h - 0.9; x1 = 1.75; yBot = p.footY; }
+  if (def.kind === 'rcs') { x1 += 0.2; yTop += 0.15; yBot -= 0.15; }
+  const s = Math.min((W - 6) / (x1 - x0), (H - 6) / (yTop - yBot));
+  ctx.setTransform(dpr * s, 0, 0, -dpr * s, dpr * (W / 2 - ((x0 + x1) / 2) * s), dpr * (H / 2 + ((yTop + yBot) / 2) * s));
+  drawPart(ctx, p, 1 / s);
 }
 
 /* Terrain of a body in world space, sampled only across the part of the surface in view. */

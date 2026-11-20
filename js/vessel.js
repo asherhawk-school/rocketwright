@@ -1,120 +1,303 @@
 'use strict';
-/* Rocketwright — craft model: parts, segments (stages), fuel flow, mass properties, delta-v. */
+/* Rocketwright — craft model: a tree of parts joined by stack nodes (top/bottom) and side attachment.
 
-/* A design is a list of part ids from top to bottom. Each decoupler starts a new segment;
-   segment 0 is the top. Engines only draw fuel from tanks in their own segment. */
-function makeParts(design) {
-  let seg = 0;
-  return design.map((id, i) => {
-    const def = PART_DEFS[id];
-    if (def.decoupler && i > 0) seg++;
-    return { id, def, seg, fuel: def.fuel || 0, solid: def.solid || 0, ignited: false, burn: 0, m: 0, top: 0, bot: 0 };
-  });
-}
+   Design (what the hangar edits and saves):
+     { v: 2, parts: [{ uid, id, parent, node: 'top'|'bottom'|'side'|null, side: ±1, ay, sym }], nextUid, stageOf }
+     - node 'side': the part sits beside its parent; `ay` is how far below the parent's top its own top is.
+     - `sym` groups mirrored copies; `stageOf` maps uid -> stage number (null = automatic staging).
+   Layout turns a design into "geo parts" with local coordinates (x lateral, y up, root top at 0),
+   which are also the live parts a Craft flies with. */
 
-function segRange(parts) {
-  let lo = Infinity, hi = -Infinity;
-  for (const p of parts) { lo = Math.min(lo, p.seg); hi = Math.max(hi, p.seg); }
-  return [lo, hi];
-}
+const isEngine = (def) => !!def.thrust && !def.rcs;
+const maxWidth = (def) => Math.max(def.w, def.wb !== undefined ? def.wb : def.w);
+const activatable = (def) => !!(def.decoupler || isEngine(def) || def.chute);
 
-/* Staging sequence: ignite the bottom segment, then for each decoupler separate the bottom
-   segment and ignite the next one up, then deploy parachutes. */
-function stageActions(parts) {
-  if (!parts.length) return [];
-  const [lo, hi] = segRange(parts);
-  const acts = [];
-  const hasEng = (s) => parts.some((p) => p.seg === s && p.def.thrust);
-  if (hasEng(hi)) acts.push({ ignite: hi });
-  for (let s = hi; s > lo; s--) acts.push({ decouple: s, ignite: hasEng(s - 1) ? s - 1 : -1 });
-  if (parts.some((p) => p.def.chute)) acts.push({ chute: true });
-  return acts;
-}
+/* ---------------- design editing ---------------- */
 
-function engineNames(parts, s) {
-  const names = [];
-  for (const p of parts) if (p.seg === s && p.def.thrust) {
-    const n = p.def.name.split(' ')[0];
-    if (!names.includes(n)) names.push(n);
+function newDesign() { return { v: 2, parts: [], nextUid: 1, stageOf: null }; }
+function cloneDesign(d) { return JSON.parse(JSON.stringify(d)); }
+function designPart(d, uid) { return d.parts.find((p) => p.uid === uid); }
+function nodeTaken(d, uid, node) { return d.parts.some((p) => p.parent === uid && p.node === node); }
+
+/* Attach a new part. Children of a mirrored part are copied onto its counterpart; side parts on the
+   centreline get a mirrored twin when `symmetry` is on. Returns the new uids. */
+function attachPart(d, id, parentUid, node, side, ay, symmetry) {
+  const parent = parentUid == null ? null : designPart(d, parentUid);
+  const mk = (host, s) => {
+    const uid = d.nextUid++;
+    d.parts.push({ uid, id, parent: host ? host.uid : null, node: host ? node : null, side: s, ay: ay || 0, sym: null });
+    return uid;
+  };
+  if (!parent) return [mk(null, 0)];
+  const hosts = parent.sym ? d.parts.filter((p) => p.sym === parent.sym) : [parent];
+  const uids = [];
+  if (hosts.length > 1) {
+    for (const h of hosts) uids.push(mk(h, node === 'side' ? (h === parent ? side : -side) : 0));
+  } else if (node === 'side' && symmetry) {
+    uids.push(mk(parent, side), mk(parent, -side));
+  } else {
+    uids.push(mk(parent, node === 'side' ? side : 0));
   }
-  return names.join(' + ');
-}
-
-function stageLabel(act, parts) {
-  if (act.chute) return 'Deploy parachute';
-  if (act.decouple !== undefined) return act.ignite >= 0 ? `Separate, ignite ${engineNames(parts, act.ignite)}` : 'Separate stage';
-  return `Ignite ${engineNames(parts, act.ignite)}`;
-}
-
-function segInfo(parts, s) {
-  const o = { mass: 0, thrustVac: 0, thrustSL: 0, flow: 0, liquid: 0, liquidMax: 0, solid: 0, solidMax: 0, liquidEng: false, engines: 0 };
-  for (const p of parts) {
-    if (p.seg !== s) continue;
-    const d = p.def;
-    o.mass += d.mass + p.fuel + p.solid;
-    if (d.fuel) { o.liquid += p.fuel; o.liquidMax += d.fuel; }
-    if (d.solid) { o.solid += p.solid; o.solidMax += d.solid; }
-    if (d.thrust) {
-      o.engines++;
-      o.thrustVac += d.thrust;
-      o.thrustSL += (d.thrust * d.ispSL) / d.ispVac;
-      o.flow += d.thrust / (d.ispVac * G0);
-      if (!d.solid) o.liquidEng = true;
-    }
+  if (uids.length > 1) {
+    const g = d.nextUid++;
+    for (const u of uids) designPart(d, u).sym = g;
   }
-  o.usable = o.solid + (o.liquidEng ? o.liquid : 0);
-  o.isp = o.flow > 0 ? o.thrustVac / (o.flow * G0) : 0;
-  return o;
+  return uids;
 }
 
-/* Delta-v per segment, bottom segment first (the order they fire in). */
-function deltaVTable(parts) {
-  const rows = [];
-  let total = 0;
-  if (!parts.length) return { rows, total };
-  const [lo, hi] = segRange(parts);
-  const info = {};
-  for (let s = lo; s <= hi; s++) info[s] = segInfo(parts, s);
-  for (let s = hi; s >= lo; s--) {
-    let m0 = 0;
-    for (let k = lo; k <= s; k++) m0 += info[k].mass;
-    const I = info[s];
-    const dv = I.flow > 0 && I.usable > 0 ? I.isp * G0 * Math.log(m0 / (m0 - I.usable)) : 0;
-    const burn = I.flow > 0 ? I.usable / I.flow : 0;
-    rows.push({ seg: s, m0, dv, twr: I.thrustSL / (m0 * 9.81), twrVac: I.thrustVac / (m0 * 9.81), burn, info: I });
-    total += dv;
-  }
-  return { rows, total };
-}
-
-function analyzeDesign(design) {
-  const out = { valid: false, warnings: [], mass: 0, height: 0, rows: [], total: 0, actions: [], parts: [] };
-  if (!design.length) { out.warnings.push({ lvl: 'info', text: 'Click parts on the left to start building.' }); return out; }
-  const parts = makeParts(design);
-  out.parts = parts;
-  for (const p of parts) { out.mass += p.def.mass + p.fuel + p.solid; out.height += p.def.h; }
-  const dv = deltaVTable(parts);
-  out.rows = dv.rows;
-  out.total = dv.total;
-  out.actions = stageActions(parts);
-  const hasPod = design.includes('pod');
-  if (!hasPod) out.warnings.push({ lvl: 'err', text: 'Add a Lark Capsule. Every craft needs a command pod.' });
-  const first = dv.rows[0];
-  if (first && first.info.engines === 0) out.warnings.push({ lvl: 'warn', text: 'The bottom stage has no engine.' });
-  else if (first && first.twr < 1) out.warnings.push({ lvl: 'warn', text: `Liftoff thrust-to-weight is ${first.twr.toFixed(2)}. Below 1.00 the rocket can't leave the pad.` });
-  for (const r of dv.rows) {
-    if (r.info.engines > 0 && r.info.usable === 0) out.warnings.push({ lvl: 'warn', text: `A stage with ${engineNames(parts, r.seg)} has no fuel in its own stage.` });
-    else if (r.info.liquid > 0 && !r.info.liquidEng && r.seg !== 0) out.warnings.push({ lvl: 'warn', text: 'A stage has fuel tanks but no liquid engine. Engines only use fuel from their own stage.' });
-  }
-  const ci = design.indexOf('chute');
-  if (ci > design.indexOf('pod') && hasPod) out.warnings.push({ lvl: 'info', text: 'Tip: the parachute belongs on top of the capsule.' });
-  out.valid = hasPod;
+function subtreeUids(d, uid) {
+  const out = [uid];
+  for (let i = 0; i < out.length; i++) for (const p of d.parts) if (p.parent === out[i]) out.push(p.uid);
   return out;
 }
 
+/* Remove a part, everything attached below it, and its mirrored counterparts. */
+function removePartTree(d, uid) {
+  const p = designPart(d, uid);
+  if (!p) return;
+  const roots = p.sym ? d.parts.filter((q) => q.sym === p.sym).map((q) => q.uid) : [uid];
+  const kill = new Set();
+  for (const r of roots) for (const u of subtreeUids(d, r)) kill.add(u);
+  d.parts = d.parts.filter((q) => !kill.has(q.uid));
+  if (d.stageOf) for (const u of kill) delete d.stageOf[u];
+}
+
+/* Detach a part's subtree as plain records (for moving it); counterparts are deleted. */
+function extractSubtree(d, uid) {
+  const p = designPart(d, uid);
+  const recs = subtreeUids(d, uid).map((u) => ({ ...designPart(d, u) }));
+  removePartTree(d, uid);
+  return { recs, rootUid: uid, rootSide: p.side || 0 };
+}
+
+/* Re-insert an extracted subtree under each of `newRoots` (uids already created for the root part). */
+function insertSubtree(d, sub, newRoots) {
+  for (const nr of newRoots) {
+    const mirror = (designPart(d, nr).side || 0) !== sub.rootSide && sub.rootSide !== 0;
+    const map = new Map([[sub.rootUid, nr]]);
+    for (const r of sub.recs) {
+      if (r.uid === sub.rootUid) continue;
+      const uid = d.nextUid++;
+      map.set(r.uid, uid);
+      d.parts.push({ uid, id: r.id, parent: null, node: r.node, side: mirror ? -r.side : r.side, ay: r.ay, sym: null, _p: r.parent });
+    }
+    for (const p of d.parts) if (p._p !== undefined) { p.parent = map.get(p._p); delete p._p; }
+  }
+}
+
+/* Old saves were a flat top-to-bottom list of ids; fins and legs were stack parts back then. */
+function designFromStack(ids) {
+  const d = newDesign();
+  let prev = null;
+  for (const id of ids) {
+    const def = PART_DEFS[id];
+    if (!def) continue;
+    if (def.radial) {
+      if (prev === null) continue;
+      const hd = PART_DEFS[designPart(d, prev).id];
+      const ay = def.fins ? Math.max(0, hd.h - def.h * 0.75) : Math.max(0, hd.h - def.h);
+      attachPart(d, id, prev, 'side', 1, ay, true);
+      continue;
+    }
+    prev = attachPart(d, id, prev, prev === null ? null : 'bottom', 0, 0, false)[0];
+  }
+  return d;
+}
+
+function migrateDesign(x) {
+  if (Array.isArray(x)) return designFromStack(x);
+  if (x && x.v === 2 && Array.isArray(x.parts)) {
+    x.parts = x.parts.filter((p) => PART_DEFS[p.id]);
+    return x;
+  }
+  return newDesign();
+}
+
+/* ---------------- layout ---------------- */
+
+function partHalfWidthAt(g, y) {
+  const wt = g.def.w, wb = g.def.wb !== undefined ? g.def.wb : g.def.w;
+  return lerp(wt, wb, clamp((g.top - y) / g.def.h, 0, 1)) / 2;
+}
+
+function makeGeo(rec, x, top, flip, parentUid) {
+  const def = PART_DEFS[rec.id];
+  return {
+    uid: rec.uid, id: rec.id, def, x, top, bot: top - def.h, flip, parent: parentUid, node: rec.node,
+    side: rec.side || 0, sym: rec.sym || null, links: [],
+    fuel: def.fuel || 0, solid: def.solid || 0, mono: def.mono || 0, ignited: false, burn: 0, m: 0,
+  };
+}
+
+function placeChild(k, pg) {
+  const def = PART_DEFS[k.id];
+  if (k.node === 'bottom') return makeGeo(k, pg.x, pg.bot, false, pg.uid);
+  if (k.node === 'top') return makeGeo(k, pg.x, pg.top + def.h, false, pg.uid);
+  const s = k.side || 1, top = pg.top - (k.ay || 0), cy = top - def.h / 2;
+  if (def.radial) return makeGeo(k, pg.x + s * (partHalfWidthAt(pg, cy) + def.w / 2), top, s < 0, pg.uid);
+  return makeGeo(k, pg.x + s * (pg.def.w / 2 + maxWidth(def) / 2), top, false, pg.uid);
+}
+
+function layoutDesign(d) {
+  const kids = new Map();
+  for (const p of d.parts) if (p.parent != null) {
+    if (!kids.has(p.parent)) kids.set(p.parent, []);
+    kids.get(p.parent).push(p);
+  }
+  const root = d.parts.find((p) => p.parent == null);
+  const out = [];
+  if (!root) return out;
+  const place = (rec, g) => {
+    out.push(g);
+    for (const k of kids.get(rec.uid) || []) {
+      const kg = placeChild(k, g);
+      g.links.push(kg.uid);
+      kg.links.push(g.uid);
+      place(k, kg);
+    }
+  };
+  place(root, makeGeo(root, 0, 0, false, null));
+  return out;
+}
+
+/* ---------------- structure helpers ---------------- */
+
+/* Fuel groups: parts connected without crossing a (non-crossfeed) decoupler share fuel. */
+function computeGroups(parts) {
+  const id = new Map(parts.map((p) => [p.uid, p.uid]));
+  const find = (u) => { while (id.get(u) !== u) { id.set(u, id.get(id.get(u))); u = id.get(u); } return u; };
+  const by = new Map(parts.map((p) => [p.uid, p]));
+  const blocks = (p) => p.def.decoupler && !p.def.crossfeed;
+  for (const p of parts) {
+    if (blocks(p)) continue;
+    for (const l of p.links) {
+      const q = by.get(l);
+      if (!q || blocks(q)) continue;
+      id.set(find(p.uid), find(q.uid));
+    }
+  }
+  const g = new Map();
+  for (const p of parts) g.set(p.uid, find(p.uid));
+  return g;
+}
+
+function components(parts) {
+  const set = new Map(parts.map((p) => [p.uid, p]));
+  const seen = new Set(), out = [];
+  for (const p of parts) {
+    if (seen.has(p.uid)) continue;
+    const comp = [], q = [p];
+    seen.add(p.uid);
+    while (q.length) {
+      const c = q.pop();
+      comp.push(c);
+      for (const l of c.links) if (set.has(l) && !seen.has(l)) { seen.add(l); q.push(set.get(l)); }
+    }
+    out.push(comp);
+  }
+  return out;
+}
+
+function rootUidOf(parts) {
+  const pod = parts.find((p) => p.def.pod);
+  return pod ? pod.uid : parts[0].uid;
+}
+
+/* Automatic staging. Decouplers deeper in the tree (counted from the capsule) fire first; an engine
+   ignites together with the shallowest decoupler below it, or at launch if nothing is below it;
+   parachutes come last. */
+function autoStages(parts) {
+  if (!parts.length) return {};
+  const root = rootUidOf(parts);
+  const by = new Map(parts.map((p) => [p.uid, p]));
+  const parent = new Map([[root, null]]), order = [root];
+  for (let i = 0; i < order.length; i++) {
+    for (const l of by.get(order[i]).links) if (by.has(l) && !parent.has(l)) { parent.set(l, order[i]); order.push(l); }
+  }
+  const depth = new Map();
+  for (const u of order) {
+    const pu = parent.get(u);
+    depth.set(u, (pu == null ? 0 : depth.get(pu)) + (by.get(u).def.decoupler ? 1 : 0));
+  }
+  const minBelow = new Map();
+  for (let i = order.length - 1; i >= 0; i--) {
+    const u = order[i], pu = parent.get(u);
+    const own = by.get(u).def.decoupler ? depth.get(u) : Infinity;
+    const val = Math.min(minBelow.has(u) ? minBelow.get(u) : Infinity, own);
+    if (pu != null) minBelow.set(pu, Math.min(minBelow.has(pu) ? minBelow.get(pu) : Infinity, val));
+  }
+  const below = (u) => (minBelow.has(u) ? minBelow.get(u) : Infinity);
+  const decDepths = [...new Set(parts.filter((p) => p.def.decoupler && depth.has(p.uid)).map((p) => depth.get(p.uid)))].sort((a, b) => b - a);
+  const base = parts.some((p) => isEngine(p.def) && !isFinite(below(p.uid))) ? 1 : 0;
+  const stageOfDepth = new Map(decDepths.map((dd, i) => [dd, base + i]));
+  const out = {};
+  for (const p of parts) {
+    if (p.def.decoupler && depth.has(p.uid)) out[p.uid] = stageOfDepth.get(depth.get(p.uid));
+    else if (isEngine(p.def)) out[p.uid] = isFinite(below(p.uid)) ? stageOfDepth.get(below(p.uid)) : 0;
+  }
+  for (const p of parts) if (p.def.chute) out[p.uid] = base + decDepths.length;
+  return normalizeStages(out);
+}
+
+function normalizeStages(m) {
+  const vals = [...new Set(Object.values(m))].sort((a, b) => a - b);
+  const idx = new Map(vals.map((v, i) => [v, i]));
+  for (const k in m) m[k] = idx.get(m[k]);
+  return m;
+}
+
+/* Merge the design's manual staging (if any) with automatic staging for parts it doesn't cover. */
+function resolveStages(d, parts) {
+  const auto = autoStages(parts);
+  if (!d.stageOf) return auto;
+  const m = {};
+  for (const p of parts) if (activatable(p.def)) m[p.uid] = d.stageOf[p.uid] !== undefined ? d.stageOf[p.uid] : (auto[p.uid] || 0);
+  normalizeStages(m);
+  d.stageOf = m;
+  return m;
+}
+
+function stageListFrom(m) {
+  const L = [];
+  for (const k in m) { (L[m[k]] || (L[m[k]] = [])).push(+k); }
+  return L.filter((s) => s && s.length);
+}
+
+function shortName(def) { return def.name.split(' ')[0]; }
+function stageLabel(uids, lookup) {
+  const sep = [], ign = new Map();
+  let chute = false;
+  for (const u of uids) {
+    const p = lookup(u);
+    if (!p) continue;
+    if (p.def.decoupler) sep.push(p);
+    else if (isEngine(p.def)) ign.set(shortName(p.def), (ign.get(shortName(p.def)) || 0) + 1);
+    else if (p.def.chute) chute = true;
+  }
+  const bits = [];
+  if (sep.length) bits.push(sep.length > 1 ? `Separate ×${sep.length}` : 'Separate');
+  if (ign.size) bits.push('Ignite ' + [...ign].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n)).join(', '));
+  if (chute) bits.push('Parachute');
+  return bits.join(' · ') || 'Empty stage';
+}
+
+/* ---------------- craft ---------------- */
+
+function convexHull(pts) {
+  const p = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (p.length < 3) return p;
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], hi = [];
+  for (const q of p) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  for (let i = p.length - 1; i >= 0; i--) { const q = p[i]; while (hi.length >= 2 && cross(hi[hi.length - 2], hi[hi.length - 1], q) <= 0) hi.pop(); hi.push(q); }
+  return lo.slice(0, -1).concat(hi.slice(0, -1));
+}
+
 class Craft {
-  constructor(parts) {
+  constructor(parts, opts = {}) {
     this.parts = parts;
+    this.stages = opts.stages || [];
+    this.stageIdx = 0;
     this.pos = [0, 0];
     this.vel = [0, 0];
     this.angle = Math.PI / 2; // direction the nose points (world radians)
@@ -127,103 +310,177 @@ class Craft {
     this.chuteArea = 0;
     this.gimbalCap = 0;
     this.thrust = 0;
+    this.thrustTorque = 0;
     this.heat = 0;
     this.radar = Infinity;
+    this.rcsOn = false;
+    this.rcsFiring = 0;
+    this.xc = undefined;
     this.yc = undefined;
-    this.stages = [];
-    this.stageIdx = 0;
-    this.layout();
+    this.recompute();
+  }
+
+  recompute() {
+    const by = (this.byUid = new Map(this.parts.map((p) => [p.uid, p])));
+    for (const p of this.parts) p.links = p.links.filter((u) => by.has(u));
+    this.rootUid = rootUidOf(this.parts);
+    const groups = (this.groups = computeGroups(this.parts));
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of this.parts) {
+      const hw = maxWidth(p.def) / 2;
+      minX = Math.min(minX, p.x - hw); maxX = Math.max(maxX, p.x + hw);
+      minY = Math.min(minY, p.bot); maxY = Math.max(maxY, p.top);
+    }
+    this.bounds = { minX, maxX, minY, maxY };
+    this.length = maxY - minY;
+    this.width = maxX - minX;
+    this.engines = this.parts.filter((p) => isEngine(p.def));
+    this.tanks = this.parts.filter((p) => p.def.fuel);
+    this.rcsParts = this.parts.filter((p) => p.def.rcs);
+    this.fins = this.parts.filter((p) => p.def.fins);
+    this.legs = this.parts.filter((p) => p.def.legs);
+    this.hasLegs = this.legs.length > 0;
+    this.hasChute = this.parts.some((p) => p.def.chute);
+    this.hasPod = this.parts.some((p) => p.def.pod);
+    this.torque = this.parts.reduce((a, p) => a + (p.def.torque || 0), 0);
+    const gBot = new Map();
+    for (const p of this.parts) { const g = groups.get(p.uid); gBot.set(g, Math.min(gBot.has(g) ? gBot.get(g) : Infinity, p.bot)); }
+    const pts = [];
+    for (const p of this.parts) {
+      const wt = p.def.w / 2, wb = (p.def.wb !== undefined ? p.def.wb : p.def.w) / 2;
+      pts.push([p.x - wt, p.top], [p.x + wt, p.top], [p.x - wb, p.bot], [p.x + wb, p.bot]);
+    }
+    for (const l of this.legs) {
+      l.footX = l.x + (l.flip ? -1 : 1) * 1.3;
+      l.footY = Math.min(l.bot - 0.8, gBot.get(groups.get(l.uid)) - 0.3);
+      pts.push([l.footX, l.footY]);
+    }
+    this.contacts = convexHull(pts);
+    this.computeTiers();
     this.updateMass();
   }
 
-  layout() {
-    let y = 0;
-    for (const p of this.parts) { p.top = y; p.bot = y - p.def.h; y = p.bot; }
-    this.length = -y;
-    this.hasLegs = this.parts.some((p) => p.def.legs);
-    this.hasFins = this.parts.some((p) => p.def.fins);
-    this.hasChute = this.parts.some((p) => p.def.chute);
-    this.torque = this.parts.reduce((a, p) => a + (p.def.torque || 0), 0);
-    const bot = -this.length;
-    this.contacts = [[0, 0], [-0.8, bot], [0.8, bot]];
-    this.footY = undefined;
-    if (this.hasLegs) {
-      let lp = null;
-      for (const p of this.parts) if (p.def.legs) lp = p;
-      let segBot = lp.bot;
-      for (const p of this.parts) if (p.seg === lp.seg) segBot = Math.min(segBot, p.bot);
-      this.footY = Math.min(lp.bot - 0.6, segBot - 0.25);
-      this.contacts.push([-2.3, this.footY], [2.3, this.footY]);
+  /* Parts that leave if decoupler `decUid` fires (only parts in `present` count). */
+  detachedFrom(decUid, present) {
+    const root = this.rootUid;
+    if (decUid === root || !present.has(root)) return [];
+    const seen = new Set([root]), q = [root];
+    while (q.length) {
+      const u = q.pop();
+      for (const l of this.byUid.get(u).links) if (present.has(l) && l !== decUid && !seen.has(l)) { seen.add(l); q.push(l); }
     }
+    return [...present].filter((u) => !seen.has(u));
   }
 
-  updateMass() {
-    let M = 0, my = 0;
-    for (const p of this.parts) {
-      p.m = p.def.mass + p.fuel + p.solid;
-      M += p.m;
-      my += (p.m * (p.top + p.bot)) / 2;
+  /* Tanks that will be dropped sooner drain first (this is what makes crossfeed boosters work). */
+  computeTiers() {
+    const prio = new Map();
+    const present = new Set(this.parts.map((p) => p.uid));
+    for (let s = this.stageIdx; s < this.stages.length; s++) for (const u of this.stages[s]) {
+      const d = this.byUid.get(u);
+      if (!d || !d.def.decoupler || !present.has(u)) continue;
+      for (const q of this.detachedFrom(u, present)) { if (!prio.has(q)) prio.set(q, s); present.delete(q); }
     }
-    const yc = my / M;
-    let I = 0;
-    for (const p of this.parts) {
-      const d = (p.top + p.bot) / 2 - yc;
-      I += p.m * (d * d + (p.def.h * p.def.h) / 12 + 0.25);
+    const byG = new Map();
+    for (const t of this.tanks) {
+      const g = this.groups.get(t.uid);
+      if (!byG.has(g)) byG.set(g, new Map());
+      const pr = prio.has(t.uid) ? prio.get(t.uid) : 1e9;
+      const m = byG.get(g);
+      if (!m.has(pr)) m.set(pr, []);
+      m.get(pr).push(t);
     }
-    this.M = M;
-    this.I = Math.max(I, 0.3);
-    if (this.yc !== undefined && yc !== this.yc) {
-      // keep the parts fixed in the world while the centre of mass moves
-      const dy = yc - this.yc, ax = Math.cos(this.angle), ay = Math.sin(this.angle);
-      this.pos[0] += ax * dy; this.pos[1] += ay * dy;
-      if (this.landed) { this.landed.rx += ax * dy; this.landed.ry += ay * dy; }
-    }
-    this.yc = yc;
+    this.tiers = new Map();
+    for (const [g, m] of byG) this.tiers.set(g, [...m.entries()].sort((a, b) => a[0] - b[0]).map((e) => e[1]));
   }
 
-  /* local (x lateral, y along the stack, 0 = nose) -> world */
-  toWorld(lx, ly) {
-    const ax = Math.cos(this.angle), ay = Math.sin(this.angle), d = ly - this.yc;
-    return [this.pos[0] + ax * d + ay * lx, this.pos[1] + ay * d - ax * lx];
-  }
-
-  segLiquid(s) {
+  groupFuel(g) {
     let f = 0;
-    for (const p of this.parts) if (p.seg === s && p.def.fuel) f += p.fuel;
+    for (const tier of this.tiers.get(g) || []) for (const t of tier) f += t.fuel;
     return f;
   }
 
-  isThrusting() {
+  updateMass() {
+    let M = 0, mx = 0, my = 0;
     for (const p of this.parts) {
-      if (!p.ignited || !p.def.thrust) continue;
-      if (p.def.solid) { if (p.solid > 0) return true; } else if (this.throttle > 0 && this.segLiquid(p.seg) > 0) return true;
+      p.m = p.def.mass + p.fuel + p.solid + p.mono;
+      M += p.m;
+      mx += p.m * p.x;
+      my += (p.m * (p.top + p.bot)) / 2;
+    }
+    const xc = mx / M, yc = my / M;
+    let I = 0, rcsCap = 0;
+    for (const p of this.parts) {
+      const dx = p.x - xc, dy = (p.top + p.bot) / 2 - yc, w = maxWidth(p.def);
+      I += p.m * (dx * dx + dy * dy + (p.def.h * p.def.h + w * w) / 12);
+      if (p.def.rcs) rcsCap += p.def.rcsThrust * Math.max(1, Math.abs(dy));
+    }
+    this.M = M;
+    this.I = Math.max(I, 0.3);
+    this.rcsTorqueCap = rcsCap;
+    if (this.xc !== undefined && (xc !== this.xc || yc !== this.yc)) {
+      // keep the parts fixed in the world while the centre of mass moves
+      const d = this.rotLocal(xc - this.xc, yc - this.yc);
+      this.pos[0] += d[0]; this.pos[1] += d[1];
+      if (this.landed) { this.landed.rx += d[0]; this.landed.ry += d[1]; }
+    }
+    this.xc = xc;
+    this.yc = yc;
+  }
+
+  /* local vector -> world vector */
+  rotLocal(lx, ly) {
+    const ax = Math.cos(this.angle), ay = Math.sin(this.angle);
+    return [ax * ly + ay * lx, ay * ly - ax * lx];
+  }
+  /* local point (x lateral, y along the axis) -> world point */
+  toWorld(lx, ly) {
+    const d = this.rotLocal(lx - this.xc, ly - this.yc);
+    return [this.pos[0] + d[0], this.pos[1] + d[1]];
+  }
+
+  engineHasFuel(e) {
+    if (e.def.solid) return e.solid > 0;
+    return this.groupFuel(this.groups.get(e.uid)) > 1e-9;
+  }
+
+  isThrusting() {
+    for (const e of this.engines) {
+      if (!e.ignited) continue;
+      if (e.def.solid) { if (e.solid > 0) return true; } else if (this.throttle > 0 && this.engineHasFuel(e)) return true;
     }
     return false;
   }
 
   /* Burn fuel for dt seconds at atmospheric pressure p (atm). Returns thrust in kN. */
   engineStep(dt, pressure) {
-    let T = 0, gim = 0;
+    let T = 0, gim = 0, tq = 0;
     const thr = this.throttle;
     const demand = new Map();
-    for (const e of this.parts) {
+    for (const e of this.engines) {
       e.burn = 0;
-      if (!e.def.thrust || !e.ignited || e.def.solid || thr <= 0) continue;
-      demand.set(e.seg, (demand.get(e.seg) || 0) + (e.def.thrust / (e.def.ispVac * G0)) * thr * dt);
+      if (!e.ignited || e.def.solid || thr <= 0) continue;
+      const g = this.groups.get(e.uid);
+      demand.set(g, (demand.get(g) || 0) + (e.def.thrust / (e.def.ispVac * G0)) * thr * dt);
     }
     const ratio = new Map();
-    for (const [seg, need] of demand) {
-      let avail = 0;
-      for (const p of this.parts) if (p.seg === seg && p.def.fuel) avail += p.fuel;
-      if (avail <= 1e-9) { ratio.set(seg, 0); continue; }
-      const take = Math.min(need, avail), f = take / avail;
-      for (const p of this.parts) if (p.seg === seg && p.def.fuel) p.fuel = Math.max(0, p.fuel - p.fuel * f);
-      ratio.set(seg, take / need);
+    for (const [g, need] of demand) {
+      let got = 0;
+      for (const tier of this.tiers.get(g) || []) {
+        let avail = 0;
+        for (const t of tier) avail += t.fuel;
+        if (avail <= 1e-12) continue;
+        const take = Math.min(need - got, avail), f = take / avail;
+        for (const t of tier) t.fuel = Math.max(0, t.fuel - t.fuel * f);
+        got += take;
+        if (got >= need - 1e-12) break;
+      }
+      ratio.set(g, need > 0 ? got / need : 0);
     }
     const pr = clamp(pressure, 0, 1);
-    for (const e of this.parts) {
+    for (const e of this.engines) {
       const d = e.def;
-      if (!d.thrust || !e.ignited) continue;
+      if (!e.ignited) continue;
       const isp = d.ispVac + (d.ispSL - d.ispVac) * pr;
       let frac;
       if (d.solid) {
@@ -232,19 +489,167 @@ class Craft {
         const use = Math.min(e.solid, flow * dt);
         e.solid -= use;
         frac = use / (flow * dt);
-      } else {
-        frac = thr * (ratio.get(e.seg) || 0);
-      }
+      } else frac = thr * (ratio.get(this.groups.get(e.uid)) || 0);
       if (frac <= 0) continue;
       const f = ((d.thrust * isp) / d.ispVac) * frac;
       e.burn = frac;
       T += f;
+      tq += f * (e.x - this.xc);
       gim += f * Math.sin((d.gimbal * Math.PI) / 180) * Math.abs(e.bot - this.yc);
     }
     this.thrust = T;
+    this.thrustTorque = tq;
     this.gimbalCap = gim;
     return T;
   }
 
-  activeSeg() { return segRange(this.parts)[1]; }
+  monoTotal() { let m = 0; for (const p of this.parts) m += p.mono; return m; }
+
+  /* RCS: tx/ty translate (local, -1..1), rot = rotation command. Returns local force (kN) and
+     the fraction of RCS rotation authority available. Monoprop flows from anywhere on the craft. */
+  rcsStep(dt, tx, ty, rot) {
+    this.rcsFiring = 0;
+    if (!this.rcsOn || !this.rcsParts.length) return { fx: 0, fy: 0, k: 0 };
+    const n = this.rcsParts.length, f = this.rcsParts[0].def.rcsThrust, isp = this.rcsParts[0].def.isp;
+    const want = Math.min(1, Math.abs(tx)) + Math.min(1, Math.abs(ty)) + Math.min(1, Math.abs(rot));
+    if (want <= 0) return { fx: 0, fy: 0, k: 1 };
+    const flow = ((n * f) / (isp * G0)) * want * dt * 0.5;
+    const avail = this.monoTotal();
+    if (avail <= 1e-9) return { fx: 0, fy: 0, k: 0 };
+    const take = Math.min(flow, avail), k = take / flow;
+    for (const p of this.parts) if (p.mono > 0) p.mono = Math.max(0, p.mono - (p.mono / avail) * take);
+    this.rcsFiring = want * k;
+    return { fx: tx * n * f * 0.5 * k, fy: ty * n * f * 0.5 * k, k };
+  }
+
+  /* Fire the next stage. onDetach(componentParts, decoupler) is called for each piece that separates,
+     while the craft still holds its pre-separation pose. */
+  activateNext(onDetach) {
+    if (this.stageIdx >= this.stages.length) return null;
+    const uids = this.stages[this.stageIdx++];
+    const res = { separated: 0, ignited: [], chute: false };
+    for (const u of uids) {
+      const p = this.byUid.get(u);
+      if (!p || !p.def.decoupler) continue;
+      const present = new Set(this.parts.map((q) => q.uid));
+      const det = new Set(this.detachedFrom(u, present));
+      if (!det.size) continue;
+      const comps = components(this.parts.filter((q) => det.has(q.uid)));
+      if (onDetach) for (const comp of comps) onDetach(comp, p);
+      this.parts = this.parts.filter((q) => !det.has(q.uid));
+      this.recompute();
+      res.separated += comps.length;
+    }
+    for (const u of uids) {
+      const p = this.byUid.get(u);
+      if (!p) continue;
+      if (isEngine(p.def)) { p.ignited = true; res.ignited.push(p); }
+      if (p.def.chute) { this.chuteOpen = true; res.chute = true; }
+    }
+    this.recompute();
+    return res;
+  }
 }
+
+function cloneParts(parts) { return parts.map((p) => ({ ...p, links: p.links.slice() })); }
+
+/* Burn the current stage in vacuum at full throttle until its fuel is used up (or the parts the next
+   stage drops are spent). Mutates `c`. */
+function burnSim(c) {
+  c.throttle = 1;
+  c.recompute();
+  const m0 = c.M;
+  let tSL = 0, tVac = 0;
+  for (const e of c.engines) if (e.ignited && c.engineHasFuel(e)) { tSL += (e.def.thrust * e.def.ispSL) / e.def.ispVac; tVac += e.def.thrust; }
+  let watchE = [], watchT = [];
+  const next = c.stages[c.stageIdx];
+  if (next) {
+    const present = new Set(c.parts.map((p) => p.uid));
+    const det = new Set();
+    for (const u of next) { const p = c.byUid.get(u); if (p && p.def.decoupler) for (const q of c.detachedFrom(u, present)) det.add(q); }
+    for (const u of det) { const p = c.byUid.get(u); if (isEngine(p.def) && p.ignited) watchE.push(p); else if (p.def.fuel) watchT.push(p); }
+  }
+  let dv = 0, t = 0;
+  for (let i = 0; i < 6000; i++) {
+    const T = c.engineStep(0.5, 0);
+    if (T <= 0) break;
+    c.updateMass();
+    dv += (T / c.M) * 0.5;
+    t += 0.5;
+    if (watchE.length) { if (watchE.every((e) => e.burn <= 0 || (e.def.solid ? e.solid <= 0 : !c.engineHasFuel(e)))) break; }
+    else if (watchT.length && watchT.every((k) => k.fuel <= 1e-6)) break;
+  }
+  return { m0, dv, burn: t, twr: tSL / (m0 * 9.81), twrVac: tVac / (m0 * 9.81) };
+}
+
+/* Delta-v of every remaining stage. With `current`, the first row is what the already-lit engines can still do. */
+function simulateStages(src, current) {
+  const c = new Craft(cloneParts(src.parts), { stages: src.stages });
+  c.stageIdx = src.stageIdx;
+  c.recompute();
+  const rows = [];
+  if (current) rows.push({ uids: [], ...burnSim(c) });
+  while (c.stageIdx < c.stages.length) {
+    const uids = c.stages[c.stageIdx];
+    c.activateNext(null);
+    rows.push({ uids, ...burnSim(c) });
+  }
+  return rows;
+}
+
+function analyzeDesign(d) {
+  const out = { valid: false, warnings: [], mass: 0, height: 0, width: 0, rows: [], total: 0, parts: [], stages: [], com: null, cot: null };
+  if (!d.parts.length) { out.warnings.push({ lvl: 'info', text: 'Drag parts from the left to start building.' }); return out; }
+  const parts = layoutDesign(d);
+  out.parts = parts;
+  const stageOf = resolveStages(d, parts);
+  out.stages = stageListFrom(stageOf);
+  const c = new Craft(cloneParts(parts), { stages: out.stages });
+  out.mass = c.M;
+  out.height = c.length;
+  out.width = c.width;
+  out.com = [c.xc, c.yc];
+  out.rows = simulateStages(c, false);
+  out.total = out.rows.reduce((a, r) => a + r.dv, 0);
+  const hasPod = parts.some((p) => p.def.pod);
+  if (!hasPod) out.warnings.push({ lvl: 'err', text: 'Add a Lark Capsule. Every craft needs a command pod.' });
+  const firstUids = new Set(out.stages[0] || []);
+  const first = parts.filter((p) => isEngine(p.def) && firstUids.has(p.uid));
+  if (!first.length) out.warnings.push({ lvl: 'warn', text: 'The first stage lights no engines.' });
+  else {
+    if (out.rows[0] && out.rows[0].twr < 1) out.warnings.push({ lvl: 'warn', text: `Liftoff thrust-to-weight is ${out.rows[0].twr.toFixed(2)}. Below 1.00 the rocket can't leave the pad.` });
+    let T = 0, Tx = 0, Ty = 0;
+    for (const e of first) { T += e.def.thrust; Tx += e.def.thrust * e.x; Ty += e.def.thrust * e.bot; }
+    out.cot = [Tx / T, Ty / T];
+    if (Math.abs(Tx / T - c.xc) > 0.15) out.warnings.push({ lvl: 'warn', text: 'Liftoff thrust is off-centre, so the rocket will spin. Use symmetry for side engines.' });
+  }
+  for (const e of c.engines) if (!e.def.solid && !c.engineHasFuel(e)) {
+    out.warnings.push({ lvl: 'warn', text: `${e.def.name} has no fuel tank in its own stage.` });
+    break;
+  }
+  const ci = parts.find((p) => p.def.chute), pod = parts.find((p) => p.def.pod);
+  if (ci && pod && !ci.links.includes(pod.uid)) out.warnings.push({ lvl: 'info', text: 'Tip: the parachute belongs on top of the capsule.' });
+  out.valid = hasPod;
+  return out;
+}
+
+/* ---------------- example craft ---------------- */
+
+const PRESETS = {
+  'Sky Hopper': () => designFromStack(['chute', 'pod', 'decoupler', 'srb']),
+  'Orbiter I': () => designFromStack(['chute', 'pod', 'tankM', 'wren', 'decoupler', 'tankL', 'tankL', 'fins', 'ox']),
+  'Heavy Lifter': () => {
+    const d = designFromStack(['chute', 'pod', 'tankM', 'wren', 'decoupler', 'tankXL', 'tankL', 'fins', 'ox']);
+    const xl = d.parts.find((p) => p.id === 'tankXL').uid;
+    const rd = attachPart(d, 'radDec', xl, 'side', 1, 0.6, true)[0];
+    const booster = attachPart(d, 'srb', rd, 'side', 1, -0.2, false)[0];
+    attachPart(d, 'nose2', booster, 'top', 0, 0, false);
+    return d;
+  },
+  'Pallid Lander': () => {
+    const d = designFromStack(['chute', 'pod', 'tankL', 'legs', 'wren', 'decoupler', 'tankXL', 'tankL', 'kestrel', 'decoupler', 'tankXL', 'tankXL', 'fins', 'bison']);
+    const pod = d.parts.find((p) => p.id === 'pod').uid;
+    attachPart(d, 'rcs', pod, 'side', 1, 0.7, true);
+    return d;
+  },
+};

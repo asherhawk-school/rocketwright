@@ -48,43 +48,81 @@ const Store = {
 };
 
 /* ---------- parts ----------
-   Units: mass in tonnes, thrust in kN, so kN / t = m/s². Every part is 2 m wide. */
+   Units: mass in tonnes, thrust in kN, so kN / t = m/s². Sizes in metres.
+   w = width at the top, wb = width at the bottom (defaults to w).
+   radial: attaches to the side of other parts. radialOut: other parts can attach to its outer side.
+   noTop / noBottom: the part has no stack node there. */
 const PART_DEFS = {
-  pod: { kind: 'pod', name: 'Lark Capsule', cat: 'Command', mass: 0.85, h: 1.6, torque: 10, pod: true,
-    desc: 'One-seat command capsule with built-in reaction wheels. Every craft needs one.' },
-  chute: { kind: 'chute', name: 'Canopy Parachute', cat: 'Command', mass: 0.1, h: 0.45, chute: true,
-    desc: 'Put it on top of the capsule. Deploys on the last stage and opens fully below 1.5 km.' },
-  wheel: { kind: 'wheel', name: 'Gyro Ring', cat: 'Command', mass: 0.2, h: 0.4, torque: 30,
+  // Command
+  pod: { kind: 'pod', name: 'Lark Capsule', cat: 'Command', mass: 0.85, h: 1.6, w: 0.9, wb: 2, torque: 10, mono: 0.1, pod: true,
+    desc: 'One-seat command capsule with reaction wheels and a little monopropellant. Every craft needs one.' },
+  chute: { kind: 'chute', name: 'Canopy Parachute', cat: 'Command', mass: 0.1, h: 0.45, w: 0.9, chute: true, noTop: true,
+    desc: 'Goes on top of the capsule. Opens partly when staged and fully below 1.5 km.' },
+  wheel: { kind: 'wheel', name: 'Gyro Ring', cat: 'Command', mass: 0.2, h: 0.4, w: 2, torque: 30,
     desc: 'Strong reaction wheel for steering heavy rockets.' },
-  tankS: { kind: 'tank', name: 'Tank S-1', cat: 'Fuel', mass: 0.125, fuel: 1, h: 1.0, desc: 'Small liquid fuel tank.' },
-  tankM: { kind: 'tank', name: 'Tank M-2', cat: 'Fuel', mass: 0.25, fuel: 2, h: 1.9, desc: 'Medium liquid fuel tank.' },
-  tankL: { kind: 'tank', name: 'Tank L-4', cat: 'Fuel', mass: 0.5, fuel: 4, h: 3.7, desc: 'Large liquid fuel tank.' },
-  tankXL: { kind: 'tank', name: 'Tank XL-8', cat: 'Fuel', mass: 1.0, fuel: 8, h: 7.2, desc: 'Huge liquid fuel tank for first stages.' },
-  wren: { kind: 'engine', name: 'Wren Vacuum Engine', cat: 'Engines', mass: 0.5, h: 1.1, thrust: 60, ispVac: 345, ispSL: 170,
+  // Fuel
+  tankS125: { kind: 'tank', name: 'Tank S-1 Slim', cat: 'Fuel', mass: 0.06, fuel: 0.5, h: 1.0, w: 1.25, desc: 'Small 1.25 m fuel tank.' },
+  tankM125: { kind: 'tank', name: 'Tank M-2 Slim', cat: 'Fuel', mass: 0.12, fuel: 1, h: 1.9, w: 1.25, desc: 'Medium 1.25 m fuel tank.' },
+  tankS: { kind: 'tank', name: 'Tank S-1', cat: 'Fuel', mass: 0.125, fuel: 1, h: 1.0, w: 2, desc: 'Small 2 m fuel tank.' },
+  tankM: { kind: 'tank', name: 'Tank M-2', cat: 'Fuel', mass: 0.25, fuel: 2, h: 1.9, w: 2, desc: 'Medium 2 m fuel tank.' },
+  tankL: { kind: 'tank', name: 'Tank L-4', cat: 'Fuel', mass: 0.5, fuel: 4, h: 3.7, w: 2, desc: 'Large 2 m fuel tank.' },
+  tankXL: { kind: 'tank', name: 'Tank XL-8', cat: 'Fuel', mass: 1.0, fuel: 8, h: 7.2, w: 2, desc: 'Huge 2 m fuel tank.' },
+  tankT12: { kind: 'tank', name: 'Tank T-12 Wide', cat: 'Fuel', mass: 1.5, fuel: 12, h: 4.0, w: 3, desc: 'Wide 3 m fuel tank.' },
+  tankT24: { kind: 'tank', name: 'Tank T-24 Wide', cat: 'Fuel', mass: 3.0, fuel: 24, h: 7.6, w: 3, desc: 'Huge 3 m fuel tank for heavy launchers.' },
+  saddle: { kind: 'radtank', name: 'Saddle Tank', cat: 'Fuel', radial: true, mass: 0.08, fuel: 0.6, h: 2.2, w: 0.8,
+    desc: 'Side-mounted fuel tank. Feeds engines in the same stage.' },
+  monoPod: { kind: 'monotank', name: 'Monoprop Pod', cat: 'Fuel', radial: true, mass: 0.05, mono: 0.3, h: 1.1, w: 0.6,
+    desc: 'Side-mounted monopropellant for RCS thrusters.' },
+  // Engines
+  gnat: { kind: 'engine', name: 'Gnat Micro Engine', cat: 'Engines', mass: 0.2, h: 0.7, w: 1.25, thrust: 20, ispVac: 320, ispSL: 250,
+    gimbal: 3, bell: 0.9, desc: 'Tiny 1.25 m engine for probes and small landers.' },
+  wren: { kind: 'engine', name: 'Wren Vacuum Engine', cat: 'Engines', mass: 0.5, h: 1.1, w: 2, thrust: 60, ispVac: 345, ispSL: 170,
     gimbal: 4, bell: 1.5, desc: 'Very efficient in space, weak in thick air. Ideal upper stage or lander.' },
-  kestrel: { kind: 'engine', name: 'Kestrel Engine', cat: 'Engines', mass: 1.0, h: 1.3, thrust: 150, ispVac: 315, ispSL: 260,
+  kestrel: { kind: 'engine', name: 'Kestrel Engine', cat: 'Engines', mass: 1.0, h: 1.3, w: 2, thrust: 150, ispVac: 315, ispSL: 260,
     gimbal: 3, bell: 1.6, desc: 'Good all-rounder for middle stages.' },
-  ox: { kind: 'engine', name: 'Ox Lifter Engine', cat: 'Engines', mass: 1.6, h: 1.6, thrust: 280, ispVac: 300, ispSL: 275,
+  ox: { kind: 'engine', name: 'Ox Lifter Engine', cat: 'Engines', mass: 1.6, h: 1.6, w: 2, thrust: 280, ispVac: 300, ispSL: 275,
     gimbal: 2, bell: 1.8, desc: 'Strong first-stage engine.' },
-  bison: { kind: 'engine', name: 'Bison Heavy Engine', cat: 'Engines', mass: 3.2, h: 2.0, thrust: 620, ispVac: 295, ispSL: 270,
+  bison: { kind: 'engine', name: 'Bison Heavy Engine', cat: 'Engines', mass: 3.2, h: 2.0, w: 2, thrust: 620, ispVac: 295, ispSL: 270,
     gimbal: 1.5, bell: 1.95, desc: 'Huge thrust for heavy launchers.' },
-  srb: { kind: 'srb', name: 'Thumper Solid Booster', cat: 'Engines', mass: 0.8, solid: 4.5, h: 4.4, thrust: 240, ispVac: 215,
+  colossus: { kind: 'engine', name: 'Colossus Engine', cat: 'Engines', mass: 7, h: 2.6, w: 3, thrust: 1500, ispVac: 300, ispSL: 280,
+    gimbal: 1.5, bell: 2.9, desc: 'Enormous 3 m first-stage engine.' },
+  sparrow: { kind: 'engine', name: 'Sparrow Radial Engine', cat: 'Engines', radial: true, mass: 0.25, h: 1.3, w: 0.7, thrust: 45,
+    ispVac: 300, ispSL: 255, gimbal: 3, bell: 0.6, desc: 'Small side-mounted engine. Use in symmetric pairs.' },
+  popper: { kind: 'srb', name: 'Popper Solid Booster', cat: 'Engines', mass: 0.3, solid: 1.6, h: 3.0, w: 1.25, thrust: 110,
+    ispVac: 205, ispSL: 190, gimbal: 0, desc: 'Small 1.25 m solid booster. Burns at full power until empty.' },
+  srb: { kind: 'srb', name: 'Thumper Solid Booster', cat: 'Engines', mass: 0.8, solid: 4.5, h: 4.4, w: 2, thrust: 240, ispVac: 215,
     ispSL: 195, gimbal: 0, desc: 'Cheap, brutal thrust. Burns at full power until empty; cannot be throttled.' },
-  decoupler: { kind: 'decoupler', name: 'Stack Decoupler', cat: 'Structure', mass: 0.05, h: 0.35, decoupler: true,
+  // Coupling
+  decoupler125: { kind: 'decoupler', name: 'Stack Decoupler S', cat: 'Coupling', mass: 0.03, h: 0.3, w: 1.25, decoupler: true,
+    desc: 'Separates everything below it (1.25 m).' },
+  decoupler: { kind: 'decoupler', name: 'Stack Decoupler', cat: 'Coupling', mass: 0.05, h: 0.35, w: 2, decoupler: true,
     desc: 'Separates everything below it when staged. Each decoupler starts a new stage.' },
-  fins: { kind: 'fins', name: 'Tailfin Ring', cat: 'Structure', mass: 0.1, h: 0.5, fins: true,
-    desc: 'Keeps the rocket pointed into the airflow. Place it just above the bottom engine.' },
-  legs: { kind: 'legs', name: 'Stance Landing Legs', cat: 'Structure', mass: 0.15, h: 0.5, legs: true,
-    desc: 'Doubles the safe landing speed to 12 m/s. Place it in the stage you land with.' },
+  decoupler3: { kind: 'decoupler', name: 'Stack Decoupler W', cat: 'Coupling', mass: 0.1, h: 0.4, w: 3, decoupler: true,
+    desc: 'Separates everything below it (3 m).' },
+  radDec: { kind: 'raddec', name: 'Radial Decoupler', cat: 'Coupling', radial: true, radialOut: true, decoupler: true, mass: 0.03,
+    h: 1.0, w: 0.4, desc: 'Holds a side booster or tank, then pushes it away when staged.' },
+  radDecX: { kind: 'raddec', name: 'Crossfeed Decoupler', cat: 'Coupling', radial: true, radialOut: true, decoupler: true,
+    crossfeed: true, mass: 0.05, h: 1.0, w: 0.4, desc: 'Radial decoupler that lets fuel flow from the side booster into the core.' },
+  adapt2to125: { kind: 'adapter', name: 'Taper 2 → 1.25', cat: 'Coupling', mass: 0.08, h: 0.8, w: 2, wb: 1.25, desc: 'Adapter from 2 m above to 1.25 m below.' },
+  adapt125to2: { kind: 'adapter', name: 'Taper 1.25 → 2', cat: 'Coupling', mass: 0.08, h: 0.8, w: 1.25, wb: 2, desc: 'Adapter from 1.25 m above to 2 m below.' },
+  adapt3to2: { kind: 'adapter', name: 'Taper 3 → 2', cat: 'Coupling', mass: 0.15, h: 1.0, w: 3, wb: 2, desc: 'Adapter from 3 m above to 2 m below.' },
+  adapt2to3: { kind: 'adapter', name: 'Taper 2 → 3', cat: 'Coupling', mass: 0.15, h: 1.0, w: 2, wb: 3, desc: 'Adapter from 2 m above to 3 m below.' },
+  // Structure
+  nose125: { kind: 'nose', name: 'Ogive Nose Cone S', cat: 'Structure', mass: 0.03, h: 1.2, w: 0.15, wb: 1.25, noTop: true,
+    desc: 'Streamlined cap for 1.25 m boosters and tanks.' },
+  nose2: { kind: 'nose', name: 'Ogive Nose Cone', cat: 'Structure', mass: 0.08, h: 1.8, w: 0.2, wb: 2, noTop: true,
+    desc: 'Streamlined cap for 2 m boosters and tanks.' },
+  pylon: { kind: 'pylon', name: 'Pylon Strut', cat: 'Structure', radial: true, radialOut: true, mass: 0.1, h: 2.4, w: 0.5,
+    desc: 'Side-mounted strut. Attach tanks or engines to its outer side.' },
+  fins: { kind: 'fins', name: 'Tailfin', cat: 'Structure', radial: true, fins: true, mass: 0.06, h: 2.2, w: 0.9,
+    desc: 'Keeps the rocket pointed into the airflow. Mount in pairs near the bottom.' },
+  // Utility
+  legs: { kind: 'legs', name: 'Stance Landing Leg', cat: 'Utility', radial: true, legs: true, mass: 0.07, h: 1.2, w: 0.45,
+    desc: 'Mount in pairs. Raises the safe landing speed to 12 m/s.' },
+  rcs: { kind: 'rcs', name: 'Puffer RCS Block', cat: 'Utility', radial: true, rcs: true, mass: 0.05, h: 0.45, w: 0.45, rcsThrust: 1.2,
+    isp: 240, desc: 'Monopropellant thrusters for fine steering and sideways moves. R toggles RCS; Q/E and H/N translate.' },
 };
-const PART_ORDER = ['pod', 'chute', 'wheel', 'tankS', 'tankM', 'tankL', 'tankXL', 'wren', 'kestrel', 'ox', 'bison', 'srb', 'decoupler', 'fins', 'legs'];
-const CATEGORIES = ['Command', 'Fuel', 'Engines', 'Structure'];
-
-const PRESETS = {
-  'Sky Hopper': ['chute', 'pod', 'decoupler', 'srb'],
-  'Orbiter I': ['chute', 'pod', 'tankM', 'wren', 'decoupler', 'tankL', 'tankL', 'fins', 'ox'],
-  'Pallid Lander': ['chute', 'pod', 'legs', 'tankL', 'wren', 'decoupler', 'tankXL', 'tankL', 'kestrel', 'decoupler', 'tankXL', 'tankXL', 'fins', 'bison'],
-};
+const CATEGORIES = ['Command', 'Fuel', 'Engines', 'Coupling', 'Structure', 'Utility'];
 
 const MILESTONES = [
   { id: 'liftoff', name: 'Liftoff', desc: 'Leave the launch pad.' },

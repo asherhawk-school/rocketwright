@@ -22,12 +22,16 @@
     <aside id="palette" class="panel"></aside>
     <main id="buildArea">
       <canvas id="buildCanvas"></canvas>
-      <div id="buildHint">Click a part to add it below the selected part · click the rocket to select · Del removes · Shift+↑/↓ moves</div>
+      <div id="buildTools">
+        <button id="btnSym" class="on" title="Mirror side parts in pairs (X)">Symmetry: 2×</button>
+        <button id="btnUndo" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
+        <button id="btnRedo" title="Redo (Ctrl+Shift+Z)" disabled>↷ Redo</button>
+        <button id="btnMarkers" class="on" title="Show centre of mass (yellow) and centre of thrust (purple)">◎ CoM / Thrust</button>
+      </div>
+      <div id="buildHint">Drag parts onto the rocket · click a part to select · drag it to move · Del removes · Ctrl+Z undoes</div>
       <div id="selTools" class="hidden">
         <span id="selName"></span>
-        <button id="selUp" title="Move up">▲</button>
-        <button id="selDown" title="Move down">▼</button>
-        <button id="selDel" title="Remove">✕</button>
+        <button id="selDel" title="Remove this part and everything attached to it (Del)">✕ Remove</button>
       </div>
     </main>
     <aside id="stats" class="panel">
@@ -35,7 +39,8 @@
       <select id="loadSelect"></select>
       <div class="row"><button id="btnSave">Save</button><button id="btnClear">Clear</button></div>
       <div id="statSummary"></div>
-      <h3>Staging <span class="muted small">(Space fires each step)</span></h3>
+      <h3 class="stage-head">Staging <span class="muted small">(Space fires each stage)</span>
+        <button id="btnAutoStage" class="hidden small-btn" title="Go back to automatic staging">Auto</button></h3>
       <div id="stageList"></div>
       <div id="warnings"></div>
       <button id="btnLaunch" class="launch">LAUNCH</button>
@@ -92,6 +97,7 @@
         <button data-sas="radout" title="Radial out / up (5)">Up</button>
         <button data-sas="radin" title="Radial in / down (6)">Down</button>
       </div>
+      <button id="bRcs" class="rcs-btn hidden" title="RCS thrusters (R). Q/E slide sideways, H/N forward/back">RCS (R)</button>
     </div>
     <div class="thr-wrap card">
       <div class="label">THR</div>
@@ -104,6 +110,7 @@
       <div class="kv"><span>TWR</span><b id="hTwr">0.00</b></div>
       <div class="fuel" id="fLiqRow"><span>Fuel</span><div class="bar"><div id="fLiq"></div></div></div>
       <div class="fuel" id="fSolRow"><span>Solid</span><div class="bar solid"><div id="fSol"></div></div></div>
+      <div class="fuel" id="fMonoRow"><span>Mono</span><div class="bar mono"><div id="fMono"></div></div></div>
       <div id="hNext" class="next"></div>
       <button id="bStage" class="stage-btn">STAGE <small>(Space)</small></button>
     </div>
@@ -127,6 +134,7 @@
 <script src="js/vessel.js"></script>
 <script src="js/render.js"></script>
 <script src="js/flight.js"></script>
+<script src="js/hangar.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

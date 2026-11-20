@@ -1,207 +1,5 @@
 'use strict';
-/* Rocketwright — hangar (rocket builder), menus and the main loop. */
-
-const $ = (id) => document.getElementById(id);
-const Hangar = { design: [], sel: -1, name: 'Orbiter I', view: null };
-
-/* ---------------- hangar ---------------- */
-
-function partStatsLine(d) {
-  if (d.kind === 'engine') return `${d.thrust} kN · Isp ${d.ispSL}/${d.ispVac} s · ${d.mass} t`;
-  if (d.kind === 'srb') return `${d.thrust} kN · ${d.solid} t solid · ${(d.mass + d.solid).toFixed(1)} t`;
-  if (d.kind === 'tank') return `${d.fuel} t fuel · ${(d.mass + d.fuel).toFixed(2)} t full`;
-  if (d.torque) return `${d.torque} kN·m torque · ${d.mass} t`;
-  return `${d.mass} t`;
-}
-
-function buildPalette() {
-  const pal = $('palette');
-  pal.innerHTML = '';
-  for (const cat of CATEGORIES) {
-    const h = document.createElement('div');
-    h.className = 'cat-title';
-    h.textContent = cat;
-    pal.appendChild(h);
-    for (const id of PART_ORDER) {
-      const d = PART_DEFS[id];
-      if (d.cat !== cat) continue;
-      const b = document.createElement('button');
-      b.className = 'part-btn';
-      b.title = d.desc;
-      const cv = document.createElement('canvas');
-      drawPartIcon(cv, id);
-      const txt = document.createElement('div');
-      txt.innerHTML = `<div class="pname"></div><div class="pstat"></div>`;
-      txt.querySelector('.pname').textContent = d.name;
-      txt.querySelector('.pstat').textContent = partStatsLine(d);
-      b.append(cv, txt);
-      b.addEventListener('click', () => addPart(id));
-      pal.appendChild(b);
-    }
-  }
-}
-
-function addPart(id) {
-  let at = Hangar.sel >= 0 ? Hangar.sel + 1 : Hangar.design.length;
-  if (Hangar.sel < 0 && id === 'chute' && Hangar.design[0] === 'pod') at = 0;
-  Hangar.design.splice(at, 0, id);
-  Hangar.sel = at;
-  hangarChanged();
-}
-function removeSel() {
-  if (Hangar.sel < 0) return;
-  Hangar.design.splice(Hangar.sel, 1);
-  Hangar.sel = Math.min(Hangar.sel, Hangar.design.length - 1);
-  if (!Hangar.design.length) Hangar.sel = -1;
-  hangarChanged();
-}
-function moveSel(dir) {
-  const i = Hangar.sel, j = i + dir;
-  if (i < 0 || j < 0 || j >= Hangar.design.length) return;
-  [Hangar.design[i], Hangar.design[j]] = [Hangar.design[j], Hangar.design[i]];
-  Hangar.sel = j;
-  hangarChanged();
-}
-
-function hangarChanged() {
-  Store.set('current', { name: Hangar.name, design: Hangar.design });
-  drawBuild();
-  updateStats();
-}
-
-function drawBuild() {
-  const cv = $('buildCanvas');
-  const box = cv.parentElement.getBoundingClientRect();
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const W = Math.max(50, box.width), H = Math.max(50, box.height);
-  cv.width = W * dpr; cv.height = H * dpr;
-  const ctx = cv.getContext('2d');
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, W, H);
-  ctx.strokeStyle = 'rgba(79,209,255,0.07)';
-  ctx.lineWidth = 1;
-  for (let x = (W / 2) % 24; x < W; x += 24) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-  for (let y = 0; y < H; y += 24) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-  const sel = $('selTools');
-  if (!Hangar.design.length) { Hangar.view = null; sel.classList.add('hidden'); return; }
-  const c = new Craft(makeParts(Hangar.design));
-  const L = c.length;
-  const extraBot = c.hasLegs || c.hasFins ? 1.5 : 0.5;
-  const scale = Math.min(42, (H - 90) / (L + extraBot + 1), (W - 140) / 6);
-  const topPx = (H - (L + extraBot) * scale) / 2 + 10;
-  Hangar.view = { scale, topPx, W, H, c };
-  ctx.save();
-  ctx.setTransform(dpr * scale, 0, 0, -dpr * scale, (dpr * W) / 2, dpr * topPx);
-  for (const p of c.parts) drawPart(ctx, p, 1 / scale, p.def.legs ? c.footY : undefined);
-  if (Hangar.sel >= 0 && c.parts[Hangar.sel]) {
-    const p = c.parts[Hangar.sel];
-    ctx.strokeStyle = '#4fd1ff';
-    ctx.lineWidth = 2 / scale;
-    ctx.setLineDash([4 / scale, 3 / scale]);
-    ctx.strokeRect(-1.25, p.bot - 0.08, 2.5, p.def.h + 0.16);
-    ctx.setLineDash([]);
-  }
-  ctx.restore();
-  // stage brackets on the left
-  const [lo, hi] = segRange(c.parts);
-  ctx.font = '600 11px system-ui, sans-serif';
-  ctx.textAlign = 'right';
-  for (let s = lo; s <= hi; s++) {
-    const ps = c.parts.filter((p) => p.seg === s);
-    const yTop = topPx - ps[0].top * scale, yBot = topPx - ps[ps.length - 1].bot * scale;
-    const x = W / 2 - 2.6 * scale - 10;
-    ctx.strokeStyle = 'rgba(255,179,71,0.7)';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(x + 6, yTop + 2); ctx.lineTo(x, yTop + 2); ctx.lineTo(x, yBot - 2); ctx.lineTo(x + 6, yBot - 2); ctx.stroke();
-    ctx.fillStyle = '#ffb347';
-    ctx.fillText(`Stage ${hi - s + 1}`, x - 6, (yTop + yBot) / 2 + 4);
-  }
-  // selection tools
-  if (Hangar.sel >= 0 && c.parts[Hangar.sel]) {
-    const p = c.parts[Hangar.sel];
-    sel.classList.remove('hidden');
-    $('selName').textContent = p.def.name;
-    const y = topPx - ((p.top + p.bot) / 2) * scale;
-    sel.style.top = clamp(y - 18, 4, H - 40) + 'px';
-    sel.style.left = W / 2 + 2.7 * scale + 12 + 'px';
-  } else sel.classList.add('hidden');
-}
-
-function buildClick(e) {
-  const v = Hangar.view;
-  if (!v) return;
-  const rect = e.currentTarget.getBoundingClientRect();
-  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
-  const lx = (sx - v.W / 2) / v.scale, ly = (v.topPx - sy) / v.scale;
-  let hit = -1;
-  if (Math.abs(lx) < 2.6) v.c.parts.forEach((p, i) => { if (ly <= p.top && ly >= p.bot) hit = i; });
-  Hangar.sel = hit;
-  drawBuild();
-}
-
-function updateStats() {
-  const a = analyzeDesign(Hangar.design);
-  $('statSummary').innerHTML = `
-    <div class="kv"><span>Mass</span><b>${fmtNum(a.mass, 2)} t</b></div>
-    <div class="kv"><span>Height</span><b>${fmtNum(a.height, 1)} m</b></div>
-    <div class="kv"><span>Parts</span><b>${Hangar.design.length}</b></div>
-    <div class="kv big-kv"><span>Total Δv (vacuum)</span><b>${fmtNum(a.total)} m/s</b></div>`;
-  const list = $('stageList');
-  list.innerHTML = '';
-  const rowBySeg = {};
-  for (const r of a.rows) rowBySeg[r.seg] = r;
-  a.actions.forEach((act, i) => {
-    const d = document.createElement('div');
-    d.className = 'stage-row';
-    const r = act.ignite !== undefined && act.ignite >= 0 ? rowBySeg[act.ignite] : null;
-    const label = document.createElement('div');
-    label.className = 'stage-label';
-    label.textContent = `${i + 1}. ${stageLabel(act, a.parts)}`;
-    d.appendChild(label);
-    if (r) {
-      const s = document.createElement('div');
-      s.className = 'stage-stats';
-      s.textContent = `Δv ${fmtNum(r.dv)} m/s · TWR ${r.twr.toFixed(2)} (vac ${r.twrVac.toFixed(2)}) · ${fmtNum(r.burn)} s`;
-      d.appendChild(s);
-    }
-    list.appendChild(d);
-  });
-  if (!a.actions.length) list.innerHTML = '<div class="muted">No stages yet.</div>';
-  const w = $('warnings');
-  w.innerHTML = '';
-  for (const x of a.warnings) {
-    const d = document.createElement('div');
-    d.className = 'warn ' + x.lvl;
-    d.textContent = x.text;
-    w.appendChild(d);
-  }
-  $('btnLaunch').disabled = !a.valid;
-}
-
-function fillLoadSelect() {
-  const s = $('loadSelect');
-  s.innerHTML = '<option value="">Load a craft…</option>';
-  const g1 = document.createElement('optgroup');
-  g1.label = 'Example crafts';
-  for (const n of Object.keys(PRESETS)) { const o = document.createElement('option'); o.value = 'p:' + n; o.textContent = n; g1.appendChild(o); }
-  s.appendChild(g1);
-  const saved = Store.get('saved', {});
-  const names = Object.keys(saved);
-  if (names.length) {
-    const g2 = document.createElement('optgroup');
-    g2.label = 'Your saved crafts';
-    for (const n of names) { const o = document.createElement('option'); o.value = 's:' + n; o.textContent = n; g2.appendChild(o); }
-    s.appendChild(g2);
-  }
-}
-
-function loadCraft(name, design) {
-  Hangar.name = name;
-  Hangar.design = design.filter((id) => PART_DEFS[id]);
-  Hangar.sel = -1;
-  $('craftName').value = name;
-  hangarChanged();
-}
+/* Rocketwright — screens, menus, input and the main loop. */
 
 /* ---------------- screens & modals ---------------- */
 
@@ -210,8 +8,7 @@ function showHangar() {
   hideModal();
   $('flight').classList.add('hidden');
   $('hangar').classList.remove('hidden');
-  drawBuild();
-  updateStats();
+  hangarChanged();
 }
 function launch() {
   const a = analyzeDesign(Hangar.design);
@@ -247,10 +44,12 @@ function hideModal() {
 }
 
 const HELP_HTML = `
-<h2>How to fly</h2>
-<p><b>Build</b> a rocket in the hangar from the top down: capsule, fuel tanks, then an engine. A <b>decoupler</b> splits the
-rocket into stages. Engines only burn fuel from their own stage. The right panel shows each stage's Δv (how much speed it can add) and TWR
-(thrust-to-weight; it must be above 1 to lift off).</p>
+<h2>How to play</h2>
+<p><b>Build</b> in the hangar by dragging parts onto your rocket. Parts snap to the top or bottom of other parts, or to their
+sides. With <b>symmetry</b> on, side parts are placed in mirrored pairs. <b>Decouplers</b> split the rocket into stages, and
+<b>radial decouplers</b> hold side boosters. Engines burn fuel from tanks they connect to without crossing a decoupler
+(a <b>crossfeed decoupler</b> lets boosters feed the core). The staging panel shows what each press of <kbd>Space</kbd> does, with
+its Δv (how much speed it can add) and TWR (thrust-to-weight; above 1 to lift off). Use ▲/▼ to change the order.</p>
 <div class="keys">
   <div><kbd>Space</kbd> Stage: ignite, separate, parachute</div>
   <div><kbd>A</kbd>/<kbd>D</kbd> or <kbd>←</kbd>/<kbd>→</kbd> Rotate</div>
@@ -260,6 +59,8 @@ rocket into stages. Engines only burn fuel from their own stage. The right panel
   <div><kbd>M</kbd> Map view · <kbd>F</kbd> Map focus</div>
   <div><kbd>,</kbd>/<kbd>.</kbd> Time warp slower / faster</div>
   <div>Mouse wheel: zoom · <kbd>Esc</kbd> Menu</div>
+  <div><kbd>R</kbd> RCS · <kbd>Q</kbd>/<kbd>E</kbd> slide · <kbd>H</kbd>/<kbd>N</kbd> forward/back</div>
+  <div>Hangar: <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>X</kbd> symmetry · <kbd>Del</kbd> remove</div>
 </div>
 <h3>Getting to orbit</h3>
 <ol>
@@ -321,6 +122,14 @@ function recover() {
   ]);
 }
 
+function toggleRcs() {
+  const c = F.craft;
+  if (!c || c.dead) return;
+  if (!c.rcsParts.length) { flash('No RCS thrusters on this craft', 2); return; }
+  c.rcsOn = !c.rcsOn;
+  flash(c.rcsOn ? 'RCS on · Q/E slide sideways · H/N forward/back' : 'RCS off', 2);
+}
+
 function toggleMap() {
   F.map = !F.map;
   F.predTick = 0;
@@ -336,10 +145,7 @@ function onKeyDown(e) {
     return;
   }
   if (!F.running) {
-    if (e.code === 'Delete' || e.code === 'Backspace') { e.preventDefault(); removeSel(); }
-    else if (e.code === 'ArrowUp') { e.preventDefault(); if (e.shiftKey) moveSel(-1); else { Hangar.sel = Math.max(0, Hangar.sel - 1); drawBuild(); } }
-    else if (e.code === 'ArrowDown') { e.preventDefault(); if (e.shiftKey) moveSel(1); else { Hangar.sel = Math.min(Hangar.design.length - 1, Hangar.sel + 1); drawBuild(); } }
-    else if (e.code === 'Escape') { Hangar.sel = -1; drawBuild(); }
+    hangarKey(e);
     return;
   }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
@@ -354,6 +160,7 @@ function onKeyDown(e) {
     case 'KeyZ': if (!c.dead) c.throttle = 1; break;
     case 'KeyX': if (!c.dead) c.throttle = 0; break;
     case 'KeyT': setSas(F.sas === 'off' ? 'stab' : 'off'); break;
+    case 'KeyR': toggleRcs(); break;
     case 'KeyF': F.mapFocus = (F.mapFocus + 1) % 4; if (F.mapFocus !== 1) F.mapZoom = 0; break;
     case 'Escape': openMenu(); break;
     case 'Equal': case 'NumpadAdd': zoomBy(1.25); break;
@@ -372,32 +179,12 @@ function wireUi() {
   window.addEventListener('keyup', (e) => { F.keys[e.code] = false; });
   window.addEventListener('blur', () => { for (const k in F.keys) F.keys[k] = false; });
   $('game').addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
-  window.addEventListener('resize', () => { if (!F.running) drawBuild(); });
+  window.addEventListener('resize', () => { if (!F.running) { Hangar.view = null; drawBuild(); } });
 
-  $('buildCanvas').addEventListener('click', buildClick);
-  $('selUp').addEventListener('click', () => moveSel(-1));
-  $('selDown').addEventListener('click', () => moveSel(1));
-  $('selDel').addEventListener('click', removeSel);
   $('btnLaunch').addEventListener('click', launch);
   $('btnHelp').addEventListener('click', showHelp);
   $('btnMilestones').addEventListener('click', showMilestones);
-  $('craftName').addEventListener('input', (e) => { Hangar.name = e.target.value.trim() || 'Untitled'; Store.set('current', { name: Hangar.name, design: Hangar.design }); });
-  $('btnSave').addEventListener('click', () => {
-    const saved = Store.get('saved', {});
-    saved[Hangar.name] = Hangar.design.slice();
-    Store.set('saved', saved);
-    fillLoadSelect();
-    const b = $('btnSave'); b.textContent = 'Saved ✓'; setTimeout(() => { b.textContent = 'Save'; }, 1200);
-  });
-  $('btnClear').addEventListener('click', () => { Hangar.design = []; Hangar.sel = -1; hangarChanged(); });
-  $('loadSelect').addEventListener('change', (e) => {
-    const v = e.target.value;
-    if (!v) return;
-    const name = v.slice(2);
-    if (v[0] === 'p') loadCraft(name, PRESETS[name]);
-    else loadCraft(name, Store.get('saved', {})[name] || []);
-    e.target.value = '';
-  });
+  wireHangar();
 
   // flight HUD buttons (never keep focus, so Space keeps staging)
   document.querySelectorAll('#flight button').forEach((b) => b.addEventListener('mousedown', (e) => e.preventDefault()));
@@ -407,6 +194,7 @@ function wireUi() {
   $('bWarpUp').addEventListener('click', () => changeWarp(1));
   $('bWarpDn').addEventListener('click', () => changeWarp(-1));
   $('bRecover').addEventListener('click', recover);
+  $('bRcs').addEventListener('click', toggleRcs);
   document.querySelectorAll('#sasBtns button').forEach((b) => b.addEventListener('click', () => setSas(b.dataset.sas)));
   document.querySelectorAll('[data-hold]').forEach((b) => {
     const k = b.dataset.hold;
@@ -439,8 +227,9 @@ function boot() {
   wireUi();
   fillLoadSelect();
   const cur = Store.get('current', null);
-  if (cur && Array.isArray(cur.design) && cur.design.length) loadCraft(cur.name || 'Untitled', cur.design);
-  else loadCraft('Orbiter I', PRESETS['Orbiter I']);
+  const curDesign = cur ? migrateDesign(cur.design) : null;
+  if (curDesign && curDesign.parts.length) loadCraft(cur.name || 'Untitled', curDesign);
+  else loadCraft('Orbiter I', PRESETS['Orbiter I']());
   if (!Store.get('seenHelp', false)) { Store.set('seenHelp', true); showHelp(); }
   requestAnimationFrame(loop);
 }

@@ -79,6 +79,20 @@ kbd {
 }
 #selTools span { font-size: 12px; margin-right: 6px; white-space: nowrap; }
 #selTools button { padding: 3px 8px; }
+#buildTools { position: absolute; top: 10px; left: 10px; display: flex; flex-wrap: wrap; gap: 6px; z-index: 2; }
+#buildTools button { padding: 4px 10px; font-size: 12px; background: var(--hud); }
+#buildTools button.on { background: #135a7a; }
+#buildHint.flash { color: var(--accent2); }
+body.dragging, body.dragging * { cursor: grabbing !important; }
+.part-btn { touch-action: none; }
+#buildCanvas { touch-action: none; }
+.stage-head { display: flex; align-items: center; gap: 6px; }
+.small-btn { margin-left: auto; padding: 2px 8px; font-size: 11px; text-transform: none; letter-spacing: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.chip { display: flex; align-items: center; gap: 2px; background: #182033; border: 1px solid var(--line); border-radius: 12px; padding: 1px 3px 1px 8px; font-size: 12px; }
+.chip.sel { border-color: var(--accent); }
+.chip span { cursor: pointer; margin-right: 2px; }
+.chip button { padding: 0 5px; font-size: 9px; border-radius: 8px; line-height: 16px; }
 .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .row { display: flex; gap: 8px; }
 .row button { flex: 1; }
@@ -132,6 +146,8 @@ kbd {
 .bar { flex: 1; height: 8px; background: #0b0f17; border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
 .bar div { height: 100%; width: 0; background: linear-gradient(90deg, #f0a030, #ffd34d); }
 .bar.solid div { background: linear-gradient(90deg, #c8402f, #ff7a4d); }
+.bar.mono div { background: linear-gradient(90deg, #5fb97a, #b6f5c8); }
+.rcs-btn { width: 150px; padding: 2px 0; font-size: 11px; }
 .next { font-size: 12px; color: var(--accent2); margin: 6px 0; }
 .stage-btn { width: 100%; padding: 10px; font-weight: 800; letter-spacing: .15em; background: linear-gradient(180deg, #b8402a, #8a2c1c); border-color: #e0573a; }
 .stage-btn small { font-weight: 500; letter-spacing: 0; opacity: .8; }

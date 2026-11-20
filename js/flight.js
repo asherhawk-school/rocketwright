@@ -27,7 +27,7 @@ function initFlightView() {
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc',
-    'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'hNext', 'hPitch',
+    'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'bRcs', 'hNext', 'hPitch',
     'bRecover', 'bMap', 'msg', 'mapHint']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
@@ -43,21 +43,22 @@ function resizeFlight() {
 /* ---------------- flight lifecycle ---------------- */
 
 function flightStart(design, name) {
-  F.design = design.slice();
+  F.design = cloneDesign(design);
   F.craftName = name || 'Untitled';
-  const c = new Craft(makeParts(design));
-  c.stages = stageActions(c.parts);
-  c.stageIdx = 0;
+  const parts = layoutDesign(F.design);
+  const c = new Craft(parts, { stages: stageListFrom(resolveStages(F.design, parts)) });
+  c.recompute();
   const lowest = Math.min(...c.contacts.map((p) => p[1]));
   const padTop = HOME.R + terrainH(HOME, PAD_PHI);
   c.angle = Math.PI / 2;
-  c.pos = [0, padTop - (lowest - c.yc) + 0.02];
+  c.pos = [c.xc, padTop - (lowest - c.yc) + 0.02];
   c.vel = [0, 0];
   c.landed = { body: HOME, rx: c.pos[0], ry: c.pos[1] };
   Object.assign(F, {
     craft: c, debris: [], particles: [], t: 0, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 0,
     deadTimer: 0, endShown: false, pred: null, encounter: null, orbit: null, lastBody: HOME, rotOffset: 0, paused: false,
     flags: { space: false, moon: false, landedMoon: false, maxAlt: 0 }, flightMilestones: [], running: true,
+    dvTick: 0, dvCache: null, rcsTx: 0, rcsTy: 0,
   });
   F.zoom = clamp((F.H * 0.42) / (c.length + 8), 2, 30);
   for (const k in F.keys) F.keys[k] = false;
@@ -68,48 +69,49 @@ function flightStart(design, name) {
 function doStage() {
   const c = F.craft;
   if (c.dead || c.stageIdx >= c.stages.length) return;
-  const a = c.stages[c.stageIdx++];
+  const first = c.stageIdx === 0;
+  const res = c.activateNext((comp, dec) => separatePiece(c, comp, dec));
+  if (!res) return;
   const msgs = [];
-  if (a.decouple !== undefined) {
-    const s = a.decouple;
-    const sep = c.parts.filter((p) => p.seg >= s);
-    const keep = c.parts.filter((p) => p.seg < s);
-    if (sep.length && keep.length) {
-      let m = 0, my = 0;
-      for (const p of sep) { m += p.m; my += (p.m * (p.top + p.bot)) / 2; }
-      const w = c.toWorld(0, my / m);
-      const sepPoint = c.toWorld(0, sep[0].top);
-      const ax = Math.cos(c.angle), ay = Math.sin(c.angle);
-      c.parts = keep;
-      c.layout();
-      c.updateMass();
-      const d = new Craft(sep);
-      d.pos = w;
-      d.vel = [c.vel[0] - ax * 1.5, c.vel[1] - ay * 1.5];
-      d.angle = c.angle;
-      d.angVel = c.angVel + (Math.random() - 0.5) * 0.06;
-      d.throttle = 0;
-      if (!c.landed) { c.vel[0] += ax * 0.6; c.vel[1] += ay * 0.6; }
-      F.debris.push(d);
-      for (let i = 0; i < 14; i++) {
-        F.particles.push({ x: sepPoint[0], y: sepPoint[1], vx: c.vel[0] + (Math.random() - 0.5) * 8, vy: c.vel[1] + (Math.random() - 0.5) * 8,
-          fx: c.vel[0], fy: c.vel[1], life: 1.2, max: 1.2, size: 0.6, grow: 2, kind: 'smoke', drag: 0.3 });
-      }
-      msgs.push('Stage separated');
-    }
+  if (res.separated) msgs.push(res.separated > 1 ? `${res.separated} pieces separated` : 'Stage separated');
+  if (res.ignited.length) {
+    const names = [...new Set(res.ignited.map((p) => shortName(p.def)))].join(', ');
+    msgs.push(`Ignition: ${names}`);
+    if (first && c.throttle === 0) c.throttle = 1;
   }
-  if (a.ignite !== undefined && a.ignite >= 0) {
-    let any = false;
-    for (const p of c.parts) if (p.seg === a.ignite && p.def.thrust) { p.ignited = true; any = true; }
-    if (any) {
-      msgs.push(`Ignition: ${engineNames(c.parts, a.ignite)}`);
-      if (c.stageIdx === 1 && c.throttle === 0) c.throttle = 1;
-    }
-  }
-  if (a.chute) {
-    if (c.hasChute) { c.chuteOpen = true; msgs.push('Parachute deployed'); }
-  }
+  if (res.chute) msgs.push('Parachute deployed');
+  F.dvTick = 0;
   if (msgs.length) flash(msgs.join(' · '));
+}
+
+/* Turn a piece that just separated into its own falling craft and push the two apart. */
+function separatePiece(c, comp, dec) {
+  let m = 0, mx = 0, my = 0;
+  for (const p of comp) { m += p.m; mx += p.m * p.x; my += (p.m * (p.top + p.bot)) / 2; }
+  const cx = mx / m, cy = my / m;
+  const d = new Craft(comp);
+  d.angle = c.angle;
+  d.xc = undefined;
+  d.recompute();
+  d.pos = c.toWorld(d.xc, d.yc);
+  // side pieces get pushed sideways, stacked pieces along the axis
+  const dx = cx - c.xc, dy = cy - c.yc;
+  const side = dec.def.radial || Math.abs(dx) > 0.6;
+  const dir = side ? [Math.sign(dx) || 1, -0.15] : [0, Math.sign(dy) || -1];
+  const push = side ? 3 : 1.5;
+  const wv = c.rotLocal(dir[0] * push, dir[1] * push);
+  const share = m / (m + c.M);
+  d.vel = [c.vel[0] + wv[0] * (1 - share), c.vel[1] + wv[1] * (1 - share)];
+  if (!c.landed) { c.vel[0] -= wv[0] * share; c.vel[1] -= wv[1] * share; }
+  d.angVel = c.angVel + (side ? -(Math.sign(dx) || 1) * 0.25 : (Math.random() - 0.5) * 0.06);
+  d.throttle = 0;
+  d.landed = null;
+  F.debris.push(d);
+  const sp = c.toWorld(dec.x, (dec.top + dec.bot) / 2);
+  for (let i = 0; i < 14; i++) {
+    F.particles.push({ x: sp[0], y: sp[1], vx: c.vel[0] + (Math.random() - 0.5) * 8, vy: c.vel[1] + (Math.random() - 0.5) * 8,
+      fx: c.vel[0], fy: c.vel[1], life: 1.2, max: 1.2, size: 0.6, grow: 2, kind: 'smoke', drag: 0.3 });
+  }
 }
 
 function setSas(mode) {
@@ -165,7 +167,9 @@ function flightUpdate(dt) {
     if (k.KeyS || k.ArrowDown || k.vThrDn) c.throttle = Math.max(0, c.throttle - dt * 0.8);
     F.userRot = (k.KeyA || k.ArrowLeft || k.vRotL ? 1 : 0) - (k.KeyD || k.ArrowRight || k.vRotR ? 1 : 0);
     if (F.userRot) F.hold = null;
-  } else F.userRot = 0;
+    F.rcsTx = (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0);
+    F.rcsTy = (k.KeyH ? 1 : 0) - (k.KeyN ? 1 : 0);
+  } else { F.userRot = 0; F.rcsTx = F.rcsTy = 0; }
 
   enforceWarp();
   const w = WARPS[F.warp];
@@ -253,8 +257,13 @@ function stepCraft(c, dt, player) {
 
   c.vel[0] += (g[0] + (ax * T) / c.M) * dt;
   c.vel[1] += (g[1] + (ay * T) / c.M) * dt;
+  const rcs = player ? c.rcsStep(dt, F.rcsTx || 0, F.rcsTy || 0, c.ctrl) : { fx: 0, fy: 0, k: 0 };
+  if (rcs.fx || rcs.fy) {
+    const f = c.rotLocal(rcs.fx, rcs.fy);
+    c.vel[0] += (f[0] / c.M) * dt; c.vel[1] += (f[1] / c.M) * dt;
+  }
 
-  let tq = c.ctrl * (c.torque + c.gimbalCap);
+  let tq = c.ctrl * (c.torque + c.gimbalCap + c.rcsTorqueCap * rcs.k) + c.thrustTorque;
   let kSpring = 0;
   const vrx = c.vel[0] - bv[0], vry = c.vel[1] - bv[1];
   const v = Math.hypot(vrx, vry);
@@ -266,11 +275,14 @@ function stepCraft(c, dt, player) {
     const q = (0.5 * at.rho * v * v) / 1000; // kPa
     const vhx = vrx / v, vhy = vry / v;
     const sinA = Math.abs(ax * vhy - ay * vhx);
-    const CdA = 0.55 * Math.PI * (1 + 4 * sinA) + c.chuteArea;
+    const CdA = 0.55 * Math.PI * (c.width / 2) * (1 + 4 * sinA) + c.chuteArea;
     const dv = Math.min(((q * CdA) / c.M) * dt, v * 0.9);
     c.vel[0] -= vhx * dv; c.vel[1] -= vhy * dv;
     const flowAng = Math.atan2(vhy, vhx);
-    const kR = q * c.length * 2 * (c.hasFins ? 0.6 : 0.12);
+    // fins behind the centre of mass add stability; fins in front of it reduce it
+    let stab = 0.12;
+    for (const f of c.fins) stab += 0.3 * clamp(((c.yc - (f.top + f.bot) / 2) / Math.max(c.length, 1)) * 4, -1, 1);
+    const kR = q * c.length * 2 * Math.max(stab, 0.02);
     tq -= kR * Math.sin(wrapPi(c.angle - flowAng));
     kSpring += kR;
     if (c.chuteArea > 1) {
@@ -382,7 +394,7 @@ function railsStep(simDt) {
 function controlInput(c) {
   if (F.userRot) return F.userRot;
   if (F.sas === 'off' || c.landed) return 0;
-  const maxA = (c.torque + c.gimbalCap) / c.I;
+  const maxA = (c.torque + c.gimbalCap + (c.rcsOn && c.monoTotal() > 0 ? c.rcsTorqueCap : 0)) / c.I;
   if (maxA <= 1e-6) return 0;
   const damp = () => clamp((-c.angVel * 6) / maxA, -1, 1);
   let target;
@@ -417,7 +429,7 @@ function emitExhaust(c, dt, pressure, bv) {
     let n = dt * 28 * e.burn * Math.min(1, pressure * 3) * Math.sqrt(e.def.thrust / 150);
     while (n > 0) {
       if (Math.random() < n) {
-        const w = c.toWorld((Math.random() - 0.5) * 1.2, e.bot - 1.5);
+        const w = c.toWorld(e.x + (Math.random() - 0.5) * 1.2, e.bot - 1.5);
         const sp = 25 + Math.random() * 25, jx = (Math.random() - 0.5) * 6, jy = (Math.random() - 0.5) * 6;
         F.particles.push({ x: w[0], y: w[1], vx: c.vel[0] - ax * sp + jx, vy: c.vel[1] - ay * sp + jy, fx: bv[0] + jx, fy: bv[1] + jy,
           life: 3 + Math.random() * 3, max: 6, size: 1.4, grow: 2.5 + Math.random() * 2, kind: 'smoke', drag: 1.5 });
@@ -833,17 +845,37 @@ function updateHud() {
   h.thrFill.style.height = Math.round(c.throttle * 100) + '%';
   h.thrPct.textContent = Math.round(c.throttle * 100) + '%';
 
-  const dvt = deltaVTable(c.parts);
-  h.hDv.textContent = dvt.rows.length ? fmtNum(dvt.rows[0].dv) + ' m/s' : '—';
-  h.hDvT.textContent = fmtNum(dvt.total) + ' m/s';
+  // delta-v is simulated, so refresh it only now and then
+  if (!(F.dvTick > 0) && !c.dead) {
+    const rows = simulateStages(c, true);
+    F.dvCache = { stage: rows.length ? rows[0].dv : 0, total: rows.reduce((a, x) => a + x.dv, 0) };
+    F.dvTick = 10;
+  }
+  F.dvTick--;
+  if (F.dvCache) {
+    h.hDv.textContent = fmtNum(F.dvCache.stage) + ' m/s';
+    h.hDvT.textContent = fmtNum(F.dvCache.total) + ' m/s';
+  }
   const gl = b.mu / (r * r);
   h.hTwr.textContent = (c.thrust / (c.M * gl)).toFixed(2);
-  const si = segInfo(c.parts, c.activeSeg());
-  h.fLiqRow.style.display = si.liquidMax > 0 ? '' : 'none';
-  h.fSolRow.style.display = si.solidMax > 0 ? '' : 'none';
-  h.fLiq.style.width = (si.liquidMax ? (100 * si.liquid) / si.liquidMax : 0) + '%';
-  h.fSol.style.width = (si.solidMax ? (100 * si.solid) / si.solidMax : 0) + '%';
-  h.hNext.textContent = c.stageIdx < c.stages.length ? 'Next: ' + stageLabel(c.stages[c.stageIdx], c.parts) : 'No stages left';
+  // fuel feeding the lit engines (or the ones the next stage lights)
+  let feeding = c.engines.filter((e) => e.ignited);
+  if (!feeding.length && c.stageIdx < c.stages.length) feeding = c.engines.filter((e) => c.stages[c.stageIdx].includes(e.uid));
+  const gids = new Set(feeding.filter((e) => !e.def.solid).map((e) => c.groups.get(e.uid)));
+  let liq = 0, liqMax = 0, sol = 0, solMax = 0;
+  for (const p of c.tanks) if (gids.has(c.groups.get(p.uid))) { liq += p.fuel; liqMax += p.def.fuel; }
+  for (const e of feeding) if (e.def.solid) { sol += e.solid; solMax += e.def.solid; }
+  let mono = 0, monoMax = 0;
+  for (const p of c.parts) if (p.def.mono) { mono += p.mono; monoMax += p.def.mono; }
+  h.fLiqRow.style.display = liqMax > 0 ? '' : 'none';
+  h.fSolRow.style.display = solMax > 0 ? '' : 'none';
+  h.fMonoRow.style.display = monoMax > 0 && c.rcsParts.length ? '' : 'none';
+  h.fLiq.style.width = (liqMax ? (100 * liq) / liqMax : 0) + '%';
+  h.fSol.style.width = (solMax ? (100 * sol) / solMax : 0) + '%';
+  h.fMono.style.width = (monoMax ? (100 * mono) / monoMax : 0) + '%';
+  h.hNext.textContent = c.stageIdx < c.stages.length ? 'Next: ' + stageLabel(c.stages[c.stageIdx], (u) => c.byUid.get(u)) : 'No stages left';
+  h.bRcs.classList.toggle('on', c.rcsOn);
+  h.bRcs.classList.toggle('hidden', !c.rcsParts.length);
   const rel = wrapPi(c.angle - Math.atan2(ry, rx));
   const pitch = 90 - (Math.abs(rel) * 180) / Math.PI;
   const side = Math.abs(rel) < 0.01 || Math.abs(rel) > Math.PI - 0.01 ? '' : rel > 0 ? '◀ ' : '▶ ';
