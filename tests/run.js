@@ -16,9 +16,9 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 let src = '';
-for (const f of ['data.js', 'vessel.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'flight.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
+for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'flight.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -392,6 +392,129 @@ test('a crash loses the astronaut and reputation', () => {
   G.explode(F.craft, true, 50);
   assert(s.crew[1].status === 'lost' && s.rep === 10, `${s.crew[1].status}, rep ${s.rep}`);
   G.Career.s = null;
+});
+
+console.log('Systems & navigation');
+const craftFrom = (ids, extra) => { const d = G.designFromStack(ids); if (extra) extra(d); return d; };
+const placeInOrbit = (alt, t0 = 0) => {
+  const { F } = G; const c = F.craft; c.landed = null; F.t = t0; F.debris = [];
+  const r = G.HOME.R + alt, v = Math.sqrt(G.HOME.mu / r);
+  c.pos = [r, 0]; c.vel = [0, v]; c.angle = Math.PI / 2; c.angVel = 0; F.lastBody = G.HOME;
+  return c;
+};
+test('a probe core can fly a craft with no crew', () => {
+  const a = G.analyzeDesign(craftFrom(['probe', 'tankS125', 'gnat']));
+  assert(a.valid, JSON.stringify(a.warnings));
+  assert(a.warnings.some((w) => /batteries or solar/.test(w.text)), 'should suggest more power');
+});
+test('solar panels charge in sunlight and not in a planet\'s shadow', () => {
+  const { F } = G;
+  G.flightStart(craftFrom(['probe', 'tankS125', 'gnat'], (d) => { const p = d.parts[0].uid; G.attachPart(d, 'solar', p, 'side', 1, 0, true); }), 'Sat');
+  const c = placeInOrbit(300000);
+  const sun = G.bodyPos(G.SUN, F.t);
+  const toSun = Math.atan2(sun[1] - c.pos[1], sun[0] - c.pos[0]);
+  // put the craft on the sunny side, panels facing the sun
+  const r = c.pos[0];
+  c.pos = [r * Math.cos(toSun), r * Math.sin(toSun)];
+  c.angle = toSun + Math.PI / 2;
+  assert(!G.inShadow(c, F.t) && G.solarInput(c, F.t) > 1.5, 'sunlit input ' + G.solarInput(c, F.t));
+  c.pos = [-r * Math.cos(toSun), -r * Math.sin(toSun)];
+  assert(G.inShadow(c, F.t) && G.solarInput(c, F.t) === 0, 'should be in shadow');
+});
+test('a probe with a flat battery cannot steer or stage', () => {
+  const { F } = G;
+  G.flightStart(craftFrom(['probe', 'tankS125', 'gnat']), 'Dead probe');
+  const c = F.craft;
+  for (const p of c.parts) p.ec = 0;
+  G.electricStep(c, 0.02, 0, 0);
+  assert(!G.hasControl(c), 'should have lost control');
+  F.userRot = 1;
+  assert(G.controlInput(c) === 0, 'rotation should do nothing');
+  F.userRot = 0;
+  G.doStage();
+  assert(c.stageIdx === 0, 'staging should be blocked');
+});
+test('reaction wheels drain the battery', () => {
+  const { F } = G;
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Spinner');
+  const c = placeInOrbit(200000);
+  const e0 = G.ecTotal(c);
+  for (let i = 0; i < 500; i++) G.electricStep(c, 0.02, 1e5, 10);
+  assert(G.ecTotal(c) < e0 - 7, `charge ${e0} -> ${G.ecTotal(c)}`);
+});
+/* Drop a capsule into the air at speed; return whether it survived. */
+function reentry(withShield) {
+  const { F } = G;
+  const ids = withShield ? ['chute', 'pod', 'shield2'] : ['chute', 'pod'];
+  G.flightStart(G.designFromStack(ids), 'Capsule');
+  const c = F.craft; c.landed = null; F.t = 0; F.debris = [];
+  const r = G.HOME.R + 69000, fpa = -0.25, v = 3200;
+  c.pos = [0, r]; c.vel = [v * Math.cos(fpa), v * Math.sin(fpa)];
+  c.angle = Math.atan2(c.vel[1], c.vel[0]) + Math.PI; // heat shield first
+  F.sas = 'retro';
+  let maxT = 0;
+  for (let i = 0; i < 60 * 400 && !c.dead; i++) {
+    c.ctrl = G.controlInput(c);
+    G.stepCraft(c, G.PHYS_DT, true);
+    F.t += G.PHYS_DT;
+    for (const p of c.parts) if (p.def.pod) maxT = Math.max(maxT, p.temp);
+    if (Math.hypot(...c.pos) - G.HOME.R < 15000) break;
+  }
+  return { dead: c.dead, maxT };
+}
+test('a fast, steep reentry burns up a bare capsule but not one with a heat shield', () => {
+  const bare = reentry(false), shielded = reentry(true);
+  assert(bare.dead, 'bare capsule survived (peak ' + bare.maxT.toFixed(0) + ' K)');
+  assert(!shielded.dead && shielded.maxT < 1500, 'shielded capsule: dead ' + shielded.dead + ', peak ' + shielded.maxT.toFixed(0) + ' K');
+});
+test('an overheated fin breaks off and the rest of the craft flies on', () => {
+  const { F } = G;
+  G.flightStart(G.PRESETS['Orbiter I'](), 'Finless');
+  const c = F.craft, fin = c.parts.find((p) => p.def.fins), n = c.parts.length;
+  G.destroyPart(c, fin);
+  assert(!c.dead && c.parts.length === n - 1 && !c.parts.includes(fin), 'parts ' + c.parts.length);
+});
+test('a manoeuvre node plans a burn, and flying it gives the planned orbit', () => {
+  const { F } = G;
+  G.flightStart(G.PRESETS['Orbiter I'](), 'Planner');
+  G.doStage(); G.doStage(); // drop to the upper stage
+  const c = placeInOrbit(100000);
+  c.throttle = 0;
+  F.node = G.makeNode(F.t + 400);
+  F.node.pro = 250;
+  G.updateNode(F.node, c, F.t);
+  const b = G.HOME;
+  const plannedAp = Math.max(...F.node.pred.pts.map((p) => Math.hypot(p.x, p.y))) - b.R;
+  F.sas = 'node';
+  const bt = G.burnTime(c, 250);
+  assert(bt > 5 && bt < 200, 'burn time ' + bt);
+  let i = 0;
+  for (; i < 60 * 1500 && F.node; i++) {
+    c.ctrl = G.controlInput(c);
+    const n = F.node;
+    const aim = Math.atan2(n.remaining[1], n.remaining[0]);
+    const aligned = Math.abs(G.wrapPi(aim - c.angle)) < 0.05;
+    c.throttle = F.t > n.t - bt / 2 && aligned ? 1 : 0;
+    G.stepCraft(c, G.PHYS_DT, true);
+    F.t += G.PHYS_DT;
+  }
+  assert(!F.node, 'node never completed');
+  const o = G.orbitElements(b, c.pos[0], c.pos[1], c.vel[0], c.vel[1], F.t);
+  const ap = o.ra - b.R;
+  assert(Math.abs(ap - plannedAp) / plannedAp < 0.06, `planned Ap ${plannedAp.toFixed(0)}, got ${ap.toFixed(0)}`);
+});
+test('the Δv map and transfer window give sensible numbers', () => {
+  const rows = Object.fromEntries(G.dvMapRows().map((r) => [r.b.id, r]));
+  assert(rows.pallid.transfer > 700 && rows.pallid.transfer < 850, 'Pallid ' + rows.pallid.transfer);
+  assert(rows.ochre.transfer > 900 && rows.ochre.transfer < 1100, 'Ochre ' + rows.ochre.transfer);
+  const l = G.launchDv(G.HOME);
+  assert(l > 3000 && l < 3600, 'launch ' + l);
+  const { F } = G;
+  G.flightStart(G.PRESETS['Orbiter I'](), 'Window');
+  const c = placeInOrbit(100000);
+  const w = G.transferWindow(c, G.MOON, F.t);
+  const deg = (w.ideal * 180) / Math.PI;
+  assert(deg > 100 && deg < 130 && isFinite(w.wait), 'ideal ' + deg);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

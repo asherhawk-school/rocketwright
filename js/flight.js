@@ -3,7 +3,7 @@
 
 const WARPS = [1, 2, 3, 4, 10, 50, 100, 1000, 10000, 100000, 1000000];
 const PHYS_DT = 0.02;
-const SAS_MODES = ['off', 'stab', 'pro', 'retro', 'radout', 'radin'];
+const SAS_MODES = ['off', 'stab', 'pro', 'retro', 'radout', 'radin', 'node'];
 const PATH_COLORS = ['#4fd1ff', '#ffb347', '#c792ff', '#7dffa8'];
 
 const F = {
@@ -27,7 +27,7 @@ function initFlightView() {
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
     'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'bRcs', 'hNext', 'hPitch',
-    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts']) F.hud[id] = document.getElementById(id);
+    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
 }
@@ -55,7 +55,7 @@ function flightStart(design, name, opts = {}) {
   c.landed = { body: HOME, rx: c.pos[0], ry: c.pos[1] };
   Object.assign(F, {
     craft: c, debris: [], particles: [], t: opts.t0 || 0, launchT: opts.t0 || 0, crewId: opts.crewId || null, crewLost: null,
-    flightContracts: [], sciOpen: false, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi',
+    flightContracts: [], sciOpen: false, node: null, target: F.target && opts.keepTarget ? F.target : null, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi',
     deadTimer: 0, endShown: false, pred: null, encounter: null, orbit: null, lastBody: HOME, rotOffset: 0, paused: false,
     flags: { space: false, maxAlt: 0, visited: [], landedOn: [] }, flightMilestones: [], running: true,
     dvTick: 0, dvCache: null, rcsTx: 0, rcsTy: 0,
@@ -69,6 +69,7 @@ function flightStart(design, name, opts = {}) {
 function doStage() {
   const c = F.craft;
   if (c.dead || c.stageIdx >= c.stages.length) return;
+  if (!hasControl(c)) { flash('No control: the probe core has no power', 2); return; }
   const first = c.stageIdx === 0;
   const stageIds = (c.stages[c.stageIdx] || []).map((u) => c.byUid.get(u)).filter(Boolean).map((p) => p.id);
   const res = c.activateNext((comp, dec) => separatePiece(c, comp, dec));
@@ -168,7 +169,7 @@ function enforceWarp() {
 function flightUpdate(dt) {
   const c = F.craft, k = F.keys;
   F.frame++;
-  if (!c.dead) {
+  if (!c.dead && hasControl(c)) {
     if (k.ShiftLeft || k.ShiftRight || k.KeyW || k.ArrowUp || k.vThrUp) c.throttle = Math.min(1, c.throttle + dt * 0.8);
     if (k.KeyS || k.ArrowDown || k.vThrDn) c.throttle = Math.max(0, c.throttle - dt * 0.8);
     F.userRot = (k.KeyA || k.ArrowLeft || k.vRotL ? 1 : 0) - (k.KeyD || k.ArrowRight || k.vRotR ? 1 : 0);
@@ -201,10 +202,12 @@ function flightUpdate(dt) {
 
   F.orbit = c.landed || c.dead ? null : orbitElements(b, c.pos[0], c.pos[1], c.vel[0], c.vel[1], F.t);
   F.predTick--;
-  if (c.landed || c.dead) { F.pred = null; F.encounter = null; }
+  if (c.landed || c.dead) { F.pred = null; F.encounter = null; F.closest = null; if (c.dead) F.node = null; }
   else if (F.predTick <= 0) {
     F.pred = predictPath(c.pos[0], c.pos[1], c.vel[0], c.vel[1], F.t);
-    F.encounter = findEncounter(F.pred);
+    if (F.node) updateNode(F.node, c, F.t);
+    F.encounter = findEncounter(F.node && F.node.pred ? F.node.pred : F.pred);
+    F.closest = F.target ? closestApproach(F.node && F.node.pred ? F.node.pred : F.pred, F.target) : null;
     F.predTick = F.map ? 3 : 15;
   }
   updateParticles(dt * Math.min(w, 4));
@@ -257,6 +260,8 @@ function stepCraft(c, dt, player) {
       if (player) flash('Liftoff!', 2);
     } else {
       if (T > 0) emitExhaust(c, dt, at.p, bv);
+      if (player) { electricStep(c, dt, t, 0); c.gforce = Math.hypot(g[0], g[1]) / G0; }
+      heatStep(c, dt, 0, 0, 0);
       return;
     }
   }
@@ -264,12 +269,22 @@ function stepCraft(c, dt, player) {
   c.vel[0] += (g[0] + (ax * T) / c.M) * dt;
   c.vel[1] += (g[1] + (ay * T) / c.M) * dt;
   const rcs = player ? c.rcsStep(dt, F.rcsTx || 0, F.rcsTy || 0, c.ctrl) : { fx: 0, fy: 0, k: 0 };
+  let ngx = (ax * T) / c.M, ngy = (ay * T) / c.M; // non-gravitational acceleration, for g-force and nodes
   if (rcs.fx || rcs.fy) {
     const f = c.rotLocal(rcs.fx, rcs.fy);
     c.vel[0] += (f[0] / c.M) * dt; c.vel[1] += (f[1] / c.M) * dt;
+    ngx += f[0] / c.M; ngy += f[1] / c.M;
+  }
+  if (player && F.node && nodeApply(F.node, ngx, ngy, dt)) {
+    F.node = null;
+    if (c.throttle > 0) { c.throttle = 0; flash('Manoeuvre complete. Throttle cut.', 3); } else flash('Manoeuvre complete', 3);
+    if (F.sas === 'node') setSas('stab');
   }
 
-  let tq = c.ctrl * (c.torque + c.gimbalCap + c.rcsTorqueCap * rcs.k) + c.thrustTorque;
+  // reaction wheels need power
+  const wheels = player && !(ecTotal(c) > 0.01) ? 0 : c.torque;
+  let tq = c.ctrl * (wheels + c.gimbalCap + c.rcsTorqueCap * rcs.k) + c.thrustTorque;
+  if (player) electricStep(c, dt, t, Math.abs(c.ctrl) * wheels);
   let kSpring = 0;
   const vrx = c.vel[0] - bv[0], vry = c.vel[1] - bv[1];
   const v = Math.hypot(vrx, vry);
@@ -284,6 +299,7 @@ function stepCraft(c, dt, player) {
     const CdA = 0.55 * Math.PI * (c.width / 2) * (1 + 4 * sinA) + c.chuteArea;
     const dv = Math.min(((q * CdA) / c.M) * dt, v * 0.9);
     c.vel[0] -= vhx * dv; c.vel[1] -= vhy * dv;
+    ngx -= (vhx * dv) / dt; ngy -= (vhy * dv) / dt;
     const flowAng = Math.atan2(vhy, vhx);
     // fins behind the centre of mass add stability; fins in front of it reduce it
     let stab = 0.12;
@@ -298,6 +314,17 @@ function stepCraft(c, dt, player) {
     }
     c.heat = at.rho * v * v * v;
   } else c.heat = 0;
+  if (player) c.gforce = lerp(c.gforce || 0, Math.hypot(ngx, ngy) / G0, Math.min(1, dt * 4));
+  const hot = heatStep(c, dt, at.rho, vrx, vry);
+  if (hot.length) {
+    if (!player) { explode(c, false, 0); return; }
+    hot.sort((p, q) => q.temp / partMaxTemp(q.def) - p.temp / partMaxTemp(p.def));
+    for (const p of hot) {
+      if (c.dead) return;
+      if (c.byUid.has(p.uid)) destroyPart(c, p);
+    }
+    if (c.dead) return;
+  }
   kSpring = Math.min(kSpring, c.I * 800);
   tq -= 1.4 * Math.sqrt(kSpring * c.I) * c.angVel;
   c.angVel = clamp(c.angVel + (tq / c.I) * dt, -4, 4);
@@ -307,6 +334,26 @@ function stepCraft(c, dt, player) {
   c.pos[1] += c.vel[1] * dt;
   if (T > 0) emitExhaust(c, dt, at.p, bv);
   contact(c, b, t + dt, player);
+}
+
+/* A single part overheats: it explodes, and anything no longer connected to the command part falls away. */
+function destroyPart(c, p) {
+  const w = c.toWorld(p.x, (p.top + p.bot) / 2);
+  for (let i = 0; i < 24; i++) {
+    const a = Math.random() * TAU, sp = Math.random() * 12;
+    F.particles.push({ x: w[0], y: w[1], vx: c.vel[0] + Math.cos(a) * sp, vy: c.vel[1] + Math.sin(a) * sp, fx: c.vel[0], fy: c.vel[1],
+      life: 1 + Math.random(), max: 2, size: 0.8, grow: 2, kind: i % 2 ? 'fire' : 'smoke', drag: 0.5 });
+  }
+  if (p.uid === c.rootUid) { explode(c, true, 0, `${p.def.name} overheated`); return; }
+  const present = new Set(c.parts.map((q) => q.uid));
+  present.delete(p.uid);
+  const seen = new Set([c.rootUid]), q = [c.rootUid];
+  while (q.length) { const u = q.pop(); for (const l of c.byUid.get(u).links) if (present.has(l) && !seen.has(l)) { seen.add(l); q.push(l); } }
+  const lost = c.parts.filter((x) => x.uid !== p.uid && !seen.has(x.uid));
+  for (const comp of components(lost)) separatePiece(c, comp, p);
+  c.parts = c.parts.filter((x) => seen.has(x.uid));
+  c.recompute();
+  flash(`${p.def.name} overheated and exploded!`, 3);
 }
 
 function penetration(c, b, bp) {
@@ -375,12 +422,21 @@ function railsStep(simDt) {
   if (c.dead) { F.t += simDt; return; }
   c.angVel = 0;
   for (const p of c.parts) p.burn = 0;
+  electricStep(c, simDt, F.t, 0);
+  for (const p of c.parts) p.temp = T_AMBIENT + (p.temp - T_AMBIENT) * Math.exp(-0.025 * simDt);
   if (c.landed) {
     F.t += simDt;
     const bp = bodyPos(c.landed.body, F.t), bv = bodyVel(c.landed.body, F.t);
     c.pos = [bp[0] + c.landed.rx, bp[1] + c.landed.ry];
     c.vel = [bv[0], bv[1]];
     return;
+  }
+  // drop out of warp shortly before a manoeuvre node's burn should start
+  let stopAt = Infinity;
+  if (F.node && !F.node.frozen) {
+    const bt = burnTime(c, Math.hypot(F.node.pro, F.node.rad));
+    stopAt = F.node.t - (isFinite(bt) ? bt / 2 : 0) - 15;
+    if (F.t < stopAt && F.t + simDt >= stopAt) { simDt = stopAt - F.t; F.warpStop = true; }
   }
   const s = [c.pos[0], c.pos[1], c.vel[0], c.vel[1]];
   let rem = simDt, n = 0;
@@ -399,9 +455,11 @@ function railsStep(simDt) {
   }
   c.pos = [s[0], s[1]];
   c.vel = [s[2], s[3]];
+  if (F.warpStop) { F.warpStop = false; F.warp = 0; F.predTick = 0; flash('Approaching manoeuvre node', 3); }
 }
 
 function controlInput(c) {
+  if (!hasControl(c)) return 0;
   if (F.userRot) return F.userRot;
   if (F.sas === 'off' || c.landed) return 0;
   const maxA = (c.torque + c.gimbalCap + (c.rcsOn && c.monoTotal() > 0 ? c.rcsTorqueCap : 0)) / c.I;
@@ -419,7 +477,11 @@ function controlInput(c) {
     const bp = bodyPos(b, F.t), bv = bodyVel(b, F.t);
     const vx = c.vel[0] - bv[0], vy = c.vel[1] - bv[1];
     const rx = c.pos[0] - bp[0], ry = c.pos[1] - bp[1];
-    if (F.sas === 'pro' || F.sas === 'retro') {
+    if (F.sas === 'node') {
+      const n = F.node;
+      if (!n || Math.hypot(n.remaining[0], n.remaining[1]) < 0.01) return damp();
+      target = Math.atan2(n.remaining[1], n.remaining[0]);
+    } else if (F.sas === 'pro' || F.sas === 'retro') {
       if (Math.hypot(vx, vy) < 1) return damp();
       target = Math.atan2(vy, vx) + (F.sas === 'retro' ? Math.PI : 0);
     } else {
@@ -566,6 +628,132 @@ function renderContractHud() {
   el.classList.toggle('hidden', !act.length);
   el.innerHTML = '<div class="card-title">Contracts</div>' + act.map((x) =>
     `<div class="ct ${x.state === 'done' ? 'done' : ''}">${x.state === 'done' ? '✓' : '○'} ${x.title}</div>`).join('');
+}
+
+/* Power, heat, target and node readouts. */
+function updateSystemsHud(c, b, o, t) {
+  const h = F.hud;
+  h.hG.textContent = (c.gforce || 0).toFixed(1);
+  h.hEcc.textContent = o ? o.e.toFixed(3) : '—';
+  h.fEcRow.style.display = c.ecMax > 0 ? '' : 'none';
+  if (c.ecMax > 0) {
+    h.fEc.style.width = (100 * ecTotal(c)) / c.ecMax + '%';
+    const r = c.ecRate || 0;
+    h.fEcRate.textContent = (r >= 0 ? '+' : '') + r.toFixed(2) + '/s';
+  }
+  // heat or power trouble
+  let warn = '', danger = false;
+  if (!c.dead && !hasControl(c)) { warn = '⚡ No power: the probe core cannot steer, throttle or stage'; danger = true; }
+  else if (!c.dead && c.hottest) {
+    const p = c.hottest, mt = partMaxTemp(p.def), f = p.temp / mt;
+    if (f > 0.6) { warn = `🔥 ${p.def.name} ${fmtNum(p.temp)} / ${fmtNum(mt)} K`; danger = f > 0.85; }
+  }
+  h.heatWarn.textContent = warn;
+  h.heatWarn.classList.toggle('hidden', !warn);
+  h.heatWarn.classList.toggle('danger', danger);
+  // target
+  const tg = F.target;
+  h.hudTarget.classList.toggle('hidden', !tg);
+  if (tg) {
+    const tp = bodyPos(tg, t);
+    h.tName.textContent = tg.name;
+    h.tDist.textContent = fmtDist(Math.hypot(c.pos[0] - tp[0], c.pos[1] - tp[1]) - tg.R);
+    const ca = F.closest;
+    h.tCloseLabel.textContent = ca && ca.inside ? 'Encounter' : 'Closest approach';
+    h.tClose.textContent = !ca ? '—' : ca.inside ? `in ${fmtDur(ca.t - t)}` : `${fmtDist(ca.d - tg.R)} in ${fmtDur(ca.t - t)}`;
+    const w = b === tg || c.landed ? null : transferWindow(c, tg, t);
+    h.tPhaseRow.style.display = w ? '' : 'none';
+    h.tWinRow.style.display = w ? '' : 'none';
+    if (w) {
+      const deg = (a) => Math.round((a * 180) / Math.PI);
+      h.tPhase.textContent = `${deg(w.phase)}° (best ${deg(w.ideal)}°)`;
+      h.tWin.textContent = isFinite(w.wait) ? (w.wait < 60 ? 'now' : `in ${fmtDur(w.wait)}`) + (w.via ? ` (${w.via.name})` : '') : '—';
+    }
+  }
+  // map tools and the node editor
+  h.mapTools.classList.toggle('hidden', !F.map);
+  const ell = o && o.e < 1 && !c.landed;
+  h.bNodeAp.disabled = !ell;
+  h.bNodePe.disabled = !(o && !c.landed && isFinite(o.tPe));
+  const n = F.node;
+  h.nodePanel.classList.toggle('hidden', !n);
+  if (n) {
+    const dvLeft = Math.hypot(n.remaining[0], n.remaining[1]);
+    const bt = burnTime(c, n.frozen ? dvLeft : Math.hypot(n.pro, n.rad));
+    h.nPro.textContent = fmtNum(n.pro, 1) + ' m/s';
+    h.nRad.textContent = fmtNum(n.rad, 1) + ' m/s';
+    h.nTime.textContent = n.t > t ? 'in ' + fmtDur(n.t - t) : 'now';
+    h.nInfo.textContent = `· Δv ${fmtNum(dvLeft, 1)} m/s${n.frozen ? ' left' : ''}`;
+    h.nBurn.textContent = !isFinite(bt) ? 'No engine to burn with' : n.frozen ? `Burning · about ${fmtDur(bt)} to go` :
+      `Burn ${fmtDur(bt)} · start ${n.t - bt / 2 > t ? 'in ' + fmtDur(n.t - bt / 2 - t) : 'now'} (SAS Node points you)`;
+  }
+}
+
+/* ---------------- node & target controls ---------------- */
+
+function addNodeAt(which) {
+  const o = F.orbit;
+  if (!o) return;
+  const dt = which === 'ap' ? o.tAp : o.tPe;
+  if (!isFinite(dt)) return;
+  F.node = makeNode(F.t + Math.max(dt, 5));
+  F.predTick = 0;
+  if (!F.map) F.map = true;
+}
+function nodeAdjust(spec) {
+  const n = F.node;
+  if (!n) return;
+  const [axis, v] = spec.split(':');
+  n[axis] = Math.round((n[axis] + +v) * 10) / 10;
+  nodeTouched(n);
+  F.predTick = 0;
+}
+function nodeShift(spec) {
+  const n = F.node;
+  if (!n) return;
+  let d = +spec;
+  if (spec.endsWith('orbit')) { const per = F.orbit && isFinite(F.orbit.period) ? F.orbit.period : 0; d = spec[0] === '-' ? -per : per; }
+  n.t = Math.max(F.t + 2, n.t + d);
+  nodeTouched(n);
+  F.predTick = 0;
+}
+function setTarget(id) {
+  F.target = BODY_BY_ID[id] || null;
+  F.predTick = 0;
+}
+function fillTargetSelect() {
+  const sel = document.getElementById('targetSelect');
+  sel.innerHTML = '<option value="">None</option>' + BODIES.filter((b) => !b.star).map((b) =>
+    `<option value="${b.id}" ${F.target === b ? 'selected' : ''}>${b.parent && !b.parent.star ? '· ' : ''}${b.name}</option>`).join('');
+}
+
+/* Map pointer: drag a node handle, click the path to add a node, or click a body to focus it. */
+function mapPointerDown(sx, sy) {
+  for (const hd of F.nodeHandles || []) {
+    if (Math.hypot(sx - hd.x, sy - hd.y) < 13) { F.handleDrag = { ...hd, lx: sx, ly: sy }; return true; }
+  }
+  let best = null, bd = 9;
+  for (const p of F.pathScreen || []) {
+    const d = Math.hypot(sx - p.x, sy - p.y);
+    if (d < bd && p.t > F.t + 5) { bd = d; best = p; }
+  }
+  if (best && !F.craft.dead && !F.craft.landed) {
+    F.node = makeNode(best.t);
+    F.predTick = 0;
+    flash('Node added: drag its handles or use the panel to plan the burn', 3);
+    return true;
+  }
+  mapClick(sx, sy);
+  return false;
+}
+function mapPointerMove(sx, sy, fine) {
+  const d = F.handleDrag;
+  if (!d || !F.node) return;
+  const proj = (sx - d.lx) * d.dir[0] + (sy - d.ly) * d.dir[1];
+  d.lx = sx; d.ly = sy;
+  F.node[d.axis] = Math.round((F.node[d.axis] + d.sign * proj * (fine ? 0.05 : 0.6)) * 10) / 10;
+  nodeTouched(F.node);
+  F.predTick = Math.min(F.predTick, 2);
 }
 
 /* ---------------- milestones ---------------- */
@@ -848,44 +1036,93 @@ function renderMap() {
     bodyLabel(b.name, x, y, rpx);
   }
 
-  // predicted path, segment by segment. Each segment is drawn in the frame of the body it is in,
-  // anchored where that body will be when the craft arrives (a "ghost").
-  if (F.pred) {
-    const pts = F.pred.pts;
-    const anchor = pts.every((p) => inHomeSystem(p.b)) ? HOME : SUN;
-    const an = bodyPos(anchor, t);
-    const place = (b, tau) => { const p = bodyPos(b, tau), a = bodyPos(anchor, tau); return [p[0] - a[0] + an[0], p[1] - a[1] + an[1]]; };
-    let seg = -1, ref = null, curB = null, first = true, last = null;
-    const ghosts = [];
+  // predicted paths. Each segment is drawn in the frame of the body it is in, anchored where that body
+  // will be when the craft arrives (a "ghost"). With a manoeuvre node, the current path stops at the node
+  // and the planned path continues from it.
+  const node = F.node;
+  const preds = [F.pred, node && node.pred].filter(Boolean);
+  const anchor = preds.every((pr) => pr.pts.every((p) => inHomeSystem(p.b))) ? HOME : SUN;
+  const an = bodyPos(anchor, t);
+  const place = (b, tau) => { const p = bodyPos(b, tau), a = bodyPos(anchor, tau); return [p[0] - a[0] + an[0], p[1] - a[1] + an[1]]; };
+  const drawPred = (pred, colorOffset, untilT, dashed) => {
+    const pts = pred.pts, screen = [], ghosts = [];
+    let seg = -1, ref = null, curB = null, first = true;
     ctx.lineWidth = 2;
+    ctx.setLineDash(dashed ? [8, 5] : []);
     for (let i = 0; i < pts.length; i++) {
       const p = pts[i];
+      if (p.t > untilT) break;
       if (p.b !== curB) {
         if (i > 0) ctx.stroke();
         seg++; curB = p.b; first = true;
         ref = place(p.b, i === 0 || p.b === anchor ? t : p.t);
-        if (i > 0 && !p.b.star && !(p.b === anchor)) ghosts.push({ b: p.b, ref });
-        ctx.strokeStyle = PATH_COLORS[seg % PATH_COLORS.length];
+        if (i > 0 && !p.b.star && p.b !== anchor) ghosts.push({ b: p.b, ref });
+        ctx.strokeStyle = PATH_COLORS[(seg + colorOffset) % PATH_COLORS.length];
         ctx.beginPath();
       }
       const bpos = bodyPos(p.b, p.t);
       const s2 = S(p.x - bpos[0] + ref[0], p.y - bpos[1] + ref[1]);
+      screen.push({ x: s2[0], y: s2[1], t: p.t, i });
       if (first) { ctx.moveTo(s2[0], s2[1]); first = false; } else ctx.lineTo(s2[0], s2[1]);
-      last = s2;
     }
     ctx.stroke();
+    ctx.setLineDash([]);
     for (const g of ghosts) {
       const [gx, gy] = S(g.ref[0], g.ref[1]), rr = Math.max(g.b.R * z, 4);
       ctx.setLineDash([3, 4]); ctx.strokeStyle = 'rgba(255,179,71,0.85)'; ctx.lineWidth = 1;
       circle(gx, gy, rr); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = '#ffb347'; ctx.fillText(`${g.b.name} at encounter`, gx, gy + rr + 16);
     }
-    const imp = F.pred.events.find((e) => e.type === 'impact');
-    if (imp && last) {
-      const [ix, iy] = last;
+    const imp = pred.events.find((e) => e.type === 'impact');
+    const last = screen[screen.length - 1];
+    if (imp && last && last.i === pts.length - 1) {
       ctx.strokeStyle = '#ff5d5d'; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.moveTo(ix - 6, iy - 6); ctx.lineTo(ix + 6, iy + 6); ctx.moveTo(ix + 6, iy - 6); ctx.lineTo(ix - 6, iy + 6); ctx.stroke();
-      ctx.fillStyle = '#ff8080'; ctx.fillText('Impact', ix, iy - 12);
+      ctx.beginPath(); ctx.moveTo(last.x - 6, last.y - 6); ctx.lineTo(last.x + 6, last.y + 6); ctx.moveTo(last.x + 6, last.y - 6); ctx.lineTo(last.x - 6, last.y + 6); ctx.stroke();
+      ctx.fillStyle = '#ff8080'; ctx.fillText('Impact', last.x, last.y - 12);
+    }
+    return screen;
+  };
+  F.pathScreen = F.pred ? drawPred(F.pred, 0, node && !node.frozen ? node.t : Infinity, false) : [];
+  F.nodeHandles = [];
+  let nodeScreen = null;
+  if (node && node.pred) {
+    const ns = drawPred(node.pred, 1, Infinity, true);
+    if (node.frozen) { const v = S(c.pos[0], c.pos[1]); nodeScreen = { x: v[0], y: v[1] }; }
+    else if (ns.length) nodeScreen = ns[0];
+    if (nodeScreen) {
+      // node marker and its drag handles
+      ctx.fillStyle = '#5aa8ff'; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+      circle(nodeScreen.x, nodeScreen.y, 7); ctx.fill(); ctx.stroke();
+      if (!node.frozen && node.frame) {
+        const hs = [['pro', 1, node.frame.pro, '#c8ff3c'], ['pro', -1, node.frame.pro, '#c8ff3c'], ['rad', 1, node.frame.rad, '#4fd1ff'], ['rad', -1, node.frame.rad, '#4fd1ff']];
+        for (const [axis, sign, d, col] of hs) {
+          const dx = d[0] * sign, dy = -d[1] * sign;
+          const hx = nodeScreen.x + dx * 40, hy = nodeScreen.y + dy * 40;
+          ctx.strokeStyle = col; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(nodeScreen.x + dx * 9, nodeScreen.y + dy * 9); ctx.lineTo(hx - dx * 8, hy - dy * 8); ctx.stroke();
+          ctx.fillStyle = 'rgba(10,14,22,0.85)';
+          circle(hx, hy, 8); ctx.fill(); ctx.stroke();
+          if (sign < 0) { ctx.beginPath(); ctx.moveTo(hx - 4, hy - 4); ctx.lineTo(hx + 4, hy + 4); ctx.moveTo(hx + 4, hy - 4); ctx.lineTo(hx - 4, hy + 4); ctx.stroke(); }
+          else { ctx.fillStyle = col; circle(hx, hy, 3); ctx.fill(); }
+          F.nodeHandles.push({ x: hx, y: hy, axis, sign, dir: [dx, dy] });
+        }
+      }
+    }
+  }
+  // target: where we pass closest
+  const ca = F.closest;
+  if (F.target && ca && !ca.inside) {
+    const src = node && node.pred ? node.pred : F.pred;
+    const p = src && src.pts[ca.i];
+    if (p) {
+      const tg = place(F.target, ca.t), [gx, gy] = S(tg[0], tg[1]);
+      const bpos = bodyPos(p.b, p.t), ref = place(p.b, p.b === anchor ? t : p.t);
+      const [cx2, cy2] = S(p.x - bpos[0] + ref[0], p.y - bpos[1] + ref[1]);
+      ctx.strokeStyle = '#e070ff'; ctx.fillStyle = '#e070ff'; ctx.lineWidth = 1.5;
+      ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(cx2, cy2); ctx.lineTo(gx, gy); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(cx2, cy2 - 6); ctx.lineTo(cx2 + 6, cy2); ctx.lineTo(cx2, cy2 + 6); ctx.lineTo(cx2 - 6, cy2); ctx.closePath(); ctx.fill();
+      circle(gx, gy, Math.max(F.target.R * z, 5)); ctx.stroke();
+      ctx.fillText(`Closest ${fmtDist(ca.d - F.target.R)}`, cx2, cy2 - 12);
     }
   }
   // apsis markers
@@ -961,6 +1198,13 @@ function drawNavball() {
       }
       x.stroke();
     }
+  }
+  if (F.node && Math.hypot(F.node.remaining[0], F.node.remaining[1]) > 0.05) {
+    const na = Math.atan2(F.node.remaining[1], F.node.remaining[0]) - up + Math.PI / 2;
+    const mx = cx + Math.cos(na) * R * 0.6, my = cy - Math.sin(na) * R * 0.6;
+    x.strokeStyle = '#5aa8ff'; x.lineWidth = 2.5;
+    x.beginPath(); x.arc(mx, my, 7, 0, TAU); x.stroke();
+    x.beginPath(); x.moveTo(mx - 11, my); x.lineTo(mx - 4, my); x.moveTo(mx + 4, my); x.lineTo(mx + 11, my); x.moveTo(mx, my - 11); x.lineTo(mx, my - 4); x.stroke();
   }
   const ha = c.angle - up + Math.PI / 2;
   const hx = Math.cos(ha), hy = -Math.sin(ha);
@@ -1044,6 +1288,7 @@ function updateHud() {
   h.fMono.style.width = (monoMax ? (100 * mono) / monoMax : 0) + '%';
   if (F.frame % 15 === 0 || F.paused) { renderContractHud(); renderSciencePanel(); }
   h.bSci.classList.toggle('hidden', !isCareer());
+  updateSystemsHud(c, b, o, t);
   h.hNext.textContent = c.stageIdx < c.stages.length ? 'Next: ' + stageLabel(c.stages[c.stageIdx], (u) => c.byUid.get(u)) : 'No stages left';
   h.bRcs.classList.toggle('on', c.rcsOn);
   h.bRcs.classList.toggle('hidden', !c.rcsParts.length);

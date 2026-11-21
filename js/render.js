@@ -180,6 +180,42 @@ function drawPart(ctx, p, lw) {
       ctx.fillStyle = '#ff5d5d'; ctx.beginPath(); ctx.arc(0, top, 0.08, 0, TAU); ctx.fill();
       break;
     }
+    case 'probe': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#4a505a', '#b8bec8', '#3e434b');
+      poly(ctx, [[-hw, bot], [hw, bot], [hw * 0.8, top], [-hw * 0.8, top]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#ffd34d'; ctx.fillRect(-hw * 0.55, bot + h * 0.35, hw * 1.1, h * 0.25);
+      ctx.fillStyle = '#7dffa8'; ctx.beginPath(); ctx.arc(hw * 0.35, bot + h * 0.47, 0.06, 0, TAU); ctx.fill();
+      break;
+    }
+    case 'battery': {
+      ctx.fillStyle = '#3a3f47'; ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#e0b030'; ctx.fillRect(-hw * 0.5, top - 0.1, hw, 0.08);
+      ctx.fillStyle = '#7dffa8'; ctx.fillRect(-hw * 0.6, bot + 0.08, hw * 1.2, (h - 0.25) * (p.def.ec ? p.ec / p.def.ec : 0));
+      break;
+    }
+    case 'batring': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, ...DARK); ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#e0b030';
+      for (let x = -hw + 0.2; x < hw - 0.1; x += 0.4) ctx.fillRect(x, bot + h * 0.3, 0.2, h * 0.4);
+      break;
+    }
+    case 'solar': {
+      ctx.fillStyle = '#59606b'; ctx.fillRect(-hw, bot + h * 0.4, hw * 1.2, h * 0.2);
+      ctx.fillStyle = '#1d3a7a'; ctx.fillRect(-hw * 0.2, bot, hw * 1.2, h); ctx.strokeRect(-hw * 0.2, bot, hw * 1.2, h);
+      ctx.strokeStyle = 'rgba(140,190,255,0.6)'; ctx.lineWidth = Math.max(lw, 0.03);
+      ctx.beginPath();
+      for (let y = bot + h / 6; y < top - 0.01; y += h / 6) { ctx.moveTo(-hw * 0.2, y); ctx.lineTo(hw, y); }
+      ctx.stroke();
+      break;
+    }
+    case 'shield': {
+      const frac = d.ablator ? p.ablator / d.ablator : 0;
+      ctx.fillStyle = mixColor('#3a2a1e', '#8a5a2e', frac);
+      ctx.beginPath(); ctx.moveTo(-hw - 0.05, top); ctx.lineTo(hw + 0.05, top);
+      ctx.quadraticCurveTo(hw * 0.9, bot - 0.05, 0, bot - 0.1); ctx.quadraticCurveTo(-hw * 0.9, bot - 0.05, -hw - 0.05, top);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      break;
+    }
     case 'engine': {
       const mh = h * 0.3, bw = d.bell / 2;
       ctx.fillStyle = '#3a3f48';
@@ -290,6 +326,16 @@ function drawCraft(ctx, c, cam, zoom, pressure) {
   ctx.globalCompositeOperation = 'source-over';
   const lw = Math.max(0.03, 1 / zoom);
   for (const p of c.parts) drawPart(ctx, p, lw);
+  // red-hot parts glow
+  ctx.globalCompositeOperation = 'lighter';
+  for (const p of c.parts) {
+    if (!(p.temp > 800)) continue;
+    const a = clamp((p.temp - 800) / (partMaxTemp(p.def) - 800), 0, 1) * 0.75;
+    const hw = maxWidth(p.def) / 2;
+    ctx.fillStyle = `rgba(255,${Math.round(120 - 80 * a)},30,${a.toFixed(3)})`;
+    ctx.fillRect(p.x - hw, p.bot, 2 * hw, p.def.h);
+  }
+  ctx.globalCompositeOperation = 'source-over';
   ctx.restore();
 }
 

@@ -138,6 +138,22 @@ Object.assign(PART_DEFS, {
     desc: 'Lets you transmit science home (for half its value). Also needed for satellite contracts.' },
 });
 PART_DEFS.pod.exp = 'crew';
+Object.assign(PART_DEFS.pod, { ec: 60, maxTemp: 2200 });
+Object.assign(PART_DEFS, {
+  // Electricity and survival
+  probe: { kind: 'probe', name: 'Seed Probe Core', cat: 'Command', mass: 0.1, h: 0.5, w: 1.25, torque: 3, ec: 20, probe: true,
+    desc: 'Flies a craft with no crew. Needs electricity: with a flat battery it cannot steer, throttle or stage.' },
+  battery: { kind: 'battery', name: 'Cell Pack', cat: 'Utility', radial: true, mass: 0.01, h: 0.5, w: 0.35, ec: 100,
+    desc: 'Small side-mounted battery: 100 units of charge.' },
+  batteryRing: { kind: 'batring', name: 'Battery Ring', cat: 'Utility', mass: 0.06, h: 0.3, w: 2, ec: 500,
+    desc: 'A 2 m ring of batteries: 500 units of charge.' },
+  solar: { kind: 'solar', name: 'Sunwing Panel', cat: 'Utility', radial: true, mass: 0.02, h: 1.6, w: 0.25, solar: 1.6,
+    desc: 'Makes power in sunlight (1.6 per second at Verdan, less further from Helion). Faces outward from where it is mounted.' },
+  shield2: { kind: 'shield', name: 'Ablator Shield', cat: 'Structure', mass: 0.2, ablator: 0.25, h: 0.3, w: 2, maxTemp: 3300,
+    desc: 'Goes under a 2 m capsule. Burns away slowly to protect what is behind it during reentry.' },
+  shield125: { kind: 'shield', name: 'Ablator Shield S', cat: 'Structure', mass: 0.08, ablator: 0.1, h: 0.25, w: 1.25, maxTemp: 3300,
+    desc: 'Heat shield for 1.25 m craft.' },
+});
 
 /* What each part costs in career mode (fuel included). */
 const PART_COSTS = {
@@ -148,6 +164,7 @@ const PART_COSTS = {
   adapt2to125: 200, adapt125to2: 200, adapt3to2: 400, adapt2to3: 400,
   nose125: 150, nose2: 250, pylon: 200, fins: 150, legs: 300, rcs: 450,
   thermo: 250, baro: 400, jar: 600, seismic: 900, sniffer: 1200, antenna: 300,
+  probe: 700, battery: 150, batteryRing: 600, solar: 500, shield2: 600, shield125: 300,
 };
 for (const id in PART_DEFS) PART_DEFS[id].cost = PART_COSTS[id] || 100;
 

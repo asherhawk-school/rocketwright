@@ -181,6 +181,26 @@ function showCrew() {
   } }, { label: 'Close', cls: 'primary', fn: () => { hideModal(); renderHub(); } }]);
 }
 
+/* ---------------- Δv map ---------------- */
+
+function showDvMap(back) {
+  const n = (x) => (x == null ? '—' : fmtNum(Math.round(x / 10) * 10));
+  const rows = dvMapRows().map((r) => {
+    const moon = r.b.parent !== SUN;
+    const total = r.transfer + r.capture + (r.land || 0);
+    return `<tr><td class="${moon ? 'moon' : ''}"><span class="dot" style="background:${r.b.colMap}"></span>${r.b.name}</td>
+      <td>${n(r.transfer)}</td><td>${n(r.capture)}${r.aero ? '*' : ''}</td><td>${r.b.gas ? 'no surface' : n(r.land)}</td>
+      <td>${r.b.gas ? n(r.transfer + r.capture) : n(total)}</td><td>${fmtDur(r.time)}</td></tr>`;
+  }).join('');
+  showModal(`<h2>Δv map</h2>
+    <p class="muted">Rough Δv in m/s for a one-way trip, starting from a low orbit around Verdan. Reaching that orbit from the launch pad
+    takes about <b>${n(launchDv(HOME))}</b>. Add a margin of 10–20%: real burns are never perfect.</p>
+    <table class="dvtable"><tr><th>World</th><th>Transfer</th><th>Capture</th><th>Land / launch</th><th>Total</th><th>Trip</th></tr>${rows}</table>
+    <p class="muted small-note">* Worlds with air can use it to slow down (aerobraking or parachutes) instead of burning, if you have a heat shield.
+    Coming home, Verdan's air does the braking for you.</p>`,
+  [{ label: 'Close', cls: 'primary', fn: () => { hideModal(); if (back) back(); } }], 'wide');
+}
+
 /* ---------------- save & settings ---------------- */
 
 function showSettings() {
@@ -231,6 +251,7 @@ function wireHub() {
   $('bldMilestones').addEventListener('click', showMilestones);
   $('bldSettings').addEventListener('click', showSettings);
   $('btnHubHelp').addEventListener('click', showHelp);
+  $('btnDvMap').addEventListener('click', () => showDvMap());
   $('btnTitle').addEventListener('click', showTitle);
   $('btnBackHub').addEventListener('click', showHub);
   onCareerChange(updateStatsBars);

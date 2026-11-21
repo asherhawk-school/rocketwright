@@ -22,7 +22,7 @@ then visit http://localhost:8000.
   money, and recovering your craft refunds most of it. Run experiments with six science instruments (each worth more on new worlds and in new
   situations), transmit or recover the results, and research a 14-node tech tree. Astronauts gain experience and can be lost.
   Reverting a flight undoes it; saves can be exported and imported. **Sandbox mode** unlocks everything with no money.
-- **Hangar**: drag 43 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
+- **Hangar**: drag 49 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS.
 - **Staging editor**: automatic staging you can reorder, with simulated Δv, thrust-to-weight and burn time for every stage.
@@ -37,7 +37,16 @@ then visit http://localhost:8000.
   bodies, apoapsis/periapsis readouts, and time warp up to 1,000,000× (RK4 on rails with steps that never skip an SOI boundary).
 - **Map view**: every orbit in the system, focus any body (F, or click it), the predicted path through every SOI change with
   ghosts of planets where they'll be when you arrive, and the next encounters in the HUD.
-- **SAS**: hold heading, prograde, retrograde, radial up and down.
+- **Manoeuvre nodes**: click your path (or use “Node at Ap/Pe”) to plan a burn, drag its handles or use the editor, see the
+  resulting orbit and encounters, the burn time and when to start; time warp stops before the burn, SAS points along it and the
+  throttle cuts when it's done.
+- **Targets**: pick any world to see the closest approach on your path, the phase angle, the ideal transfer angle and how long until
+  the next transfer window. The **Δv map** lists what every trip costs.
+- **Spacecraft systems**: electricity (capsule and probe batteries, battery packs, solar panels that work by sun angle and distance
+  and go dark in a planet's shadow, engine alternators). Reaction wheels and probe cores use power, and an uncrewed probe with a flat
+  battery can't steer, throttle or stage. **Reentry heating** heats the part facing the airflow most; ablative heat shields protect
+  what's behind them, and an overheated part explodes on its own (taking with it anything only it held on).
+- **SAS**: hold heading, prograde, retrograde, radial up and down, and manoeuvre node.
 - **Milestones**: first launch steps at home, then reach, orbit, land on and return from every world.
 
 ## Controls
@@ -48,7 +57,7 @@ then visit http://localhost:8000.
 | A / D, ← / → | Rotate |
 | W / S, Shift, ↑ / ↓ | Throttle up / down |
 | Z / X | Full / cut throttle |
-| T, 1–6 | SAS toggle / modes |
+| T, 1–7 | SAS toggle / modes (7 = manoeuvre node) |
 | R; Q / E; H / N | RCS toggle; slide sideways; forward / back |
 | B | Science panel (career) |
 | M | Map view (F changes focus) |
@@ -67,13 +76,16 @@ node tests/run.js
 
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
-and career rules: research, science values, contracts, recovery and crew loss.
+career rules (research, science values, contracts, recovery, crew loss), power and shadows, reentry heating with and
+without a heat shield, and flying a manoeuvre node to its planned orbit.
 
 ## Code layout
 
 - `js/data.js`: constants, parts, milestones, the solar system, gravity, terrain, orbit maths and trajectory prediction
 - `js/vessel.js`: craft model: part tree and layout, fuel groups, automatic staging, mass properties, Δv simulation, example craft
 - `js/render.js`: part, flame, terrain and launch pad drawing
+- `js/systems.js`: electricity and reentry heating
+- `js/navigation.js`: manoeuvre nodes, targets, transfer windows and the Δv map
 - `js/flight.js`: simulation loop, time warp, camera, map view, HUD
 - `js/career/`: the save game, money and crew (`career.js`), experiments (`science.js`), research (`tech.js`), contracts
   (`contracts.js`) and the title screen, Space Centre and building screens (`hub.js`)

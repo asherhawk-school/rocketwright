@@ -37,7 +37,8 @@ function launchDesign(design, name, crewId) {
   }
   showScreen('flight');
   resizeFlight();
-  flightStart(design, name, { t0: s.ut, crewId: crew ? crew.id : null });
+  flightStart(design, name, { t0: s.ut, crewId: crew ? crew.id : null, keepTarget: true });
+  fillTargetSelect();
   F.snapshot = snapshot;
   if (crew) flash(`${crew.name} is aboard ${name}. Press SPACE to launch!`, 5);
 }
@@ -107,7 +108,7 @@ its Δv (how much speed it can add) and TWR (thrust-to-weight; above 1 to lift o
   <div><kbd>A</kbd>/<kbd>D</kbd> or <kbd>←</kbd>/<kbd>→</kbd> Rotate</div>
   <div><kbd>W</kbd>/<kbd>S</kbd>, <kbd>Shift</kbd>, <kbd>↑</kbd>/<kbd>↓</kbd> Throttle</div>
   <div><kbd>Z</kbd> Full throttle · <kbd>X</kbd> Cut throttle</div>
-  <div><kbd>T</kbd> Toggle SAS · <kbd>1</kbd>–<kbd>6</kbd> SAS modes</div>
+  <div><kbd>T</kbd> Toggle SAS · <kbd>1</kbd>–<kbd>7</kbd> SAS modes (7 = node)</div>
   <div><kbd>M</kbd> Map view · <kbd>F</kbd> Map focus</div>
   <div><kbd>,</kbd>/<kbd>.</kbd> Time warp slower / faster</div>
   <div>Mouse wheel: zoom · <kbd>Esc</kbd> Menu</div>
@@ -133,6 +134,15 @@ when you're slow. Touch down under 6 m/s (12 m/s with landing legs, 10 m/s in wa
 giant <b>Tempest</b> (moons Gale, Ember and Frost), icy <b>Glacis</b> and distant <b>Umbra</b>. To reach one, burn prograde from
 orbit to escape Verdan (try about 1,000 m/s for Ochre), then use the map: zoom out, click a planet to focus it, and adjust your
 burn until the path shows an encounter. Time warp goes up to 1,000,000× in deep space. Tempest has no surface, so don't sink into it.</p>
+<h3>Planning burns</h3>
+<p>In the map, click your path (or press <b>Node at Ap / Pe</b>) to add a <b>manoeuvre node</b>. Drag its green (prograde/retrograde)
+and blue (radial) handles, or use the editor, until the dashed path does what you want. Pick a <b>Target</b> to see your closest approach
+and the best time to leave. When the node comes up, time warp stops; set SAS to <b>Node</b> (<kbd>7</kbd>) and burn when the panel says.
+The throttle cuts when the burn is done. The <b>Δv map</b> lists what each trip costs.</p>
+<h3>Power and heat</h3>
+<p>Capsules and probe cores hold some charge; reaction wheels use it and engines and solar panels refill it. A probe core with a flat
+battery can't steer or stage. Coming home fast heats whatever faces the airflow. Put an <b>Ablator Shield</b> under the capsule and keep
+it pointed retrograde.</p>
 <h3>Career mode</h3>
 <p>Take contracts in <b>Mission Control</b>; they pay an advance, then a reward the moment you complete them. Rockets cost money to launch,
 so build within budget, then <b>recover</b> them on Verdan to get most of their value back (more the closer you land to the launch site).
@@ -174,6 +184,7 @@ function openMenu() {
   btns.push({ label: 'Revert to launch', fn: () => revertFlight(false) });
   btns.push({ label: 'Revert to hangar', fn: () => revertFlight(true) });
   btns.push({ label: 'End flight', fn: confirmEndFlight });
+  btns.push({ label: 'Δv map', fn: () => showDvMap(openMenu) });
   btns.push({ label: 'Controls', fn: showHelp });
   showModal(`<h2>Paused</h2><p class="muted">${esc(F.craftName)} · ${fmtClock(F.t - F.launchT)} · ${fmtDate(F.t)}</p>`, btns);
 }
@@ -281,7 +292,7 @@ function onKeyDown(e) {
     case 'Equal': case 'NumpadAdd': zoomBy(1.25); break;
     case 'Minus': case 'NumpadSubtract': zoomBy(0.8); break;
     default:
-      if (/^Digit[1-6]$/.test(e.code)) setSas(SAS_MODES[+e.code.slice(5) - 1]);
+      if (/^Digit[1-7]$/.test(e.code)) setSas(SAS_MODES[+e.code.slice(5) - 1]);
   }
 }
 function zoomBy(f) {
@@ -293,7 +304,19 @@ function wireUi() {
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', (e) => { F.keys[e.code] = false; });
   window.addEventListener('blur', () => { for (const k in F.keys) F.keys[k] = false; });
-  $('game').addEventListener('click', (e) => { if (F.map) mapClick(e.clientX, e.clientY); });
+  $('game').addEventListener('pointerdown', (e) => { if (F.map && !F.paused) mapPointerDown(e.clientX, e.clientY); });
+  window.addEventListener('pointermove', (e) => { if (F.handleDrag) mapPointerMove(e.clientX, e.clientY, e.shiftKey); });
+  window.addEventListener('pointerup', () => { F.handleDrag = null; });
+  $('bNodeAp').addEventListener('click', () => addNodeAt('ap'));
+  $('bNodePe').addEventListener('click', () => addNodeAt('pe'));
+  $('bNodeDel').addEventListener('click', () => { F.node = null; if (F.sas === 'node') setSas('stab'); });
+  $('nodePanel').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.nd) nodeAdjust(b.dataset.nd);
+    else if (b.dataset.nt) nodeShift(b.dataset.nt);
+  });
+  $('targetSelect').addEventListener('change', (e) => { setTarget(e.target.value); e.target.blur(); });
   $('game').addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
   window.addEventListener('resize', () => { if (!F.running) { Hangar.view = null; drawBuild(); } });
 

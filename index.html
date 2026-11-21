@@ -6,7 +6,7 @@
 <title>Rocketwright</title>
 <meta name="description" content="Build rockets, fly them to orbit and land on the moon. A 2D spaceflight sandbox that runs in your browser.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2c5 5 6 12 4 20h-8c-2-8-1-15 4-20z' fill='%23eef1f5'/%3E%3Cpath d='M12 22h8l-1 4h-6z' fill='%23555'/%3E%3Cpath d='M14 26h4l-2 5z' fill='%23ff9a3c'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=5">
 </head>
 <body>
 
@@ -53,7 +53,7 @@
       <button class="bld" id="bldMilestones"><span class="bld-ico">⭐</span><b>Milestones</b><span class="bld-note" id="noteMilestones"></span></button>
       <button class="bld" id="bldSettings"><span class="bld-ico">💾</span><b>Save &amp; Settings</b><span class="bld-note">Export, import, new game</span></button>
     </div>
-    <div class="hub-foot"><button id="btnHubHelp">How to play</button><button id="btnTitle">Main menu</button></div>
+    <div class="hub-foot"><button id="btnDvMap">Δv map</button><button id="btnHubHelp">How to play</button><button id="btnTitle">Main menu</button></div>
   </div>
 </div>
 
@@ -107,7 +107,9 @@
       <span>Speed <b id="hSpd">0</b></span>
       <span>Vertical <b id="hVs">0</b></span>
       <span id="hRadarW">Radar <b id="hRadar">0</b></span>
+      <span>G <b id="hG">0.0</b></span>
     </div>
+    <div id="heatWarn" class="hidden"></div>
   </div>
 
   <div id="hudLeftCol" class="hud">
@@ -118,8 +120,16 @@
     <div class="kv"><span>Time to Ap</span><b id="hTAp">—</b></div>
     <div class="kv"><span>Time to Pe</span><b id="hTPe">—</b></div>
     <div class="kv"><span>Period</span><b id="hPer">—</b></div>
+    <div class="kv"><span>Eccentricity</span><b id="hEcc">—</b></div>
     <div class="kv enc hidden" id="hEncRow"><span id="hEncLabel">Encounter</span><b id="hEnc"></b></div>
     <div class="kv enc hidden" id="hEnc2Row"><span id="hEnc2Label">Then</span><b id="hEnc2"></b></div>
+  </div>
+  <div id="hudTarget" class="card hidden">
+    <div class="card-title">Target · <span id="tName"></span></div>
+    <div class="kv"><span>Distance</span><b id="tDist"></b></div>
+    <div class="kv"><span id="tCloseLabel">Closest approach</span><b id="tClose"></b></div>
+    <div class="kv" id="tPhaseRow"><span>Phase angle</span><b id="tPhase"></b></div>
+    <div class="kv" id="tWinRow"><span>Transfer window</span><b id="tWin"></b></div>
   </div>
   <div id="hudContracts" class="card hidden"></div>
   </div>
@@ -150,6 +160,7 @@
         <button data-sas="retro" title="Retrograde (4)">Retro</button>
         <button data-sas="radout" title="Radial out / up (5)">Up</button>
         <button data-sas="radin" title="Radial in / down (6)">Down</button>
+        <button data-sas="node" title="Point at the manoeuvre node's burn (7)">Node</button>
       </div>
       <button id="bRcs" class="rcs-btn hidden" title="RCS thrusters (R). Q/E slide sideways, H/N forward/back">RCS (R)</button>
     </div>
@@ -165,6 +176,7 @@
       <div class="fuel" id="fLiqRow"><span>Fuel</span><div class="bar"><div id="fLiq"></div></div></div>
       <div class="fuel" id="fSolRow"><span>Solid</span><div class="bar solid"><div id="fSol"></div></div></div>
       <div class="fuel" id="fMonoRow"><span>Mono</span><div class="bar mono"><div id="fMono"></div></div></div>
+      <div class="fuel" id="fEcRow"><span>Power</span><div class="bar ec"><div id="fEc"></div></div><em id="fEcRate"></em></div>
       <div id="hNext" class="next"></div>
       <button id="bStage" class="stage-btn">STAGE <small>(Space)</small></button>
     </div>
@@ -182,22 +194,40 @@
     <div id="sciList"></div>
   </div>
   <div id="mapHint" class="hidden"></div>
+  <div id="mapTools" class="hud hidden">
+    <button id="bNodeAp" title="Add a manoeuvre node at apoapsis">+ Node at Ap</button>
+    <button id="bNodePe" title="Add a manoeuvre node at periapsis">+ Node at Pe</button>
+    <label>Target <select id="targetSelect"></select></label>
+    <span class="muted">Click your path to add a node</span>
+  </div>
+  <div id="nodePanel" class="hud card hidden">
+    <div class="card-title">Manoeuvre node <span id="nInfo"></span></div>
+    <div class="node-row"><span>Prograde</span><button data-nd="pro:-100">−100</button><button data-nd="pro:-10">−10</button><button data-nd="pro:-1">−1</button>
+      <b id="nPro">0</b><button data-nd="pro:1">+1</button><button data-nd="pro:10">+10</button><button data-nd="pro:100">+100</button></div>
+    <div class="node-row"><span>Radial</span><button data-nd="rad:-100">−100</button><button data-nd="rad:-10">−10</button><button data-nd="rad:-1">−1</button>
+      <b id="nRad">0</b><button data-nd="rad:1">+1</button><button data-nd="rad:10">+10</button><button data-nd="rad:100">+100</button></div>
+    <div class="node-row"><span>Time</span><button data-nt="-orbit">−orbit</button><button data-nt="-600">−10m</button><button data-nt="-60">−1m</button>
+      <b id="nTime"></b><button data-nt="60">+1m</button><button data-nt="600">+10m</button><button data-nt="orbit">+orbit</button></div>
+    <div class="node-foot"><span id="nBurn" class="muted"></span><button id="bNodeDel">Delete node</button></div>
+  </div>
   <div id="msg"></div>
 </div>
 
 <div id="toast"></div>
 <div id="modal" class="hidden"><div class="modal-card" id="modalCard"></div></div>
 
-<script src="js/data.js"></script>
-<script src="js/vessel.js"></script>
-<script src="js/render.js"></script>
-<script src="js/career/career.js"></script>
-<script src="js/career/science.js"></script>
-<script src="js/career/tech.js"></script>
-<script src="js/career/contracts.js"></script>
-<script src="js/flight.js"></script>
-<script src="js/hangar.js"></script>
-<script src="js/career/hub.js"></script>
-<script src="js/main.js"></script>
+<script src="js/data.js?v=5"></script>
+<script src="js/vessel.js?v=5"></script>
+<script src="js/render.js?v=5"></script>
+<script src="js/systems.js?v=5"></script>
+<script src="js/navigation.js?v=5"></script>
+<script src="js/career/career.js?v=5"></script>
+<script src="js/career/science.js?v=5"></script>
+<script src="js/career/tech.js?v=5"></script>
+<script src="js/career/contracts.js?v=5"></script>
+<script src="js/flight.js?v=5"></script>
+<script src="js/hangar.js?v=5"></script>
+<script src="js/career/hub.js?v=5"></script>
+<script src="js/main.js?v=5"></script>
 </body>
 </html>

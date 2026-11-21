@@ -125,7 +125,8 @@ function makeGeo(rec, x, top, flip, parentUid) {
   return {
     uid: rec.uid, id: rec.id, def, x, top, bot: top - def.h, flip, parent: parentUid, node: rec.node,
     side: rec.side || 0, sym: rec.sym || null, links: [],
-    fuel: def.fuel || 0, solid: def.solid || 0, mono: def.mono || 0, ignited: false, burn: 0, m: 0,
+    fuel: def.fuel || 0, solid: def.solid || 0, mono: def.mono || 0, ec: def.ec || 0, ablator: def.ablator || 0, temp: 290,
+    ignited: false, burn: 0, m: 0,
   };
 }
 
@@ -198,9 +199,10 @@ function components(parts) {
   return out;
 }
 
+/* The part that commands the craft: a capsule if there is one, else a probe core. */
 function rootUidOf(parts) {
-  const pod = parts.find((p) => p.def.pod);
-  return pod ? pod.uid : parts[0].uid;
+  const cmd = parts.find((p) => p.def.pod) || parts.find((p) => p.def.probe);
+  return cmd ? cmd.uid : parts[0].uid;
 }
 
 /* Automatic staging. Decouplers deeper in the tree (counted from the capsule) fire first; an engine
@@ -342,6 +344,9 @@ class Craft {
     this.hasLegs = this.legs.length > 0;
     this.hasChute = this.parts.some((p) => p.def.chute);
     this.hasPod = this.parts.some((p) => p.def.pod);
+    this.hasProbe = this.parts.some((p) => p.def.probe);
+    this.solarParts = this.parts.filter((p) => p.def.solar);
+    this.ecMax = this.parts.reduce((a, p) => a + (p.def.ec || 0), 0);
     this.torque = this.parts.reduce((a, p) => a + (p.def.torque || 0), 0);
     const gBot = new Map();
     for (const p of this.parts) { const g = groups.get(p.uid); gBot.set(g, Math.min(gBot.has(g) ? gBot.get(g) : Infinity, p.bot)); }
@@ -403,7 +408,7 @@ class Craft {
   updateMass() {
     let M = 0, mx = 0, my = 0;
     for (const p of this.parts) {
-      p.m = p.def.mass + p.fuel + p.solid + p.mono;
+      p.m = p.def.mass + p.fuel + p.solid + p.mono + p.ablator;
       M += p.m;
       mx += p.m * p.x;
       my += (p.m * (p.top + p.bot)) / 2;
@@ -611,8 +616,10 @@ function analyzeDesign(d) {
   out.com = [c.xc, c.yc];
   out.rows = simulateStages(c, false);
   out.total = out.rows.reduce((a, r) => a + r.dv, 0);
-  const hasPod = parts.some((p) => p.def.pod);
-  if (!hasPod) out.warnings.push({ lvl: 'err', text: 'Add a Lark Capsule. Every craft needs a command pod.' });
+  const hasPod = parts.some((p) => p.def.pod || p.def.probe);
+  if (!hasPod) out.warnings.push({ lvl: 'err', text: 'Add a Lark Capsule or a probe core. Every craft needs something to control it.' });
+  else if (!parts.some((p) => p.def.pod) && !parts.some((p) => p.def.ec && !p.def.probe) && !parts.some((p) => p.def.solar))
+    out.warnings.push({ lvl: 'info', text: 'Tip: a probe core only holds a little charge. Add batteries or solar panels.' });
   const firstUids = new Set(out.stages[0] || []);
   const first = parts.filter((p) => isEngine(p.def) && firstUids.has(p.uid));
   if (!first.length) out.warnings.push({ lvl: 'warn', text: 'The first stage lights no engines.' });
