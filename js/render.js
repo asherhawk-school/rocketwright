@@ -146,6 +146,40 @@ function drawPart(ctx, p, lw) {
       poly(ctx, [[-0.08, bot], [0.08, bot], [0.13, bot - 0.12], [-0.13, bot - 0.12]]); ctx.fill();
       break;
     }
+    case 'sensor': {
+      ctx.fillStyle = '#d6d9de'; ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#2a2e35'; ctx.fillRect(-hw * 0.6, bot + h * 0.2, hw * 1.2, h * 0.6);
+      ctx.fillStyle = d.dial ? '#7dffa8' : '#ff8a4d';
+      ctx.beginPath(); ctx.arc(0, bot + h / 2, hw * 0.35, 0, TAU); ctx.fill();
+      break;
+    }
+    case 'jar': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#9aa0a8', '#eef0f3', '#858b94');
+      ctx.fillRect(-hw, bot + 0.1, 2 * hw, h - 0.2); ctx.strokeRect(-hw, bot + 0.1, 2 * hw, h - 0.2);
+      ctx.fillStyle = 'rgba(120,200,140,0.75)'; ctx.fillRect(-hw * 0.55, bot + 0.2, hw * 1.1, (h - 0.4) * (p.spent ? 0.1 : 0.6));
+      ctx.fillStyle = '#3b414b'; ctx.fillRect(-hw, top - 0.12, 2 * hw, 0.12); ctx.fillRect(-hw, bot, 2 * hw, 0.12);
+      break;
+    }
+    case 'spike': {
+      ctx.fillStyle = '#5b616b'; ctx.fillRect(-hw, top - h * 0.35, 2 * hw, h * 0.35); ctx.strokeRect(-hw, top - h * 0.35, 2 * hw, h * 0.35);
+      ctx.fillStyle = '#c9a23a';
+      poly(ctx, [[-hw * 0.45, top - h * 0.35], [hw * 0.45, top - h * 0.35], [0, bot]]); ctx.fill(); ctx.stroke();
+      break;
+    }
+    case 'sniffer': {
+      ctx.fillStyle = '#e6e2d6'; ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#2a2e35';
+      poly(ctx, [[hw, top - 0.1], [hw + 0.2, top - 0.05], [hw + 0.2, top - 0.3], [hw, top - 0.25]]); ctx.fill();
+      ctx.fillStyle = '#4fd1ff'; ctx.fillRect(-hw * 0.5, bot + h * 0.3, hw, h * 0.15);
+      break;
+    }
+    case 'antenna': {
+      ctx.fillStyle = '#4a505a'; ctx.fillRect(-hw, bot, 2 * hw, 0.3); ctx.strokeRect(-hw, bot, 2 * hw, 0.3);
+      ctx.strokeStyle = '#c8ccd2'; ctx.lineWidth = Math.max(lw, 0.05);
+      ctx.beginPath(); ctx.moveTo(0, bot + 0.3); ctx.lineTo(0, top); ctx.stroke();
+      ctx.fillStyle = '#ff5d5d'; ctx.beginPath(); ctx.arc(0, top, 0.08, 0, TAU); ctx.fill();
+      break;
+    }
     case 'engine': {
       const mh = h * 0.3, bw = d.bell / 2;
       ctx.fillStyle = '#3a3f48';

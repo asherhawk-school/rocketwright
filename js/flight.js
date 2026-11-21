@@ -27,7 +27,7 @@ function initFlightView() {
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
     'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'bRcs', 'hNext', 'hPitch',
-    'bRecover', 'bMap', 'msg', 'mapHint']) F.hud[id] = document.getElementById(id);
+    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
 }
@@ -41,7 +41,7 @@ function resizeFlight() {
 
 /* ---------------- flight lifecycle ---------------- */
 
-function flightStart(design, name) {
+function flightStart(design, name, opts = {}) {
   F.design = cloneDesign(design);
   F.craftName = name || 'Untitled';
   const parts = layoutDesign(F.design);
@@ -54,7 +54,8 @@ function flightStart(design, name) {
   c.vel = [0, 0];
   c.landed = { body: HOME, rx: c.pos[0], ry: c.pos[1] };
   Object.assign(F, {
-    craft: c, debris: [], particles: [], t: 0, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi',
+    craft: c, debris: [], particles: [], t: opts.t0 || 0, launchT: opts.t0 || 0, crewId: opts.crewId || null, crewLost: null,
+    flightContracts: [], sciOpen: false, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi',
     deadTimer: 0, endShown: false, pred: null, encounter: null, orbit: null, lastBody: HOME, rotOffset: 0, paused: false,
     flags: { space: false, maxAlt: 0, visited: [], landedOn: [] }, flightMilestones: [], running: true,
     dvTick: 0, dvCache: null, rcsTx: 0, rcsTy: 0,
@@ -69,7 +70,13 @@ function doStage() {
   const c = F.craft;
   if (c.dead || c.stageIdx >= c.stages.length) return;
   const first = c.stageIdx === 0;
+  const stageIds = (c.stages[c.stageIdx] || []).map((u) => c.byUid.get(u)).filter(Boolean).map((p) => p.id);
   const res = c.activateNext((comp, dec) => separatePiece(c, comp, dec));
+  if (res) {
+    const b = soiBody(c.pos[0], c.pos[1], F.t), bp = bodyPos(b, F.t), bv = bodyVel(b, F.t);
+    flightEvent({ kind: 'stage', body: b, alt: Math.hypot(c.pos[0] - bp[0], c.pos[1] - bp[1]) - b.R,
+      speed: Math.hypot(c.vel[0] - bv[0], c.vel[1] - bv[1]), partIds: stageIds });
+  }
   if (!res) return;
   const msgs = [];
   if (res.separated) msgs.push(res.separated > 1 ? `${res.separated} pieces separated` : 'Stage separated');
@@ -352,6 +359,10 @@ function explode(c, player, speed, why) {
   }
   if (player) {
     F.deadTimer = 2.2;
+    if (isCareer() && F.crewId) {
+      const cm = Career.s.crew.find((x) => x.id === F.crewId);
+      if (cm && cm.status !== 'lost') { cm.status = 'lost'; F.crewLost = cm.name; addRep(-10); persist(); }
+    }
     F.warp = 0;
     F.deathReason = why || `Hit the ground at ${speed.toFixed(1)} m/s`;
     flash(why || `Vessel destroyed at ${speed.toFixed(1)} m/s`, 4);
@@ -476,6 +487,87 @@ function describeEvent(e, now) {
   return [`Impact on ${e.body.name}`, `in ${when}`];
 }
 
+/* ---------------- career hooks ---------------- */
+
+/* Let active contracts look at what just happened. */
+function flightEvent(ev) {
+  if (!isCareer()) return;
+  const done = checkContracts(Career.s, ev);
+  for (const c of done) {
+    toast(`Contract complete: ${c.title} · +${fmtFunds(c.reward)}`);
+    F.flightContracts.push(c.title);
+  }
+  if (done.length) persist();
+}
+
+function toggleScience() {
+  if (!isCareer()) return;
+  F.sciOpen = !F.sciOpen;
+  F.hud.sciPanel.classList.toggle('hidden', !F.sciOpen);
+  if (F.sciOpen) renderSciencePanel();
+}
+
+function renderSciencePanel() {
+  const c = F.craft, s = Career.s, el = F.hud.sciList;
+  if (!F.sciOpen || !s) return;
+  const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
+  const sit = situationOf(c, b, F.t);
+  const antenna = c.parts.some((p) => p.def.antenna);
+  F.hud.sciWhere.textContent = `${SITUATIONS[sit].label} ${b.name}`;
+  const rows = [];
+  for (const p of c.parts) {
+    if (!p.def.exp || c.dead) continue;
+    const e = EXPERIMENTS[p.def.exp];
+    let status, btns = '';
+    if (p.result) {
+      const left = subjectLeft(s, p.result.id, p.result.cap);
+      status = `Holding: ${SITUATIONS[p.result.sit].label.toLowerCase()} ${BODY_BY_ID[p.result.body].name} · ${left.toFixed(1)} ⚗ if recovered`;
+      if (antenna) btns += `<button data-sci="tx" data-uid="${p.uid}">Transmit ${(left * TRANSMIT_FRACTION).toFixed(1)}</button>`;
+      btns += `<button data-sci="drop" data-uid="${p.uid}">Discard</button>`;
+    } else if (p.spent) status = 'Used. Recover it to reset.';
+    else if (canRun(p, b, sit)) {
+      const v = subjectLeft(s, subjectId(p.def.exp, b, sit), subjectCap(p.def.exp, b, sit));
+      status = v < 0.05 ? 'Nothing new to learn here' : `Worth ${v.toFixed(1)} ⚗ here`;
+      btns = `<button data-sci="run" data-uid="${p.uid}" ${v < 0.05 ? 'disabled' : ''}>Run</button>`;
+    } else status = 'Does not work here';
+    rows.push(`<div class="sci-row"><div><b>${e.name}</b><div class="muted">${status}</div></div><div class="sci-btns">${btns}</div></div>`);
+  }
+  if (!antenna && rows.length) rows.push('<div class="muted small-note">Add a Whip Antenna to transmit results without coming home.</div>');
+  el.innerHTML = rows.join('') || '<div class="muted">No experiments on this craft. Add science parts in the hangar.</div>';
+}
+
+function scienceAction(kind, uid) {
+  const c = F.craft, s = Career.s, p = c.byUid.get(uid);
+  if (!p || !s) return;
+  const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
+  if (kind === 'run') {
+    const sit = situationOf(c, b, F.t);
+    if (!canRun(p, b, sit)) return;
+    const r = runExperiment(s, p, b, sit);
+    flash(`${EXPERIMENTS[p.def.exp].name}: result stored (${r.value.toFixed(1)} ⚗ if recovered)`, 3);
+  } else if (kind === 'tx') {
+    const r = transmit(s, p);
+    if (r) {
+      toast(`Transmitted ${EXPERIMENTS[r.result.exp].name}: +${r.gain.toFixed(1)} science`);
+      flightEvent({ kind: 'science', body: BODY_BY_ID[r.result.body], sit: r.result.sit });
+      persist();
+    }
+  } else if (kind === 'drop') {
+    if (p.result && EXPERIMENTS[p.result.exp].oneShot) p.spent = true;
+    p.result = null;
+  }
+  renderSciencePanel();
+}
+
+function renderContractHud() {
+  const el = F.hud.hudContracts;
+  if (!isCareer()) { el.classList.add('hidden'); return; }
+  const act = Career.s.contracts.filter((x) => x.state === 'active' || (x.state === 'done' && F.flightContracts.includes(x.title)));
+  el.classList.toggle('hidden', !act.length);
+  el.innerHTML = '<div class="card-title">Contracts</div>' + act.map((x) =>
+    `<div class="ct ${x.state === 'done' ? 'done' : ''}">${x.state === 'done' ? '✓' : '○'} ${x.title}</div>`).join('');
+}
+
 /* ---------------- milestones ---------------- */
 
 function award(id) {
@@ -483,8 +575,13 @@ function award(id) {
   if (!F.flightMilestones.includes(id)) F.flightMilestones.push(id);
   if (got[id]) return;
   got[id] = Date.now();
-  Store.set('milestones', got);
-  toast(`Milestone reached: ${milestoneName(id)}`);
+  if (isCareer()) {
+    const r = milestoneReward(id);
+    addFunds(r.funds);
+    addRep(r.rep);
+    toast(`Milestone reached: ${milestoneName(id)} · +${fmtFunds(r.funds)}`);
+  } else toast(`Milestone reached: ${milestoneName(id)}`);
+  saveMilestones(got);
 }
 
 function checkMilestones(b) {
@@ -492,6 +589,7 @@ function checkMilestones(b) {
   if (c.dead) return;
   const bp = bodyPos(b, F.t);
   const alt = Math.hypot(c.pos[0] - bp[0], c.pos[1] - bp[1]) - b.R;
+  flightEvent({ kind: 'tick', body: b, alt, orbit: F.orbit, landed: !!c.landed, hasAntenna: c.parts.some((p) => p.def.antenna) });
   if (b === HOME) {
     F.flags.maxAlt = Math.max(F.flags.maxAlt, alt);
     if (!c.landed && alt > 40) award('liftoff');
@@ -511,6 +609,7 @@ function checkMilestones(b) {
 
 function onTouchdown(b, water, speed) {
   flash(`${water ? 'Splashdown' : 'Touchdown'} on ${b.name} at ${speed.toFixed(1)} m/s`, 4);
+  flightEvent({ kind: 'land', body: b });
   if (b !== HOME) {
     award('land_' + b.id);
     if (!F.flags.landedOn.includes(b.id)) F.flags.landedOn.push(b.id);
@@ -943,6 +1042,8 @@ function updateHud() {
   h.fLiq.style.width = (liqMax ? (100 * liq) / liqMax : 0) + '%';
   h.fSol.style.width = (solMax ? (100 * sol) / solMax : 0) + '%';
   h.fMono.style.width = (monoMax ? (100 * mono) / monoMax : 0) + '%';
+  if (F.frame % 15 === 0 || F.paused) { renderContractHud(); renderSciencePanel(); }
+  h.bSci.classList.toggle('hidden', !isCareer());
   h.hNext.textContent = c.stageIdx < c.stages.length ? 'Next: ' + stageLabel(c.stages[c.stageIdx], (u) => c.byUid.get(u)) : 'No stages left';
   h.bRcs.classList.toggle('on', c.rcsOn);
   h.bRcs.classList.toggle('hidden', !c.rcsParts.length);

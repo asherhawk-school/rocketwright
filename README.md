@@ -17,7 +17,12 @@ then visit http://localhost:8000.
 
 ## Features
 
-- **Hangar**: drag 37 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
+- **Career mode**: start with ¤25,000 and three astronauts at the Space Centre. Take generated contracts in Mission Control
+  (reach an altitude, test a part, gather science, fly by, orbit, land, place a satellite) that scale with your progress. Launches cost
+  money, and recovering your craft refunds most of it. Run experiments with six science instruments (each worth more on new worlds and in new
+  situations), transmit or recover the results, and research a 14-node tech tree. Astronauts gain experience and can be lost.
+  Reverting a flight undoes it; saves can be exported and imported. **Sandbox mode** unlocks everything with no money.
+- **Hangar**: drag 43 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS.
 - **Staging editor**: automatic staging you can reorder, with simulated Δv, thrust-to-weight and burn time for every stage.
@@ -45,6 +50,7 @@ then visit http://localhost:8000.
 | Z / X | Full / cut throttle |
 | T, 1–6 | SAS toggle / modes |
 | R; Q / E; H / N | RCS toggle; slide sideways; forward / back |
+| B | Science panel (career) |
 | M | Map view (F changes focus) |
 | , / . | Time warp slower / faster |
 | Mouse wheel, + / − | Zoom |
@@ -60,7 +66,8 @@ node tests/run.js
 ```
 
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
-spheres of influence, frame accelerations, stable orbits around nested moons, and interplanetary encounter prediction.
+spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
+and career rules: research, science values, contracts, recovery and crew loss.
 
 ## Code layout
 
@@ -68,5 +75,7 @@ spheres of influence, frame accelerations, stable orbits around nested moons, an
 - `js/vessel.js`: craft model: part tree and layout, fuel groups, automatic staging, mass properties, Δv simulation, example craft
 - `js/render.js`: part, flame, terrain and launch pad drawing
 - `js/flight.js`: simulation loop, time warp, camera, map view, HUD
-- `js/hangar.js`: drag-and-drop builder, symmetry, undo, staging editor
+- `js/career/`: the save game, money and crew (`career.js`), experiments (`science.js`), research (`tech.js`), contracts
+  (`contracts.js`) and the title screen, Space Centre and building screens (`hub.js`)
+- `js/hangar.js`: drag-and-drop builder, symmetry, undo, staging editor, career costs and crew
 - `js/main.js`: menus, input and boot

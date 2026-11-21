@@ -122,7 +122,36 @@ const PART_DEFS = {
   rcs: { kind: 'rcs', name: 'Puffer RCS Block', cat: 'Utility', radial: true, rcs: true, mass: 0.05, h: 0.45, w: 0.45, rcsThrust: 1.2,
     isp: 240, desc: 'Monopropellant thrusters for fine steering and sideways moves. R toggles RCS; Q/E and H/N translate.' },
 };
-const CATEGORIES = ['Command', 'Fuel', 'Engines', 'Coupling', 'Structure', 'Utility'];
+Object.assign(PART_DEFS, {
+  // Science (career mode): each runs an experiment you can transmit or bring home
+  thermo: { kind: 'sensor', name: 'Thermo Probe', cat: 'Science', radial: true, mass: 0.01, h: 0.5, w: 0.3, exp: 'thermo',
+    desc: 'Measures temperature. Works anywhere.' },
+  baro: { kind: 'sensor', name: 'Pressure Gauge', cat: 'Science', radial: true, mass: 0.02, h: 0.45, w: 0.35, exp: 'baro', dial: true,
+    desc: 'Measures air pressure. Works anywhere, best in an atmosphere.' },
+  jar: { kind: 'jar', name: 'Sample Canister', cat: 'Science', radial: true, mass: 0.05, h: 0.9, w: 0.55, exp: 'jar',
+    desc: 'Collects one sample per flight. Valuable, but can only be used once until recovered.' },
+  seismic: { kind: 'spike', name: 'Seismic Spike', cat: 'Science', radial: true, mass: 0.04, h: 1.0, w: 0.3, exp: 'seismic',
+    desc: 'Listens to the ground. Only works while landed.' },
+  sniffer: { kind: 'sniffer', name: 'Air Sniffer', cat: 'Science', radial: true, mass: 0.05, h: 0.7, w: 0.45, exp: 'sniffer',
+    desc: 'Samples the air. Only works while flying in an atmosphere.' },
+  antenna: { kind: 'antenna', name: 'Whip Antenna', cat: 'Science', radial: true, mass: 0.01, h: 1.6, w: 0.2, antenna: true,
+    desc: 'Lets you transmit science home (for half its value). Also needed for satellite contracts.' },
+});
+PART_DEFS.pod.exp = 'crew';
+
+/* What each part costs in career mode (fuel included). */
+const PART_COSTS = {
+  pod: 600, chute: 400, wheel: 900,
+  tankS125: 150, tankM125: 280, tankS: 250, tankM: 450, tankL: 850, tankXL: 1600, tankT12: 2600, tankT24: 5000, saddle: 300, monoPod: 250,
+  gnat: 400, wren: 1100, kestrel: 1300, ox: 2000, bison: 4500, colossus: 12000, sparrow: 450, popper: 120, srb: 400,
+  decoupler125: 150, decoupler: 300, decoupler3: 600, radDec: 350, radDecX: 500,
+  adapt2to125: 200, adapt125to2: 200, adapt3to2: 400, adapt2to3: 400,
+  nose125: 150, nose2: 250, pylon: 200, fins: 150, legs: 300, rcs: 450,
+  thermo: 250, baro: 400, jar: 600, seismic: 900, sniffer: 1200, antenna: 300,
+};
+for (const id in PART_DEFS) PART_DEFS[id].cost = PART_COSTS[id] || 100;
+
+const CATEGORIES = ['Command', 'Fuel', 'Engines', 'Coupling', 'Structure', 'Utility', 'Science'];
 
 /* Verdan milestones; every other body gets its own (see bodyMilestones). */
 const MILESTONES = [
@@ -140,7 +169,14 @@ const MILESTONE_KINDS = [
 ];
 /* Old saves used these ids for Pallid. */
 const OLD_MILESTONE_IDS = { moonSoi: 'soi_pallid', moonOrbit: 'orbit_pallid', moonLand: 'land_pallid', roundTrip: 'return_pallid' };
+/* Career saves keep their own milestones (they pay out, and a revert undoes them); sandbox uses a global list. */
+function careerMilestones() { return typeof Career !== 'undefined' && Career.s && Career.s.mode === 'career' ? Career.s.milestones : null; }
+function saveMilestones(got) {
+  if (careerMilestones()) { Career.s.milestones = got; persist(); } else Store.set('milestones', got);
+}
 function loadMilestones() {
+  const cm = careerMilestones();
+  if (cm) return cm;
   const got = Store.get('milestones', {});
   let changed = false;
   for (const [o, n] of Object.entries(OLD_MILESTONE_IDS)) if (got[o]) { got[n] = got[n] || got[o]; delete got[o]; changed = true; }

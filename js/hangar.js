@@ -4,7 +4,7 @@
 const $ = (id) => document.getElementById(id);
 const Hangar = {
   design: newDesign(), name: 'Orbiter I', sel: null, sym: true, showMarkers: true,
-  undo: [], redo: [], view: null, a: null, drag: null, hover: null,
+  undo: [], redo: [], view: null, a: null, drag: null, hover: null, crewId: null,
 };
 
 /* ---------------- palette ---------------- */
@@ -23,13 +23,15 @@ function buildPalette() {
   const pal = $('palette');
   pal.innerHTML = '';
   for (const cat of CATEGORIES) {
+    if (cat === 'Science' && !isCareer()) continue;
+    if (!Object.keys(PART_DEFS).some((id) => PART_DEFS[id].cat === cat && partUnlocked(id))) continue;
     const h = document.createElement('div');
     h.className = 'cat-title';
     h.textContent = cat;
     pal.appendChild(h);
     for (const id of Object.keys(PART_DEFS)) {
       const d = PART_DEFS[id];
-      if (d.cat !== cat) continue;
+      if (d.cat !== cat || !partUnlocked(id)) continue;
       const b = document.createElement('button');
       b.className = 'part-btn';
       b.title = d.desc;
@@ -38,7 +40,7 @@ function buildPalette() {
       const txt = document.createElement('div');
       txt.innerHTML = '<div class="pname"></div><div class="pstat"></div>';
       txt.querySelector('.pname').textContent = d.name;
-      txt.querySelector('.pstat').textContent = partStatsLine(d);
+      txt.querySelector('.pstat').textContent = partStatsLine(d) + (isCareer() ? ` · ${fmtFunds(d.cost)}` : '');
       b.append(cv, txt);
       b.addEventListener('pointerdown', (e) => beginPress(e, { kind: 'new', id }));
       pal.appendChild(b);
@@ -395,6 +397,7 @@ function updateStats() {
     <div class="kv"><span>Mass</span><b>${fmtNum(a.mass, 2)} t</b></div>
     <div class="kv"><span>Height × width</span><b>${fmtNum(a.height, 1)} × ${fmtNum(a.width, 1)} m</b></div>
     <div class="kv"><span>Parts</span><b>${count}</b></div>
+    ${isCareer() ? `<div class="kv"><span>Cost</span><b>${fmtFunds(designCost(Hangar.design))}</b></div>` : ''}
     <div class="kv big-kv"><span>Total Δv (vacuum)</span><b>${fmtNum(a.total)} m/s</b></div>`;
   const list = $('stageList');
   list.innerHTML = '';
@@ -453,7 +456,34 @@ function updateStats() {
     d.textContent = x.text;
     w.appendChild(d);
   }
-  $('btnLaunch').disabled = !a.valid;
+  let ok = a.valid;
+  const career = isCareer();
+  $('crewRow').classList.add('hidden');
+  if (career) {
+    const s = Career.s, cost = designCost(Hangar.design), locked = lockedParts(Hangar.design);
+    const extra = [];
+    if (locked.length) extra.push({ lvl: 'err', text: `Uses parts you haven't researched: ${locked.map((id) => PART_DEFS[id].name).join(', ')}.` });
+    if (cost > s.funds) extra.push({ lvl: 'err', text: `This rocket costs ${fmtFunds(cost)} but you have ${fmtFunds(s.funds)}.` });
+    if (Hangar.design.parts.some((p) => PART_DEFS[p.id].pod)) {
+      const av = availableCrew(s).sort((x, y) => crewRank(y) - crewRank(x));
+      if (!av.length) extra.push({ lvl: 'err', text: 'No astronauts available. Hire one in the Astronaut Office.' });
+      else {
+        if (!av.some((c) => c.id === Hangar.crewId)) Hangar.crewId = av[0].id;
+        const sel = $('crewSelect');
+        sel.innerHTML = av.map((c) => `<option value="${c.id}" ${c.id === Hangar.crewId ? 'selected' : ''}>${c.name} ${'★'.repeat(crewRank(c))}</option>`).join('');
+        $('crewRow').classList.remove('hidden');
+      }
+    }
+    for (const x of extra) {
+      const d = document.createElement('div');
+      d.className = 'warn ' + x.lvl;
+      d.textContent = x.text;
+      w.prepend(d);
+      ok = false;
+    }
+    $('btnLaunch').textContent = `LAUNCH · ${fmtFunds(cost)}`;
+  } else $('btnLaunch').textContent = 'LAUNCH';
+  $('btnLaunch').disabled = !ok;
 }
 
 /* ---------------- load / save ---------------- */
@@ -496,6 +526,7 @@ function wireHangar() {
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
   $('selDel').addEventListener('click', removeSel);
+  $('crewSelect').addEventListener('change', (e) => { Hangar.crewId = +e.target.value; });
   $('btnUndo').addEventListener('click', undo);
   $('btnRedo').addEventListener('click', redo);
   $('btnSym').addEventListener('click', () => setSymmetry(!Hangar.sym));

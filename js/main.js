@@ -6,22 +6,74 @@
 function showHangar() {
   F.running = false;
   hideModal();
-  $('flight').classList.add('hidden');
-  $('hangar').classList.remove('hidden');
+  showScreen('hangar');
+  buildPalette();
+  Hangar.view = null;
   hangarChanged();
 }
+
+/* Launch the hangar's design: in career this charges the rocket's price and seats an astronaut. */
 function launch() {
   const a = analyzeDesign(Hangar.design);
-  if (!a.valid) return;
-  $('hangar').classList.add('hidden');
-  $('flight').classList.remove('hidden');
+  if (!a.valid || !Career.s) return;
+  launchDesign(Hangar.design, Hangar.name, Hangar.crewId);
+}
+function launchDesign(design, name, crewId) {
+  const s = Career.s;
+  const snapshot = JSON.stringify(s);
+  let crew = null;
+  if (isCareer()) {
+    const cost = designCost(design);
+    if (lockedParts(design).length) { toast('This design uses parts you have not researched'); return; }
+    if (s.funds < cost) { toast(`Not enough funds: this rocket costs ${fmtFunds(cost)}`); return; }
+    if (design.parts.some((p) => PART_DEFS[p.id].pod)) {
+      crew = s.crew.find((c) => c.id === crewId && c.status === 'available') || availableCrew(s)[0];
+      if (!crew) { toast('No astronauts available. Hire one in the Astronaut Office.'); return; }
+      crew.status = 'flying';
+    }
+    s.funds -= cost;
+    s.flights++;
+    persist();
+  }
+  showScreen('flight');
   resizeFlight();
-  flightStart(Hangar.design, Hangar.name);
+  flightStart(design, name, { t0: s.ut, crewId: crew ? crew.id : null });
+  F.snapshot = snapshot;
+  if (crew) flash(`${crew.name} is aboard ${name}. Press SPACE to launch!`, 5);
+}
+
+/* Bring the program's clock forward to the end of the flight and release the crew. */
+function finishFlight(recovered) {
+  const s = Career.s;
+  s.ut = Math.max(s.ut, F.t);
+  if (F.crewId) {
+    const cm = s.crew.find((c) => c.id === F.crewId);
+    if (cm && cm.status === 'flying') {
+      cm.status = 'available';
+      if (recovered) {
+        cm.flights++;
+        for (const w of F.flags.visited) if (!cm.worlds.includes(w)) cm.worlds.push(w);
+      }
+    }
+  }
+  F.crewId = null;
+  if (isCareer()) refreshContracts(s);
+  persist();
+}
+
+/* Undo everything since launch. */
+function revertFlight(toHangar) {
+  Career.s = JSON.parse(F.snapshot);
+  persist();
+  hideModal();
+  if (toHangar) showHangar();
+  else launchDesign(F.design, F.craftName, F.crewId);
 }
 
 let modalOpen = false;
-function showModal(html, buttons) {
+function showModal(html, buttons, cls) {
   const card = $('modalCard');
+  card.className = 'modal-card' + (cls ? ' ' + cls : '');
   card.innerHTML = html;
   const row = document.createElement('div');
   row.className = 'modal-btns';
@@ -60,6 +112,7 @@ its Δv (how much speed it can add) and TWR (thrust-to-weight; above 1 to lift o
   <div><kbd>,</kbd>/<kbd>.</kbd> Time warp slower / faster</div>
   <div>Mouse wheel: zoom · <kbd>Esc</kbd> Menu</div>
   <div><kbd>R</kbd> RCS · <kbd>Q</kbd>/<kbd>E</kbd> slide · <kbd>H</kbd>/<kbd>N</kbd> forward/back</div>
+  <div><kbd>B</kbd> Science panel (career)</div>
   <div>Hangar: <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>X</kbd> symmetry · <kbd>Del</kbd> remove</div>
 </div>
 <h3>Getting to orbit</h3>
@@ -79,7 +132,13 @@ when you're slow. Touch down under 6 m/s (12 m/s with landing legs, 10 m/s in wa
 <p>Verdan orbits the star <b>Helion</b> with six planets: hot <b>Cinder</b>, desert <b>Ochre</b> (moons Pip and Shard), the gas
 giant <b>Tempest</b> (moons Gale, Ember and Frost), icy <b>Glacis</b> and distant <b>Umbra</b>. To reach one, burn prograde from
 orbit to escape Verdan (try about 1,000 m/s for Ochre), then use the map: zoom out, click a planet to focus it, and adjust your
-burn until the path shows an encounter. Time warp goes up to 1,000,000× in deep space. Tempest has no surface, so don't sink into it.</p>`;
+burn until the path shows an encounter. Time warp goes up to 1,000,000× in deep space. Tempest has no surface, so don't sink into it.</p>
+<h3>Career mode</h3>
+<p>Take contracts in <b>Mission Control</b>; they pay an advance, then a reward the moment you complete them. Rockets cost money to launch,
+so build within budget, then <b>recover</b> them on Verdan to get most of their value back (more the closer you land to the launch site).
+Open the 🔬 <b>Science</b> panel (<kbd>B</kbd>) to run experiments: the same experiment is worth more on new worlds and in new situations.
+Transmit results with an antenna for half their value, or bring them home for all of it. Spend science in the <b>Research Lab</b> to unlock parts.
+Reverting a flight undoes everything that happened in it.</p>`;
 
 function showHelp() {
   const wasRunning = F.running;
@@ -111,32 +170,69 @@ function openMenu() {
   if (!F.running || F.endShown) return;
   const c = F.craft;
   const btns = [{ label: 'Resume', cls: 'primary', fn: hideModal }];
-  if (c.landed && c.landed.body === HOME && F.flags.maxAlt > 100) btns.push({ label: 'Recover vessel', fn: recover });
-  btns.push({ label: 'Revert to launch', fn: () => { hideModal(); flightStart(F.design, F.craftName); } });
-  btns.push({ label: 'Back to hangar', fn: showHangar });
+  if (canRecover()) btns.push({ label: 'Recover vessel', fn: recover });
+  btns.push({ label: 'Revert to launch', fn: () => revertFlight(false) });
+  btns.push({ label: 'Revert to hangar', fn: () => revertFlight(true) });
+  btns.push({ label: 'End flight', fn: confirmEndFlight });
   btns.push({ label: 'Controls', fn: showHelp });
-  showModal(`<h2>Paused</h2><p class="muted">${F.craftName} · ${fmtClock(F.t)}</p>`, btns);
+  showModal(`<h2>Paused</h2><p class="muted">${esc(F.craftName)} · ${fmtClock(F.t - F.launchT)} · ${fmtDate(F.t)}</p>`, btns);
+}
+
+function canRecover() { const c = F.craft; return c.landed && c.landed.body === HOME && !c.dead && F.flags.maxAlt > 100; }
+
+function confirmEndFlight() {
+  const career = isCareer();
+  showModal(`<h2>End this flight?</h2><p>The vessel is left behind${career ? ' and its cost is not refunded' : ''}. Your crew is flown home.
+    Contracts and science you earned stay. Time moves on to ${fmtDate(F.t)}.</p>`, [
+    { label: 'End flight', cls: 'primary', fn: () => { finishFlight(false); showHub(); } },
+    { label: 'Cancel', fn: openMenu },
+  ]);
 }
 
 function showCrashModal() {
-  showModal(`<h2>Vessel destroyed</h2><p>${F.craftName} was lost after ${fmtClock(F.t).slice(3)}. ${F.deathReason || ''}.</p>
+  const lost = F.crewLost ? `<p><b>${esc(F.crewLost)}</b> was lost. Reputation −10.</p>` : '';
+  showModal(`<h2>Vessel destroyed</h2><p>${esc(F.craftName)} was lost after ${fmtClock(F.t - F.launchT).slice(3)}. ${esc(F.deathReason || '')}.</p>${lost}
     <p class="muted">Tip: land under 6 m/s, or 12 m/s with landing legs. Deploy the parachute well before the ground.</p>`, [
-    { label: 'Revert to launch', cls: 'primary', fn: () => { hideModal(); flightStart(F.design, F.craftName); } },
-    { label: 'Back to hangar', fn: showHangar },
+    { label: 'Revert to launch', cls: 'primary', fn: () => revertFlight(false) },
+    { label: 'Revert to hangar', fn: () => revertFlight(true) },
+    { label: 'Space Centre', fn: () => { finishFlight(false); showHub(); } },
   ]);
 }
 
 function recover() {
-  const names = F.flightMilestones.map((id) => `<li>★ ${milestoneName(id)}</li>`).join('');
-  const visited = F.flags.visited.map((id) => BODY_BY_ID[id].name + (F.flags.landedOn.includes(id) ? ' (landed)' : '')).join(', ');
+  const c = F.craft, s = Career.s;
   F.endShown = true;
+  let sci = 0, refund = 0, factor = 1;
+  const sciLines = [];
+  for (const p of c.parts) {
+    if (!p.result) continue;
+    const r = p.result;
+    const g = creditResult(s, r, 1);
+    sci += g;
+    sciLines.push(`<li>${esc(r.label)} · +${g.toFixed(1)} ⚗</li>`);
+    flightEvent({ kind: 'science', body: BODY_BY_ID[r.body], sit: r.sit });
+    p.result = null;
+  }
+  if (isCareer()) {
+    const L = c.landed, phi = Math.atan2(L.ry, L.rx);
+    factor = recoveryFactor(phi, terrainH(HOME, phi) < 0);
+    refund = c.parts.reduce((a, p) => a + partValue(p), 0) * factor;
+    addFunds(refund);
+  }
+  finishFlight(true);
+  const names = F.flightMilestones.map((id) => `<li>★ ${milestoneName(id)}</li>`).join('');
+  const contracts = F.flightContracts.map((t) => `<li>✓ ${esc(t)}</li>`).join('');
+  const visited = F.flags.visited.map((id) => BODY_BY_ID[id].name + (F.flags.landedOn.includes(id) ? ' (landed)' : '')).join(', ');
   showModal(`<h2>Vessel recovered</h2>
-    <div class="kv"><span>Mission time</span><b>${fmtClock(F.t).slice(3)}</b></div>
+    <div class="kv"><span>Mission time</span><b>${fmtClock(F.t - F.launchT).slice(3)}</b></div>
     <div class="kv"><span>Highest altitude</span><b>${fmtDist(F.flags.maxAlt)}</b></div>
     <div class="kv"><span>Worlds visited</span><b>${visited || 'None yet'}</b></div>
+    ${isCareer() ? `<div class="kv"><span>Recovery (${Math.round(factor * 100)}% of value)</span><b>+${fmtFunds(refund)}</b></div>` : ''}
+    ${isCareer() && sci ? `<div class="kv"><span>Science recovered</span><b>+${sci.toFixed(1)} ⚗</b></div><ul class="plain">${sciLines.join('')}</ul>` : ''}
+    ${contracts ? `<h3>Contracts completed</h3><ul class="plain">${contracts}</ul>` : ''}
     ${names ? `<h3>Milestones this flight</h3><ul class="plain">${names}</ul>` : ''}`, [
-    { label: 'Back to hangar', cls: 'primary', fn: showHangar },
-    { label: 'Fly again', fn: () => { hideModal(); flightStart(F.design, F.craftName); } },
+    { label: 'Space Centre', cls: 'primary', fn: showHub },
+    { label: 'Back to hangar', fn: showHangar },
   ]);
 }
 
@@ -163,7 +259,7 @@ function onKeyDown(e) {
     return;
   }
   if (!F.running) {
-    hangarKey(e);
+    if (!$('hangar').classList.contains('hidden')) hangarKey(e);
     return;
   }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
@@ -179,6 +275,7 @@ function onKeyDown(e) {
     case 'KeyX': if (!c.dead) c.throttle = 0; break;
     case 'KeyT': setSas(F.sas === 'off' ? 'stab' : 'off'); break;
     case 'KeyR': toggleRcs(); break;
+    case 'KeyB': toggleScience(); break;
     case 'KeyF': cycleMapFocus(); break;
     case 'Escape': openMenu(); break;
     case 'Equal': case 'NumpadAdd': zoomBy(1.25); break;
@@ -202,8 +299,13 @@ function wireUi() {
 
   $('btnLaunch').addEventListener('click', launch);
   $('btnHelp').addEventListener('click', showHelp);
-  $('btnMilestones').addEventListener('click', showMilestones);
   wireHangar();
+  wireHub();
+  $('bSci').addEventListener('click', toggleScience);
+  $('sciList').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-sci]');
+    if (b) scienceAction(b.dataset.sci, +b.dataset.uid);
+  });
 
   // flight HUD buttons (never keep focus, so Space keeps staging)
   document.querySelectorAll('#flight button').forEach((b) => b.addEventListener('mousedown', (e) => e.preventDefault()));
@@ -249,7 +351,8 @@ function boot() {
   const curDesign = cur ? migrateDesign(cur.design) : null;
   if (curDesign && curDesign.parts.length) loadCraft(cur.name || 'Untitled', curDesign);
   else loadCraft('Orbiter I', PRESETS['Orbiter I']());
-  if (!Store.get('seenHelp', false)) { Store.set('seenHelp', true); showHelp(); }
+  loadSave();
+  showTitle();
   requestAnimationFrame(loop);
 }
 window.addEventListener('DOMContentLoaded', boot);

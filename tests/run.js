@@ -16,9 +16,9 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 let src = '';
-for (const f of ['data.js', 'vessel.js', 'flight.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
+for (const f of ['data.js', 'vessel.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'flight.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -300,6 +300,98 @@ test('old Pallid milestone ids carry over', () => {
   G.Store.set('milestones', { moonLand: 123, orbit: 5 });
   const m = G.loadMilestones();
   assert(m.land_pallid === 123 && !m.moonLand && m.orbit === 5, JSON.stringify(m));
+});
+
+console.log('Career');
+const career = (seed = 42) => { const s = G.newSave('career', seed); G.Career.s = s; return s; };
+test('a new career starts with funds, three astronauts and only the basic parts', () => {
+  const s = career();
+  assert(s.funds === 25000 && s.crew.length === 3, `funds ${s.funds}, crew ${s.crew.length}`);
+  assert(G.partUnlocked('pod') && G.partUnlocked('srb') && !G.partUnlocked('ox') && !G.partUnlocked('tankL'), 'unlocks');
+  const hop = G.PRESETS['Sky Hopper']();
+  assert(G.designCost(hop) === 1700 && G.lockedParts(hop).length === 0, 'Sky Hopper cost ' + G.designCost(hop));
+  assert(G.lockedParts(G.PRESETS['Orbiter I']()).length > 0, 'Orbiter I should need research');
+});
+test('every part belongs to exactly one research node', () => {
+  for (const id of Object.keys(G.PART_DEFS)) assert(G.PART_TECH[id], id + ' is not in the tech tree');
+  const all = G.TECH_NODES.flatMap((n) => n.parts);
+  assert(all.length === new Set(all).size, 'a part is in two nodes');
+});
+test('research needs science and its prerequisites, then unlocks parts', () => {
+  const s = career();
+  assert(G.research(s, 'advanced') !== null, 'locked node should fail');
+  assert(G.research(s, 'general') !== null, 'should need science');
+  s.science = 40;
+  assert(G.research(s, 'general') === null && G.research(s, 'advanced') === null, 'should succeed');
+  assert(s.science === 5 && G.partUnlocked('ox') && G.partUnlocked('tankL'), `science ${s.science}`);
+});
+test('science: transmitting pays half, recovering pays the rest, repeats pay less', () => {
+  const s = career();
+  const p = { def: G.PART_DEFS.thermo };
+  const cap = G.subjectCap('thermo', G.MOON, 'landed');
+  G.runExperiment(s, p, G.MOON, 'landed');
+  const tx = G.transmit(s, p);
+  assert(Math.abs(tx.gain - cap / 2) < 1e-9, 'transmit ' + tx.gain);
+  G.runExperiment(s, p, G.MOON, 'landed');
+  const rec = G.creditResult(s, p.result, 1);
+  assert(Math.abs(rec - cap / 2) < 1e-9 && Math.abs(s.science - cap) < 0.11, `recover ${rec}, total ${s.science}`);
+  G.runExperiment(s, p, G.MOON, 'landed');
+  assert(G.creditResult(s, p.result, 1) < 1e-9, 'subject should be used up');
+  assert(G.subjectCap('thermo', G.MOON, 'landed') > G.subjectCap('thermo', G.HOME, 'landed') * 3, 'Pallid worth more than home');
+});
+test('contracts are generated deterministically from the seed', () => {
+  const a = career(7); G.refreshContracts(a);
+  const b = career(7); G.refreshContracts(b);
+  assert(JSON.stringify(a.contracts) === JSON.stringify(b.contracts), 'same seed, different offers');
+  assert(a.contracts.length === 4 && a.contracts.every((c) => c.state === 'offered'), 'offers: ' + a.contracts.length);
+});
+test('early contracts stay at home; Pallid opens up after reaching orbit', () => {
+  const s = career(3);
+  assert(G.reachableBodies(s).map((b) => b.id).join() === 'verdan', 'start');
+  for (let i = 0; i < 40; i++) { const c = G.genContract(s); if (c && c.p.body) assert(c.p.body === 'verdan', c.title); }
+  s.milestones.orbit = 1;
+  assert(G.reachableBodies(s).some((b) => b.id === 'pallid'), 'Pallid should be reachable');
+});
+test('accepting pays the advance; completing pays the reward; missing the deadline costs a penalty', () => {
+  const s = career(11);
+  const mk = (km) => ({ id: s.contractSeq++, type: 'altitude', title: 'Reach ' + km, desc: '', p: { km }, reward: 5000, sci: 3, rep: 2,
+    days: 10, state: 'offered', advance: 700, penalty: 1500, expires: 1e12 });
+  const c1 = mk(5), c2 = mk(50);
+  s.contracts.push(c1, c2);
+  assert(G.acceptContract(s, c1.id) === null && G.acceptContract(s, c2.id) === null, 'accept');
+  assert(s.funds === 25000 + 1400, 'advance');
+  const done = G.checkContracts(s, { kind: 'tick', body: G.HOME, alt: 6000 });
+  assert(done.length === 1 && done[0] === c1 && s.funds === 26400 + 5000 && s.science === 3, `funds ${s.funds}`);
+  s.ut = 11 * G.DAY;
+  G.refreshContracts(s);
+  assert(c2.state === 'failed' && s.funds === 31400 - 1500, `c2 ${c2.state}, funds ${s.funds}`);
+});
+test('recovery pays most near the launch site and less far away', () => {
+  assert(G.recoveryFactor(Math.PI / 2) === 1, 'pad');
+  assert(G.recoveryFactor(Math.PI / 2 + 0.1) > 0.9, 'nearby');
+  assert(G.recoveryFactor(-Math.PI / 2) < 0.15, 'far side');
+});
+test('in flight, reaching the target altitude completes the contract', () => {
+  const s = career(5);
+  const c = { id: 99, type: 'altitude', title: 'Reach 5 km', desc: '', p: { km: 5 }, reward: 3000, sci: 2, rep: 2, days: 30, state: 'offered', advance: 400, penalty: 900, expires: 1e12 };
+  s.contracts.push(c);
+  G.acceptContract(s, 99);
+  const { F } = G;
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Hopper', { t0: s.ut, crewId: s.crew[0].id });
+  G.doStage();
+  for (let i = 0; i < 60 * 60 && c.state === 'active'; i++) G.flightUpdate(1 / 60);
+  assert(c.state === 'done', 'contract not completed; alt ' + (Math.hypot(...F.craft.pos) - 500000).toFixed(0));
+  assert(s.milestones.liftoff, 'liftoff milestone should be in the career save');
+});
+test('a crash loses the astronaut and reputation', () => {
+  const s = career(8);
+  const { F } = G;
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Hopper', { t0: 0, crewId: s.crew[1].id });
+  s.crew[1].status = 'flying';
+  s.rep = 20;
+  G.explode(F.craft, true, 50);
+  assert(s.crew[1].status === 'lost' && s.rep === 10, `${s.crew[1].status}, rep ${s.rep}`);
+  G.Career.s = null;
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
