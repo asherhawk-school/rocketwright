@@ -8,6 +8,7 @@ const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 /* ---------------- title ---------------- */
 
 function showTitle() {
+  if (Tut.active) endTutorial();
   F.running = false;
   hideModal();
   showScreen('title');
@@ -58,6 +59,7 @@ function updateStatsBars() {
 }
 
 function showHub() {
+  if (Tut.active) endTutorial();
   F.running = false;
   hideModal();
   showScreen('hub');
@@ -77,6 +79,8 @@ function renderHub() {
   updateStatsBars();
   const got = loadMilestones();
   $('noteMilestones').textContent = `${Object.keys(got).length} earned`;
+  const fleet = (s.vessels || []).length;
+  $('noteTracking').textContent = fleet ? `${fleet} vessel${fleet > 1 ? 's' : ''} in flight` : 'Nothing in flight';
   if (!career) return;
   const act = s.contracts.filter((c) => c.state === 'active').length, off = s.contracts.filter((c) => c.state === 'offered').length;
   $('noteMission').textContent = `${act} active · ${off} offers`;
@@ -181,6 +185,116 @@ function showCrew() {
   } }, { label: 'Close', cls: 'primary', fn: () => { hideModal(); renderHub(); } }]);
 }
 
+/* ---------------- tracking station ---------------- */
+
+function trackingLost(lost) {
+  for (const v of lost) {
+    toast(`${v.name} was lost${v.lostAt ? ' at ' + BODY_BY_ID[v.lostAt].name : ''}`);
+    if (isCareer()) crewLost(v.crew);
+  }
+}
+
+function showTracking() {
+  const s = universe();
+  trackingLost(advanceAll(s.ut));
+  persist();
+  const rows = s.vessels.map((v) => {
+    const b = vesselBody(v);
+    const home = v.landed && b === HOME;
+    const crew = crewNames(v.crew);
+    return `<div class="trk-row ${v.kind}">
+      <div><b>${esc(v.name)}</b>${v.kind === 'stranded' ? ' <span class="pill rep">needs rescue</span>' : ''}
+        <div class="muted">${esc(vesselSituation(v))} · ${fmtDur(s.ut - v.launchT)} since launch${crew.length ? ' · 👩‍🚀 ' + esc(crew.join(', ')) : ''}</div></div>
+      <div class="trk-btns">${v.kind === 'stranded' ? '' : `<button class="primary" data-fly="${v.id}">Fly</button>`}
+        ${home ? `<button data-rec="${v.id}">Recover</button>` : ''}
+        ${v.kind === 'stranded' ? '' : `<button data-del="${v.id}">Terminate</button>`}</div></div>`;
+  }).join('');
+  showModal(`<h2>Tracking Station <span class="muted small">${fmtDate(s.ut)}</span></h2>
+    <canvas id="trkMap" class="trk-map"></canvas>
+    <div class="trk-time"><span class="muted">Wait at the Space Centre:</span>
+      <button data-wait="3600">1 hour</button><button data-wait="21600">6 hours</button><button data-wait="86400">1 day</button><button data-wait="864000">10 days</button></div>
+    ${rows || '<p class="muted">Nothing in flight. Vessels you leave in space (Menu → Space Centre) show up here.</p>'}`,
+  [{ label: 'Close', cls: 'primary', fn: () => { hideModal(); renderHub(); } }], 'wide');
+  drawTrackingMap(s);
+  const card = $('modalCard');
+  const find = (id) => s.vessels.find((v) => v.id === +id);
+  card.querySelectorAll('[data-fly]').forEach((b) => b.addEventListener('click', () => {
+    const v = find(b.dataset.fly);
+    if (!v) return;
+    hideModal();
+    showScreen('flight');
+    resizeFlight();
+    flightLoadVessel(v, s.ut);
+    fillTargetSelect();
+  }));
+  card.querySelectorAll('[data-rec]').forEach((b) => b.addEventListener('click', () => {
+    const v = find(b.dataset.rec);
+    if (!v) return;
+    const r = recoverRecord(v);
+    persist();
+    toast(`${v.name} recovered${isCareer() ? ` · +${fmtFunds(r.refund)}` : ''}${r.sci ? ` · +${r.sci.toFixed(1)} ⚗` : ''}`);
+    for (const c of r.done) toast(`Contract complete: ${c.title}`);
+    showTracking();
+  }));
+  card.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => {
+    const v = find(b.dataset.del);
+    if (!v) return;
+    const crew = crewNames(v.crew);
+    showModal(`<h2>Terminate ${esc(v.name)}?</h2><p>It will be removed for good.${crew.length ? ` <b>${esc(crew.join(', '))}</b> will be lost.` : ''}</p>`, [
+      { label: 'Terminate', cls: 'primary', fn: () => { if (isCareer()) crewLost(v.crew); s.vessels = s.vessels.filter((x) => x !== v); persist(); showTracking(); } },
+      { label: 'Cancel', fn: showTracking },
+    ]);
+  }));
+  card.querySelectorAll('[data-wait]').forEach((b) => b.addEventListener('click', () => {
+    s.ut += +b.dataset.wait;
+    trackingLost(advanceAll(s.ut));
+    if (isCareer()) for (const c of refreshContracts(s)) toast(`Contract failed: ${c.title}`);
+    persist();
+    showTracking();
+  }));
+}
+
+/* A small map of where everything is: Verdan's neighbourhood, or the whole system if needed. */
+function drawTrackingMap(s) {
+  const cv = $('trkMap');
+  const W = cv.clientWidth || 600, H = 260, dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = W * dpr; cv.height = H * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#05070d'; ctx.fillRect(0, 0, W, H);
+  const local = s.vessels.every((v) => inHomeSystem(vesselBody(v)));
+  const t = s.ut, z = local ? Math.min(W, H) / (MOON.orbitR * 2.4) : Math.min(W, H) / (UMBRA.orbitR * 2.3);
+  const foc = local ? [0, 0] : bodyPos(SUN, t);
+  const S = (x, y) => [W / 2 + (x - foc[0]) * z, H / 2 - (y - foc[1]) * z];
+  ctx.font = '11px system-ui, sans-serif'; ctx.textAlign = 'center';
+  for (const b of BODIES) {
+    if (b.parent) {
+      const pp = bodyPos(b.parent, t), [px, py] = S(pp[0], pp[1]);
+      if (b.orbitR * z > 4) { ctx.strokeStyle = 'rgba(180,190,210,0.15)'; ctx.beginPath(); ctx.arc(px, py, b.orbitR * z, 0, TAU); ctx.stroke(); }
+    }
+    const bp = bodyPos(b, t), [x, y] = S(bp[0], bp[1]);
+    if (!b.star && b.parent && !b.parent.star && b.orbitR * z < 10) continue;
+    ctx.fillStyle = b.colMap; ctx.beginPath(); ctx.arc(x, y, Math.max(b.R * z, b.star ? 5 : 3), 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fillText(b.name, x, y - Math.max(b.R * z, 4) - 5);
+  }
+  for (const v of s.vessels) {
+    const [x, y] = S(v.s[0], v.s[1]);
+    ctx.fillStyle = v.kind === 'stranded' ? '#ffb347' : '#e070ff';
+    ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x + 5, y); ctx.lineTo(x, y + 5); ctx.lineTo(x - 5, y); ctx.closePath(); ctx.fill();
+    ctx.fillText(v.name, x, y + 15);
+  }
+}
+
+/* ---------------- tutorials ---------------- */
+
+function showTutorials() {
+  const items = TUTORIALS.map((t) => `<div class="trk-row"><div><b>${t.name}</b><div class="muted">${t.desc}</div></div>
+    <div class="trk-btns"><button class="primary" data-tut="${t.id}">Start</button></div></div>`).join('');
+  showModal(`<h2>Tutorials</h2><p class="muted">Guided flights. They don't change your save.</p>${items}`,
+    [{ label: 'Close', cls: 'primary', fn: hideModal }]);
+  $('modalCard').querySelectorAll('[data-tut]').forEach((b) => b.addEventListener('click', () => startTutorial(b.dataset.tut)));
+}
+
 /* ---------------- Δv map ---------------- */
 
 function showDvMap(back) {
@@ -205,6 +319,7 @@ function showDvMap(back) {
 
 function showSettings() {
   showModal(`<h2>Save &amp; Settings</h2>
+    <label class="field">Sound volume <input type="range" id="volSlider" min="0" max="1" step="0.05" value="${Sound.vol}"></label>
     <p>Your game saves automatically in this browser. Export it to keep a copy or move it to another device.</p>
     <input type="file" id="importFile" accept=".json,application/json" class="hidden">`, [
     { label: 'Export save', cls: 'primary', fn: exportSave },
@@ -213,6 +328,8 @@ function showSettings() {
     { label: 'Close', fn: hideModal },
   ]);
   $('importFile').addEventListener('change', (e) => importSave(e.target.files[0]));
+  $('volSlider').addEventListener('input', (e) => { initSound(); setVolume(+e.target.value); });
+  $('volSlider').addEventListener('change', () => playSound('stage'));
 }
 
 function exportSave() {
@@ -249,6 +366,8 @@ function wireHub() {
   $('bldResearch').addEventListener('click', showResearch);
   $('bldCrew').addEventListener('click', showCrew);
   $('bldMilestones').addEventListener('click', showMilestones);
+  $('bldTracking').addEventListener('click', showTracking);
+  $('bldTutorials').addEventListener('click', showTutorials);
   $('bldSettings').addEventListener('click', showSettings);
   $('btnHubHelp').addEventListener('click', showHelp);
   $('btnDvMap').addEventListener('click', () => showDvMap());

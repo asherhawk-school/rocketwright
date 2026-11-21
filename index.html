@@ -6,7 +6,7 @@
 <title>Rocketwright</title>
 <meta name="description" content="Build rockets, fly them to orbit and land on the moon. A 2D spaceflight sandbox that runs in your browser.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2c5 5 6 12 4 20h-8c-2-8-1-15 4-20z' fill='%23eef1f5'/%3E%3Cpath d='M12 22h8l-1 4h-6z' fill='%23555'/%3E%3Cpath d='M14 26h4l-2 5z' fill='%23ff9a3c'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=11">
 </head>
 <body>
 
@@ -50,6 +50,8 @@
       <button class="bld career-only" id="bldMission"><span class="bld-ico">📋</span><b>Mission Control</b><span class="bld-note" id="noteMission"></span></button>
       <button class="bld career-only" id="bldResearch"><span class="bld-ico">🔬</span><b>Research Lab</b><span class="bld-note" id="noteResearch"></span></button>
       <button class="bld career-only" id="bldCrew"><span class="bld-ico">👩‍🚀</span><b>Astronaut Office</b><span class="bld-note" id="noteCrew"></span></button>
+      <button class="bld" id="bldTracking"><span class="bld-ico">🛰️</span><b>Tracking Station</b><span class="bld-note" id="noteTracking"></span></button>
+      <button class="bld" id="bldTutorials"><span class="bld-ico">🎓</span><b>Tutorials</b><span class="bld-note">Guided first flights, orbit, docking, landing</span></button>
       <button class="bld" id="bldMilestones"><span class="bld-ico">⭐</span><b>Milestones</b><span class="bld-note" id="noteMilestones"></span></button>
       <button class="bld" id="bldSettings"><span class="bld-ico">💾</span><b>Save &amp; Settings</b><span class="bld-note">Export, import, new game</span></button>
     </div>
@@ -127,6 +129,8 @@
   <div id="hudTarget" class="card hidden">
     <div class="card-title">Target · <span id="tName"></span></div>
     <div class="kv"><span>Distance</span><b id="tDist"></b></div>
+    <div class="kv" id="tRelRow"><span>Relative speed</span><b id="tRel"></b></div>
+    <div class="kv" id="tDockRow"><span>Docking ports</span><b id="tDock"></b></div>
     <div class="kv"><span id="tCloseLabel">Closest approach</span><b id="tClose"></b></div>
     <div class="kv" id="tPhaseRow"><span>Phase angle</span><b id="tPhase"></b></div>
     <div class="kv" id="tWinRow"><span>Transfer window</span><b id="tWin"></b></div>
@@ -161,6 +165,8 @@
         <button data-sas="radout" title="Radial out / up (5)">Up</button>
         <button data-sas="radin" title="Radial in / down (6)">Down</button>
         <button data-sas="node" title="Point at the manoeuvre node's burn (7)">Node</button>
+        <button data-sas="tgt" title="Point at the target (8)">Tgt</button>
+        <button data-sas="kill" title="Point against your speed relative to the target, to match its speed (9)">Match</button>
       </div>
       <button id="bRcs" class="rcs-btn hidden" title="RCS thrusters (R). Q/E slide sideways, H/N forward/back">RCS (R)</button>
     </div>
@@ -178,6 +184,7 @@
       <div class="fuel" id="fMonoRow"><span>Mono</span><div class="bar mono"><div id="fMono"></div></div></div>
       <div class="fuel" id="fEcRow"><span>Power</span><div class="bar ec"><div id="fEc"></div></div><em id="fEcRate"></em></div>
       <div id="hNext" class="next"></div>
+      <button id="bUndock" class="hidden">Undock (U)</button>
       <button id="bStage" class="stage-btn">STAGE <small>(Space)</small></button>
     </div>
   </div>
@@ -193,11 +200,13 @@
     <div class="card-title">Science · <span id="sciWhere"></span></div>
     <div id="sciList"></div>
   </div>
+  <div id="tutCard" class="hud card hidden"></div>
   <div id="mapHint" class="hidden"></div>
   <div id="mapTools" class="hud hidden">
     <button id="bNodeAp" title="Add a manoeuvre node at apoapsis">+ Node at Ap</button>
     <button id="bNodePe" title="Add a manoeuvre node at periapsis">+ Node at Pe</button>
     <label>Target <select id="targetSelect"></select></label>
+    <button id="bSwitch" class="hidden" title="Take control of the targeted vessel">Fly target</button>
     <span class="muted">Click your path to add a node</span>
   </div>
   <div id="nodePanel" class="hud card hidden">
@@ -216,18 +225,22 @@
 <div id="toast"></div>
 <div id="modal" class="hidden"><div class="modal-card" id="modalCard"></div></div>
 
-<script src="js/data.js?v=5"></script>
-<script src="js/vessel.js?v=5"></script>
-<script src="js/render.js?v=5"></script>
-<script src="js/systems.js?v=5"></script>
-<script src="js/navigation.js?v=5"></script>
-<script src="js/career/career.js?v=5"></script>
-<script src="js/career/science.js?v=5"></script>
-<script src="js/career/tech.js?v=5"></script>
-<script src="js/career/contracts.js?v=5"></script>
-<script src="js/flight.js?v=5"></script>
-<script src="js/hangar.js?v=5"></script>
-<script src="js/career/hub.js?v=5"></script>
-<script src="js/main.js?v=5"></script>
+<script src="js/data.js?v=11"></script>
+<script src="js/vessel.js?v=11"></script>
+<script src="js/render.js?v=11"></script>
+<script src="js/systems.js?v=11"></script>
+<script src="js/navigation.js?v=11"></script>
+<script src="js/docking.js?v=11"></script>
+<script src="js/sound.js?v=11"></script>
+<script src="js/career/career.js?v=11"></script>
+<script src="js/career/science.js?v=11"></script>
+<script src="js/career/tech.js?v=11"></script>
+<script src="js/career/contracts.js?v=11"></script>
+<script src="js/universe.js?v=11"></script>
+<script src="js/flight.js?v=11"></script>
+<script src="js/hangar.js?v=11"></script>
+<script src="js/career/hub.js?v=11"></script>
+<script src="js/tutorials.js?v=11"></script>
+<script src="js/main.js?v=11"></script>
 </body>
 </html>

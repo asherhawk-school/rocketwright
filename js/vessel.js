@@ -124,7 +124,7 @@ function makeGeo(rec, x, top, flip, parentUid) {
   const def = PART_DEFS[rec.id];
   return {
     uid: rec.uid, id: rec.id, def, x, top, bot: top - def.h, flip, parent: parentUid, node: rec.node,
-    side: rec.side || 0, sym: rec.sym || null, links: [],
+    side: rec.side || 0, sym: rec.sym || null, links: [], inv: false,
     fuel: def.fuel || 0, solid: def.solid || 0, mono: def.mono || 0, ec: def.ec || 0, ablator: def.ablator || 0, temp: 290,
     ignited: false, burn: 0, m: 0,
   };
@@ -496,11 +496,12 @@ class Craft {
         frac = use / (flow * dt);
       } else frac = thr * (ratio.get(this.groups.get(e.uid)) || 0);
       if (frac <= 0) continue;
-      const f = ((d.thrust * isp) / d.ispVac) * frac;
+      const f = ((d.thrust * isp) / d.ispVac) * frac * (e.inv ? -1 : 1); // upside-down engines push backwards
       e.burn = frac;
       T += f;
       tq += f * (e.x - this.xc);
-      gim += f * Math.sin((d.gimbal * Math.PI) / 180) * Math.abs(e.bot - this.yc);
+      const fa = Math.abs(f);
+      gim += fa * Math.sin((d.gimbal * Math.PI) / 180) * Math.abs((e.inv ? e.top : e.bot) - this.yc);
     }
     this.thrust = T;
     this.thrustTorque = tq;
@@ -518,13 +519,13 @@ class Craft {
     const n = this.rcsParts.length, f = this.rcsParts[0].def.rcsThrust, isp = this.rcsParts[0].def.isp;
     const want = Math.min(1, Math.abs(tx)) + Math.min(1, Math.abs(ty)) + Math.min(1, Math.abs(rot));
     if (want <= 0) return { fx: 0, fy: 0, k: 1 };
-    const flow = ((n * f) / (isp * G0)) * want * dt * 0.5;
+    const flow = ((n * f) / (isp * G0)) * want * dt;
     const avail = this.monoTotal();
     if (avail <= 1e-9) return { fx: 0, fy: 0, k: 0 };
     const take = Math.min(flow, avail), k = take / flow;
     for (const p of this.parts) if (p.mono > 0) p.mono = Math.max(0, p.mono - (p.mono / avail) * take);
     this.rcsFiring = want * k;
-    return { fx: tx * n * f * 0.5 * k, fy: ty * n * f * 0.5 * k, k };
+    return { fx: tx * n * f * k, fy: ty * n * f * k, k };
   }
 
   /* Fire the next stage. onDetach(componentParts, decoupler) is called for each piece that separates,
@@ -651,6 +652,22 @@ const PRESETS = {
     const rd = attachPart(d, 'radDec', xl, 'side', 1, 0.6, true)[0];
     const booster = attachPart(d, 'srb', rd, 'side', 1, -0.2, false)[0];
     attachPart(d, 'nose2', booster, 'top', 0, 0, false);
+    return d;
+  },
+  'Comms Probe': () => {
+    const d = designFromStack(['probe', 'tankM125', 'gnat', 'decoupler', 'tankL', 'tankL', 'fins', 'ox']);
+    const probe = d.parts.find((p) => p.id === 'probe').uid, tank = d.parts.find((p) => p.id === 'tankM125').uid;
+    attachPart(d, 'solar', tank, 'side', 1, 0.2, true);
+    attachPart(d, 'battery', tank, 'side', 1, 1.3, true);
+    attachPart(d, 'antenna', probe, 'side', 1, 0, false);
+    return d;
+  },
+  'Rescue Shuttle': () => {
+    const d = designFromStack(['dockPort', 'pod', 'tankM', 'wren', 'decoupler', 'tankL', 'tankL', 'fins', 'ox']);
+    const pod = d.parts.find((p) => p.id === 'pod').uid, tank = d.parts.find((p) => p.id === 'tankM').uid;
+    attachPart(d, 'chuteRadial', pod, 'side', 1, 0.5, true);
+    attachPart(d, 'rcs', tank, 'side', 1, 0.1, true);
+    attachPart(d, 'monoPod', tank, 'side', 1, 0.7, true);
     return d;
   },
   'Pallid Lander': () => {

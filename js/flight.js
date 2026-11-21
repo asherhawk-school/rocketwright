@@ -3,7 +3,7 @@
 
 const WARPS = [1, 2, 3, 4, 10, 50, 100, 1000, 10000, 100000, 1000000];
 const PHYS_DT = 0.02;
-const SAS_MODES = ['off', 'stab', 'pro', 'retro', 'radout', 'radin', 'node'];
+const SAS_MODES = ['off', 'stab', 'pro', 'retro', 'radout', 'radin', 'node', 'tgt', 'kill'];
 const PATH_COLORS = ['#4fd1ff', '#ffb347', '#c792ff', '#7dffa8'];
 
 const F = {
@@ -27,7 +27,7 @@ function initFlightView() {
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
     'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'bRcs', 'hNext', 'hPitch',
-    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn']) F.hud[id] = document.getElementById(id);
+    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
 }
@@ -54,7 +54,8 @@ function flightStart(design, name, opts = {}) {
   c.vel = [0, 0];
   c.landed = { body: HOME, rx: c.pos[0], ry: c.pos[1] };
   Object.assign(F, {
-    craft: c, debris: [], particles: [], t: opts.t0 || 0, launchT: opts.t0 || 0, crewId: opts.crewId || null, crewLost: null,
+    craft: c, debris: [], others: [], particles: [], t: opts.t0 || 0, launchT: opts.t0 || 0, crew: opts.crew || [], crewLost: [],
+    vid: opts.vid || newVesselId(), canRevert: true, kind: 'ship', dockedMeta: {},
     flightContracts: [], sciOpen: false, node: null, target: F.target && opts.keepTarget ? F.target : null, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi',
     deadTimer: 0, endShown: false, pred: null, encounter: null, orbit: null, lastBody: HOME, rotOffset: 0, paused: false,
     flags: { space: false, maxAlt: 0, visited: [], landedOn: [] }, flightMilestones: [], running: true,
@@ -64,6 +65,93 @@ function flightStart(design, name, opts = {}) {
   for (const k in F.keys) F.keys[k] = false;
   updateSasButtons();
   flash(`${F.craftName} is on the pad. Press SPACE to launch!`, 5);
+}
+
+function newVesselId() {
+  const s = universe();
+  return s ? s.vesselSeq++ : Math.floor(Math.random() * 1e9);
+}
+/* What we keep about the vessel being flown, besides its parts and motion. */
+function activeMeta() {
+  return { id: F.vid, name: F.craftName, crew: F.crew, launchT: F.launchT, flags: F.flags, kind: F.kind, docked: F.dockedMeta || {} };
+}
+
+/* Take control of a stored vessel. */
+function flightLoadVessel(v, t) {
+  advanceVessel(v, t);
+  const s = universe();
+  s.vessels = s.vessels.filter((x) => x !== v);
+  const c = craftFromVessel(v);
+  Object.assign(F, {
+    craft: c, debris: [], others: [], particles: [], t, launchT: v.launchT, crew: v.crew || [], crewLost: [],
+    vid: v.id, canRevert: false, kind: v.kind || 'ship', design: null, craftName: v.name, dockedMeta: v.docked || {},
+    flightContracts: [], sciOpen: false, node: null, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi',
+    deadTimer: 0, endShown: false, pred: null, encounter: null, orbit: null, lastBody: c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], t),
+    rotOffset: 0, paused: false, flags: v.flags || { space: true, maxAlt: 0, visited: [], landedOn: [] }, flightMilestones: [], running: true,
+    dvTick: 0, dvCache: null, rcsTx: 0, rcsTy: 0, predTick: 0,
+  });
+  F.zoom = clamp((F.H * 0.42) / (c.length + 8), 2, 30);
+  for (const k in F.keys) F.keys[k] = false;
+  updateSasButtons();
+  flash(`Now flying ${v.name}`, 3);
+}
+
+/* Put loaded nearby vessels back into the save as records. */
+function unloadOthers() {
+  const s = universe();
+  if (!s) { F.others = []; return; }
+  for (const o of F.others) if (!o.dead) s.vessels.push(vesselFromCraft(o, F.t, o.meta));
+  F.others = [];
+}
+
+/* Load stored vessels that come within physics range; unload those that drift away. */
+function syncOthers() {
+  const s = universe();
+  if (!s || F.warp > 3) { if (F.others.length) unloadOthers(); return; }
+  const c = F.craft;
+  const lost = advanceAll(F.t);
+  for (const v of lost) {
+    toast(`${v.name} was lost${v.lostAt ? ' at ' + BODY_BY_ID[v.lostAt].name : ''}`);
+    if (isCareer()) crewLost(v.crew);
+  }
+  for (const v of s.vessels.slice()) {
+    if (Math.hypot(v.s[0] - c.pos[0], v.s[1] - c.pos[1]) < PHYSICS_RANGE) {
+      const o = craftFromVessel(v);
+      o.meta = { id: v.id, name: v.name, crew: v.crew, launchT: v.launchT, flags: v.flags, kind: v.kind };
+      F.others.push(o);
+      s.vessels = s.vessels.filter((x) => x !== v);
+    }
+  }
+  for (const o of F.others.slice()) {
+    if (o.dead) { F.others = F.others.filter((x) => x !== o); continue; }
+    if (Math.hypot(o.pos[0] - c.pos[0], o.pos[1] - c.pos[1]) > UNLOAD_RANGE) {
+      s.vessels.push(vesselFromCraft(o, F.t, o.meta));
+      F.others = F.others.filter((x) => x !== o);
+    }
+  }
+}
+
+/* Swap control to another vessel (a loaded neighbour, or one stored anywhere). */
+function switchToVessel(vid) {
+  const s = universe();
+  const near = F.others.find((o) => o.vid === vid);
+  if (!F.craft.dead) {
+    const rec = vesselFromCraft(F.craft, F.t, activeMeta());
+    if (near) { const o = craftFromVessel(rec); o.meta = activeMeta(); F.others.push(o); }
+    else s.vessels.push(rec);
+  }
+  if (near) {
+    F.others = F.others.filter((o) => o !== near);
+    const keepOthers = F.others, keepDebris = F.debris, t = F.t;
+    flightLoadVessel(vesselFromCraft(near, t, near.meta), t);
+    F.others = keepOthers;
+    F.debris = keepDebris;
+  } else {
+    unloadOthers();
+    const v = s.vessels.find((x) => x.id === vid);
+    if (v) flightLoadVessel(v, F.t);
+  }
+  persist();
 }
 
 function doStage() {
@@ -86,9 +174,44 @@ function doStage() {
     msgs.push(`Ignition: ${names}`);
     if (first && c.throttle === 0) c.throttle = 1;
   }
-  if (res.chute) msgs.push('Parachute deployed');
+  if (res.chute) { msgs.push('Parachute deployed'); playSound('chute'); }
+  else playSound('stage');
   F.dvTick = 0;
   if (msgs.length) flash(msgs.join(' · '));
+}
+
+/* Join a neighbouring vessel at the docking ports found by findDock. */
+function dockWith(o, dk) {
+  const c = F.craft;
+  const off = dockCrafts(c, dk.pa, o, dk.pb);
+  if (o.meta) F.dockedMeta[dk.pb.uid + off] = { id: o.meta.id, name: o.meta.name, kind: o.meta.kind, launchT: o.meta.launchT };
+  const crew = ((o.meta && o.meta.crew) || []).map((x) => ({ ...x, pod: x.pod + off }));
+  F.crew = F.crew.concat(crew);
+  if (o.meta && o.meta.flags) for (const w of o.meta.flags.visited || []) if (!F.flags.visited.includes(w)) F.flags.visited.push(w);
+  F.others = F.others.filter((x) => x !== o);
+  if (F.target && F.target.vid === o.vid) F.target = null;
+  F.predTick = 0;
+  F.dvTick = 0;
+  playSound('dock');
+  flash(`Docked with ${o.meta ? o.meta.name : 'vessel'}${crew.length ? ` · ${crewNames(crew).join(', ')} aboard` : ''}`, 4);
+}
+function undock() {
+  const c = F.craft;
+  const pairs = dockedPairs(c);
+  if (!pairs.length || c.dead) return;
+  const [p, q] = pairs[pairs.length - 1];
+  const leaving = undockParts(c, p, q);
+  if (!leaving.length) return;
+  const port = leaving.includes(p) ? p : q;
+  F.sepMeta = F.dockedMeta[port.uid] || null;
+  delete F.dockedMeta[port.uid];
+  separatePiece(c, leaving, port);
+  F.sepMeta = null;
+  c.parts = c.parts.filter((x) => !leaving.includes(x));
+  c.recompute();
+  F.dvTick = 0;
+  playSound('stage');
+  flash('Undocked', 2);
 }
 
 /* Turn a piece that just separated into its own falling craft and push the two apart. */
@@ -113,7 +236,16 @@ function separatePiece(c, comp, dec) {
   d.angVel = c.angVel + (side ? -(Math.sign(dx) || 1) * 0.25 : (Math.random() - 0.5) * 0.06);
   d.throttle = 0;
   d.landed = null;
-  F.debris.push(d);
+  if (comp.some((p) => p.def.pod || p.def.probe)) {
+    const uids = new Set(comp.map((p) => p.uid));
+    const crew = F.crew.filter((x) => uids.has(x.pod));
+    F.crew = F.crew.filter((x) => !uids.has(x.pod));
+    const named = comp.some((p) => p.def.pod) ? 'Capsule' : 'Probe', was = F.sepMeta;
+    d.vid = was ? was.id : newVesselId();
+    d.meta = { id: d.vid, name: was ? was.name : `${F.craftName} ${named}`, crew, launchT: was ? was.launchT : F.launchT,
+      flags: JSON.parse(JSON.stringify(F.flags)), kind: was && was.kind !== 'stranded' ? was.kind : 'ship' };
+    F.others.push(d);
+  } else F.debris.push(d);
   const sp = c.toWorld(dec.x, (dec.top + dec.bot) / 2);
   for (let i = 0; i < 14; i++) {
     F.particles.push({ x: sp[0], y: sp[1], vx: c.vel[0] + (Math.random() - 0.5) * 8, vy: c.vel[1] + (Math.random() - 0.5) * 8,
@@ -179,6 +311,7 @@ function flightUpdate(dt) {
   } else { F.userRot = 0; F.rcsTx = F.rcsTy = 0; }
 
   enforceWarp();
+  syncOthers();
   const w = WARPS[F.warp];
   if (F.warp <= 3) {
     F.acc += dt * w;
@@ -207,7 +340,11 @@ function flightUpdate(dt) {
     F.pred = predictPath(c.pos[0], c.pos[1], c.vel[0], c.vel[1], F.t);
     if (F.node) updateNode(F.node, c, F.t);
     F.encounter = findEncounter(F.node && F.node.pred ? F.node.pred : F.pred);
-    F.closest = F.target ? closestApproach(F.node && F.node.pred ? F.node.pred : F.pred, F.target) : null;
+    const cp = F.node && F.node.pred ? F.node.pred : F.pred;
+    if (F.target && F.target.vid !== undefined) {
+      const ts = targetState(F.target);
+      F.closest = ts ? closestApproachVessel(cp, [ts.pos[0], ts.pos[1], ts.vel[0], ts.vel[1]], F.t) : null;
+    } else F.closest = F.target ? closestApproach(cp, F.target) : null;
     F.predTick = F.map ? 3 : 15;
   }
   updateParticles(dt * Math.min(w, 4));
@@ -222,9 +359,16 @@ function physStep(dt) {
   const c = F.craft;
   if (!c.dead) { c.ctrl = controlInput(c); stepCraft(c, dt, true); }
   for (const d of F.debris) if (!d.dead) { d.ctrl = 0; stepCraft(d, dt, false); }
+  for (const o of F.others) if (!o.dead) { o.ctrl = 0; o.throttle = 0; stepCraft(o, dt, false); }
+  for (const o of F.others) if (o.dead && !o.counted) { o.counted = true; if (isCareer() && o.meta) crewLost(o.meta.crew); toast(`${o.meta ? o.meta.name : 'A vessel'} was destroyed`); }
   F.debris = F.debris.filter((d) => !d.dead && Math.hypot(d.pos[0] - c.pos[0], d.pos[1] - c.pos[1]) < 80000);
   F.t += dt;
-  for (const k of [c, ...F.debris]) syncLanded(k);
+  for (const k of [c, ...F.debris, ...F.others]) syncLanded(k);
+  if (!c.dead) for (const o of F.others) {
+    if (o.dead) continue;
+    const dk = findDock(c, o);
+    if (dk) { dockWith(o, dk); break; }
+  }
 }
 
 /* Landed craft ride along with their (possibly moving) body. */
@@ -244,6 +388,7 @@ function stepCraft(c, dt, player) {
   const r = Math.hypot(rx, ry);
   const alt = r - b.R;
   const at = atmo(b, alt);
+  c.pressure = at.p;
   c.radar = alt - groundAlt(b, Math.atan2(ry, rx));
   const T = c.engineStep(dt, at.p);
   c.updateMass();
@@ -288,6 +433,7 @@ function stepCraft(c, dt, player) {
   let kSpring = 0;
   const vrx = c.vel[0] - bv[0], vry = c.vel[1] - bv[1];
   const v = Math.hypot(vrx, vry);
+  c.q = (0.5 * at.rho * v * v) / 1000;
   if (c.chuteOpen && c.hasChute && at.rho > 0) {
     const target = c.radar < 1500 ? 720 : 45;
     c.chuteArea += (target - c.chuteArea) * Math.min(1, dt * 0.8);
@@ -338,6 +484,12 @@ function stepCraft(c, dt, player) {
 
 /* A single part overheats: it explodes, and anything no longer connected to the command part falls away. */
 function destroyPart(c, p) {
+  const aboard = F.crew.filter((x) => x.pod === p.uid);
+  if (aboard.length) {
+    F.crew = F.crew.filter((x) => x.pod !== p.uid);
+    F.crewLost.push(...(isCareer() ? crewLost(aboard) : crewNames(aboard)));
+    persist();
+  }
   const w = c.toWorld(p.x, (p.top + p.bot) / 2);
   for (let i = 0; i < 24; i++) {
     const a = Math.random() * TAU, sp = Math.random() * 12;
@@ -404,11 +556,13 @@ function explode(c, player, speed, why) {
       life: fire ? 1 + Math.random() : 3 + Math.random() * 3, max: fire ? 2 : 6, size: fire ? 1.5 : 2, grow: fire ? 3 : 4,
       kind: fire ? 'fire' : 'smoke', drag: 1.2 });
   }
+  playSound('boom');
   if (player) {
     F.deadTimer = 2.2;
-    if (isCareer() && F.crewId) {
-      const cm = Career.s.crew.find((x) => x.id === F.crewId);
-      if (cm && cm.status !== 'lost') { cm.status = 'lost'; F.crewLost = cm.name; addRep(-10); persist(); }
+    if (F.crew.length) {
+      F.crewLost = isCareer() ? crewLost(F.crew) : crewNames(F.crew);
+      F.crew = [];
+      persist();
     }
     F.warp = 0;
     F.deathReason = why || `Hit the ground at ${speed.toFixed(1)} m/s`;
@@ -419,6 +573,7 @@ function explode(c, player, speed, why) {
 function railsStep(simDt) {
   const c = F.craft;
   F.debris = [];
+  if (F.others.length) unloadOthers();
   if (c.dead) { F.t += simDt; return; }
   c.angVel = 0;
   for (const p of c.parts) p.burn = 0;
@@ -477,7 +632,19 @@ function controlInput(c) {
     const bp = bodyPos(b, F.t), bv = bodyVel(b, F.t);
     const vx = c.vel[0] - bv[0], vy = c.vel[1] - bv[1];
     const rx = c.pos[0] - bp[0], ry = c.pos[1] - bp[1];
-    if (F.sas === 'node') {
+    if (F.sas === 'tgt' || F.sas === 'kill') {
+      const ts = targetState(F.target);
+      if (!ts) return damp();
+      // close to a ship with a free docking port, line up face to face with that port
+      const di = F.sas === 'tgt' && ts.craft && Math.hypot(ts.pos[0] - c.pos[0], ts.pos[1] - c.pos[1]) < 500 ? dockingInfo(c, ts.craft) : null;
+      if (di) target = di.heading;
+      else if (F.sas === 'tgt') target = Math.atan2(ts.pos[1] - c.pos[1], ts.pos[0] - c.pos[0]);
+      else {
+        const rvx = c.vel[0] - ts.vel[0], rvy = c.vel[1] - ts.vel[1];
+        if (Math.hypot(rvx, rvy) < 0.05) return damp();
+        target = Math.atan2(-rvy, -rvx);
+      }
+    } else if (F.sas === 'node') {
       const n = F.node;
       if (!n || Math.hypot(n.remaining[0], n.remaining[1]) < 0.01) return damp();
       target = Math.atan2(n.remaining[1], n.remaining[0]);
@@ -501,8 +668,9 @@ function emitExhaust(c, dt, pressure, bv) {
     let n = dt * 28 * e.burn * Math.min(1, pressure * 3) * Math.sqrt(e.def.thrust / 150);
     while (n > 0) {
       if (Math.random() < n) {
-        const w = c.toWorld(e.x + (Math.random() - 0.5) * 1.2, e.bot - 1.5);
-        const sp = 25 + Math.random() * 25, jx = (Math.random() - 0.5) * 6, jy = (Math.random() - 0.5) * 6;
+        const dir = e.inv ? -1 : 1;
+        const w = c.toWorld(e.x + (Math.random() - 0.5) * 1.2, e.inv ? e.top + 1.5 : e.bot - 1.5);
+        const sp = (25 + Math.random() * 25) * dir, jx = (Math.random() - 0.5) * 6, jy = (Math.random() - 0.5) * 6;
         F.particles.push({ x: w[0], y: w[1], vx: c.vel[0] - ax * sp + jx, vy: c.vel[1] - ay * sp + jy, fx: bv[0] + jx, fy: bv[1] + jy,
           life: 3 + Math.random() * 3, max: 6, size: 1.4, grow: 2.5 + Math.random() * 2, kind: 'smoke', drag: 1.5 });
       }
@@ -652,24 +820,33 @@ function updateSystemsHud(c, b, o, t) {
   h.heatWarn.classList.toggle('hidden', !warn);
   h.heatWarn.classList.toggle('danger', danger);
   // target
-  const tg = F.target;
-  h.hudTarget.classList.toggle('hidden', !tg);
-  if (tg) {
-    const tp = bodyPos(tg, t);
-    h.tName.textContent = tg.name;
-    h.tDist.textContent = fmtDist(Math.hypot(c.pos[0] - tp[0], c.pos[1] - tp[1]) - tg.R);
+  const tg = F.target, ts = targetState(tg);
+  if (tg && !ts) F.target = null;
+  h.hudTarget.classList.toggle('hidden', !ts);
+  if (ts) {
+    const ship = tg.vid !== undefined;
+    h.tName.textContent = ts.name;
+    const dist = Math.hypot(c.pos[0] - ts.pos[0], c.pos[1] - ts.pos[1]) - ts.R;
+    h.tDist.textContent = fmtDist(dist);
+    h.tRelRow.style.display = ship ? '' : 'none';
+    if (ship) h.tRel.textContent = fmtNum(Math.hypot(c.vel[0] - ts.vel[0], c.vel[1] - ts.vel[1]), 2) + ' m/s';
+    const di = ship && ts.craft && dist < 400 ? dockingInfo(c, ts.craft) : null;
+    h.tDockRow.style.display = di ? '' : 'none';
+    if (di) h.tDock.textContent = `${fmtNum(di.along, 1)} m ahead · ${fmtNum(Math.abs(di.lateral), 1)} m ${di.lateral >= 0 ? 'right' : 'left'} · ${Math.round((di.angle * 180) / Math.PI)}°`;
     const ca = F.closest;
     h.tCloseLabel.textContent = ca && ca.inside ? 'Encounter' : 'Closest approach';
-    h.tClose.textContent = !ca ? '—' : ca.inside ? `in ${fmtDur(ca.t - t)}` : `${fmtDist(ca.d - tg.R)} in ${fmtDur(ca.t - t)}`;
-    const w = b === tg || c.landed ? null : transferWindow(c, tg, t);
+    h.tClose.textContent = !ca ? '—' : ca.inside ? `in ${fmtDur(ca.t - t)}` : `${fmtDist(ca.d - ts.R)} in ${fmtDur(ca.t - t)}`;
+    const w = ship || b === tg || c.landed ? null : transferWindow(c, tg, t);
     h.tPhaseRow.style.display = w ? '' : 'none';
     h.tWinRow.style.display = w ? '' : 'none';
     if (w) {
-      const deg = (a) => Math.round((a * 180) / Math.PI);
+      const deg = (a2) => Math.round((a2 * 180) / Math.PI);
       h.tPhase.textContent = `${deg(w.phase)}° (best ${deg(w.ideal)}°)`;
       h.tWin.textContent = isFinite(w.wait) ? (w.wait < 60 ? 'now' : `in ${fmtDur(w.wait)}`) + (w.via ? ` (${w.via.name})` : '') : '—';
     }
   }
+  h.bSwitch.classList.toggle('hidden', !(ts && tg.vid !== undefined));
+  h.bUndock.classList.toggle('hidden', !dockedPairs(c).length || c.dead);
   // map tools and the node editor
   h.mapTools.classList.toggle('hidden', !F.map);
   const ell = o && o.e < 1 && !c.landed;
@@ -718,13 +895,20 @@ function nodeShift(spec) {
   F.predTick = 0;
 }
 function setTarget(id) {
-  F.target = BODY_BY_ID[id] || null;
+  if (id && id[0] === 'v') {
+    const vid = +id.slice(1), ts = targetState({ vid });
+    F.target = ts ? { vid, name: ts.name } : null;
+  } else F.target = BODY_BY_ID[id] || null;
   F.predTick = 0;
 }
 function fillTargetSelect() {
   const sel = document.getElementById('targetSelect');
+  const s = universe();
+  const ships = (s ? s.vessels.map((v) => [v.id, v.name]) : []).concat(F.others.filter((o) => !o.dead).map((o) => [o.vid, o.meta.name]));
   sel.innerHTML = '<option value="">None</option>' + BODIES.filter((b) => !b.star).map((b) =>
-    `<option value="${b.id}" ${F.target === b ? 'selected' : ''}>${b.parent && !b.parent.star ? '· ' : ''}${b.name}</option>`).join('');
+    `<option value="${b.id}" ${F.target === b ? 'selected' : ''}>${b.parent && !b.parent.star ? '· ' : ''}${b.name}</option>`).join('') +
+    (ships.length ? '<optgroup label="Vessels">' + ships.map(([id, n]) =>
+      `<option value="v${id}" ${F.target && F.target.vid === id ? 'selected' : ''}>${esc(n)}</option>`).join('') + '</optgroup>' : '');
 }
 
 /* Map pointer: drag a node handle, click the path to add a node, or click a body to focus it. */
@@ -743,6 +927,9 @@ function mapPointerDown(sx, sy) {
     flash('Node added: drag its handles or use the panel to plan the burn', 3);
     return true;
   }
+  for (const v of F.mapVessels || []) {
+    if (Math.hypot(sx - v.x, sy - v.y) < 12) { setTarget('v' + v.vid); fillTargetSelect(); flash(`Target: ${v.name}`, 2); return true; }
+  }
   mapClick(sx, sy);
   return false;
 }
@@ -760,8 +947,8 @@ function mapPointerMove(sx, sy, fine) {
 
 function award(id) {
   const got = loadMilestones();
-  if (!F.flightMilestones.includes(id)) F.flightMilestones.push(id);
   if (got[id]) return;
+  if (!F.flightMilestones.includes(id)) F.flightMilestones.push(id);
   got[id] = Date.now();
   if (isCareer()) {
     const r = milestoneReward(id);
@@ -844,7 +1031,9 @@ function renderWorld() {
   g.addColorStop(1, mixColor('#03040c', sky[1], sk));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
-  drawStars(1 - sk * 1.5, -rot);
+  F.daylight = daylight(c, b, t);
+  if (F.daylight < 1) { ctx.fillStyle = `rgba(0,0,8,${((1 - F.daylight) * sk * 0.92).toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
+  drawStars(1 - sk * 1.5 * F.daylight, -rot);
 
   const cam = c.pos, z = F.zoom;
   const viewR = Math.hypot(W, H) / 2 / z;
@@ -890,6 +1079,7 @@ function renderWorld() {
 
   const pressure = atmo(b, alt).p;
   for (const d of F.debris) drawCraft(ctx, d, cam, z, pressure);
+  for (const o of F.others) if (!o.dead) drawCraft(ctx, o, cam, z, pressure);
   if (!c.dead) {
     if (c.heat > 3e7) {
       const bv = bodyVel(b, t);
@@ -920,6 +1110,8 @@ function renderWorld() {
   }
   ctx.globalCompositeOperation = 'source-over';
   ctx.restore();
+  // night falls over everything except the HUD
+  if (F.daylight < 0.98) { ctx.fillStyle = `rgba(0,0,15,${((1 - F.daylight) * 0.5).toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
 
   if (!c.dead && c.length * z < 5) {
     ctx.save();
@@ -1016,6 +1208,7 @@ function renderMap() {
       const gh = ctx.createRadialGradient(x - rr * 0.35, y - rr * 0.35, 0, x, y, rr);
       gh.addColorStop(0, mixColor(b.colMap, '#ffffff', 0.35)); gh.addColorStop(0.7, b.colMap); gh.addColorStop(1, mixColor(b.colMap, '#000000', 0.45));
       ctx.fillStyle = gh; circle(x, y, rr); ctx.fill();
+      if (rr > 3) { circle(x, y, rr); shadeNightSide(ctx, b, t, x, y, rr, true); }
       if (b === HOME && rpx > 6) { // a hint of land on the home world
         ctx.fillStyle = 'rgba(80,150,70,0.55)';
         ctx.beginPath(); ctx.ellipse(x - rr * 0.2, y - rr * 0.1, rr * 0.45, rr * 0.3, 0.6, 0, TAU); ctx.fill();
@@ -1115,15 +1308,29 @@ function renderMap() {
     const src = node && node.pred ? node.pred : F.pred;
     const p = src && src.pts[ca.i];
     if (p) {
-      const tg = place(F.target, ca.t), [gx, gy] = S(tg[0], tg[1]);
+      const ap = bodyPos(anchor, ca.t), [gx, gy] = S(ca.tpos[0] - ap[0] + an[0], ca.tpos[1] - ap[1] + an[1]);
       const bpos = bodyPos(p.b, p.t), ref = place(p.b, p.b === anchor ? t : p.t);
       const [cx2, cy2] = S(p.x - bpos[0] + ref[0], p.y - bpos[1] + ref[1]);
       ctx.strokeStyle = '#e070ff'; ctx.fillStyle = '#e070ff'; ctx.lineWidth = 1.5;
       ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(cx2, cy2); ctx.lineTo(gx, gy); ctx.stroke(); ctx.setLineDash([]);
       ctx.beginPath(); ctx.moveTo(cx2, cy2 - 6); ctx.lineTo(cx2 + 6, cy2); ctx.lineTo(cx2, cy2 + 6); ctx.lineTo(cx2 - 6, cy2); ctx.closePath(); ctx.fill();
-      circle(gx, gy, Math.max(F.target.R * z, 5)); ctx.stroke();
-      ctx.fillText(`Closest ${fmtDist(ca.d - F.target.R)}`, cx2, cy2 - 12);
+      circle(gx, gy, Math.max((F.target.R || 0) * z, 5)); ctx.stroke();
+      ctx.fillText(`Closest ${fmtDist(ca.d - (F.target.R || 0))}`, cx2, cy2 - 12);
     }
+  }
+  // other vessels
+  F.mapVessels = [];
+  const s0 = universe();
+  const ships = (s0 ? s0.vessels.map((v) => ({ vid: v.id, name: v.name, pos: v.s })) : [])
+    .concat(F.others.filter((o2) => !o2.dead).map((o2) => ({ vid: o2.vid, name: o2.meta.name, pos: o2.pos })));
+  for (const v of ships) {
+    const [vx, vy] = S(v.pos[0], v.pos[1]);
+    if (vx < -20 || vy < -20 || vx > W + 20 || vy > H + 20) continue;
+    const isT = F.target && F.target.vid === v.vid;
+    ctx.fillStyle = isT ? '#e070ff' : '#9fb3d1';
+    ctx.beginPath(); ctx.moveTo(vx, vy - 6); ctx.lineTo(vx + 6, vy); ctx.lineTo(vx, vy + 6); ctx.lineTo(vx - 6, vy); ctx.closePath(); ctx.fill();
+    ctx.fillText(v.name, vx, vy + 18);
+    F.mapVessels.push({ vid: v.vid, name: v.name, x: vx, y: vy });
   }
   // apsis markers
   const o = F.orbit;
@@ -1205,6 +1412,14 @@ function drawNavball() {
     x.strokeStyle = '#5aa8ff'; x.lineWidth = 2.5;
     x.beginPath(); x.arc(mx, my, 7, 0, TAU); x.stroke();
     x.beginPath(); x.moveTo(mx - 11, my); x.lineTo(mx - 4, my); x.moveTo(mx + 4, my); x.lineTo(mx + 11, my); x.moveTo(mx, my - 11); x.lineTo(mx, my - 4); x.stroke();
+  }
+  const tsn = targetState(F.target);
+  if (tsn) {
+    const ta = Math.atan2(tsn.pos[1] - c.pos[1], tsn.pos[0] - c.pos[0]) - up + Math.PI / 2;
+    const mx = cx + Math.cos(ta) * R * 0.86, my = cy - Math.sin(ta) * R * 0.86;
+    x.strokeStyle = '#e070ff'; x.lineWidth = 2;
+    x.beginPath(); x.arc(mx, my, 6, 0, TAU); x.stroke();
+    x.fillStyle = '#e070ff'; x.beginPath(); x.arc(mx, my, 2, 0, TAU); x.fill();
   }
   const ha = c.angle - up + Math.PI / 2;
   const hx = Math.cos(ha), hy = -Math.sin(ha);

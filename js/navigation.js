@@ -79,9 +79,33 @@ function closestApproach(pred, target) {
   for (let i = 0; i < pred.pts.length; i++) {
     const p = pred.pts[i], tp = bodyPos(target, p.t);
     const d = Math.hypot(p.x - tp[0], p.y - tp[1]);
-    if (!best || d < best.d) best = { d, t: p.t, i, inside: p.b === target };
+    if (!best || d < best.d) best = { d, t: p.t, i, inside: p.b === target, tpos: tp };
   }
   return best;
+}
+/* Same, for another vessel that coasts from state s0 at time t0. */
+function closestApproachVessel(pred, s0, t0) {
+  if (!pred) return null;
+  let st = { s: s0.slice(), t: t0 }, best = null;
+  for (let i = 0; i < pred.pts.length; i++) {
+    const p = pred.pts[i];
+    if (p.t > st.t) st = propagate(st.s[0], st.s[1], st.s[2], st.s[3], st.t, p.t);
+    const d = Math.hypot(p.x - st.s[0], p.y - st.s[1]);
+    if (!best || d < best.d) best = { d, t: p.t, i, inside: false, tpos: [st.s[0], st.s[1]] };
+  }
+  return best;
+}
+
+/* A target is a body, or { vid, name } for a vessel. Where is it now? */
+function targetState(tg) {
+  if (!tg) return null;
+  if (tg.vid === undefined) { const st = bodyState(tg, F.t); return { pos: [st[0], st[1]], vel: [st[2], st[3]], R: tg.R, name: tg.name, body: tg }; }
+  const o = F.others.find((x) => x.vid === tg.vid);
+  if (o) return { pos: o.pos, vel: o.vel, R: 0, name: o.meta.name, craft: o };
+  const s = universe(), v = s && s.vessels.find((x) => x.id === tg.vid);
+  if (!v) return null;
+  advanceVessel(v, F.t);
+  return { pos: [v.s[0], v.s[1]], vel: [v.s[2], v.s[3]], R: 0, name: v.name, rec: v };
 }
 
 /* Phase angle to the target around their common parent, the ideal angle for a Hohmann transfer,

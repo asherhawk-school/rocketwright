@@ -151,6 +151,10 @@ Object.assign(PART_DEFS, {
     desc: 'Makes power in sunlight (1.6 per second at Verdan, less further from Helion). Faces outward from where it is mounted.' },
   shield2: { kind: 'shield', name: 'Ablator Shield', cat: 'Structure', mass: 0.2, ablator: 0.25, h: 0.3, w: 2, maxTemp: 3300,
     desc: 'Goes under a 2 m capsule. Burns away slowly to protect what is behind it during reentry.' },
+  chuteRadial: { kind: 'chuteSide', name: 'Side Canopy', cat: 'Command', radial: true, chute: true, mass: 0.08, h: 0.8, w: 0.35,
+    desc: 'A parachute that mounts on the side, for capsules whose top is taken (by a docking port, say). Use in pairs.' },
+  dockPort: { kind: 'dock', name: 'Clasp Docking Port', cat: 'Utility', mass: 0.05, h: 0.35, w: 1.25, dock: true,
+    desc: 'Put it at the very top or bottom of a craft. Bring two free ports together slowly (under 1 m/s) to dock; undock from the HUD.' },
   shield125: { kind: 'shield', name: 'Ablator Shield S', cat: 'Structure', mass: 0.08, ablator: 0.1, h: 0.25, w: 1.25, maxTemp: 3300,
     desc: 'Heat shield for 1.25 m craft.' },
 });
@@ -164,7 +168,7 @@ const PART_COSTS = {
   adapt2to125: 200, adapt125to2: 200, adapt3to2: 400, adapt2to3: 400,
   nose125: 150, nose2: 250, pylon: 200, fins: 150, legs: 300, rcs: 450,
   thermo: 250, baro: 400, jar: 600, seismic: 900, sniffer: 1200, antenna: 300,
-  probe: 700, battery: 150, batteryRing: 600, solar: 500, shield2: 600, shield125: 300,
+  probe: 700, battery: 150, batteryRing: 600, solar: 500, shield2: 600, shield125: 300, dockPort: 800, chuteRadial: 450,
 };
 for (const id in PART_DEFS) PART_DEFS[id].cost = PART_COSTS[id] || 100;
 
@@ -189,7 +193,7 @@ const OLD_MILESTONE_IDS = { moonSoi: 'soi_pallid', moonOrbit: 'orbit_pallid', mo
 /* Career saves keep their own milestones (they pay out, and a revert undoes them); sandbox uses a global list. */
 function careerMilestones() { return typeof Career !== 'undefined' && Career.s && Career.s.mode === 'career' ? Career.s.milestones : null; }
 function saveMilestones(got) {
-  if (careerMilestones()) { Career.s.milestones = got; persist(); } else Store.set('milestones', got);
+  if (careerMilestones()) { Career.s.milestones = got; persist(); } else if (!(typeof Career !== 'undefined' && Career.noPersist)) Store.set('milestones', got);
 }
 function loadMilestones() {
   const cm = careerMilestones();

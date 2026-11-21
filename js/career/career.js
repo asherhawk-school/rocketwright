@@ -27,6 +27,7 @@ const isCareer = () => !!(Career.s && Career.s.mode === 'career');
 function setSave(s) { Career.s = s; persist(); }
 function persist() {
   if (!Career.s) return;
+  if (Career.noPersist) { for (const f of Career.listeners) f(); return; } // tutorials don't touch your save
   Store.set('save', Career.s);
   for (const f of Career.listeners) f();
 }

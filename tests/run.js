@@ -16,9 +16,9 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 let src = '';
-for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'flight.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
+for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -304,6 +304,7 @@ test('old Pallid milestone ids carry over', () => {
 
 console.log('Career');
 const career = (seed = 42) => { const s = G.newSave('career', seed); G.Career.s = s; return s; };
+G.career = career;
 test('a new career starts with funds, three astronauts and only the basic parts', () => {
   const s = career();
   assert(s.funds === 25000 && s.crew.length === 3, `funds ${s.funds}, crew ${s.crew.length}`);
@@ -377,7 +378,7 @@ test('in flight, reaching the target altitude completes the contract', () => {
   s.contracts.push(c);
   G.acceptContract(s, 99);
   const { F } = G;
-  G.flightStart(G.PRESETS['Sky Hopper'](), 'Hopper', { t0: s.ut, crewId: s.crew[0].id });
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Hopper', { t0: s.ut });
   G.doStage();
   for (let i = 0; i < 60 * 60 && c.state === 'active'; i++) G.flightUpdate(1 / 60);
   assert(c.state === 'done', 'contract not completed; alt ' + (Math.hypot(...F.craft.pos) - 500000).toFixed(0));
@@ -386,7 +387,8 @@ test('in flight, reaching the target altitude completes the contract', () => {
 test('a crash loses the astronaut and reputation', () => {
   const s = career(8);
   const { F } = G;
-  G.flightStart(G.PRESETS['Sky Hopper'](), 'Hopper', { t0: 0, crewId: s.crew[1].id });
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Hopper', { t0: 0 });
+  F.crew = [{ id: s.crew[1].id, name: s.crew[1].name, pod: F.craft.parts.find((p) => p.def.pod).uid }];
   s.crew[1].status = 'flying';
   s.rep = 20;
   G.explode(F.craft, true, 50);
@@ -515,6 +517,105 @@ test('the Δv map and transfer window give sensible numbers', () => {
   const w = G.transferWindow(c, G.MOON, F.t);
   const deg = (w.ideal * 180) / Math.PI;
   assert(deg > 100 && deg < 130 && isFinite(w.wait), 'ideal ' + deg);
+});
+
+console.log('Persistent universe');
+test('a vessel saves and loads without losing parts, fuel or staging', () => {
+  const { F } = G;
+  G.Career.s = G.newSave('sandbox', 1); G.universe();
+  G.flightStart(G.PRESETS['Heavy Lifter'](), 'Saver');
+  const c = F.craft; G.doStage();
+  for (let i = 0; i < 60; i++) G.physStep(G.PHYS_DT);
+  const rec = JSON.parse(JSON.stringify(G.vesselFromCraft(c, F.t, { id: 7, name: 'Saver' })));
+  const k = G.craftFromVessel(rec);
+  assert(k.parts.length === c.parts.length && k.stageIdx === c.stageIdx, 'parts/stages');
+  const fuel = (x) => x.parts.reduce((a, p) => a + p.fuel + p.solid, 0);
+  assert(Math.abs(fuel(k) - fuel(c)) < 1e-9, 'fuel');
+  assert(k.parts.filter((p) => p.ignited).length === c.parts.filter((p) => p.ignited).length, 'ignition state');
+  assert(Math.hypot(k.pos[0] - c.pos[0], k.pos[1] - c.pos[1]) < 1e-6 && Math.abs(k.xc - c.xc) < 1e-9, 'pose');
+});
+test('a vessel left in orbit is still there days later; one left falling is lost', () => {
+  const s = G.Career.s = G.newSave('sandbox', 2); G.universe();
+  const { F } = G;
+  G.flightStart(G.PRESETS['Orbiter I'](), 'Keeper');
+  const c = F.craft; c.landed = null;
+  const r = G.HOME.R + 200000, v = Math.sqrt(G.HOME.mu / r);
+  c.pos = [r, 0]; c.vel = [0, v];
+  const good = G.vesselFromCraft(c, 0, { id: 1, name: 'Keeper' });
+  c.vel = [0, v * 0.9];
+  const bad = G.vesselFromCraft(c, 0, { id: 2, name: 'Faller' });
+  s.vessels.push(good, bad);
+  const lost = G.advanceAll(10 * 86400);
+  assert(lost.length === 1 && lost[0] === bad, 'lost ' + lost.map((x) => x.name));
+  const o = G.orbitElements(G.HOME, good.s[0], good.s[1], good.s[2], good.s[3], good.t);
+  assert(Math.abs(o.rp - r) < 2000 && Math.abs(o.ra - r) < 2000, `orbit drifted: ${o.rp - G.HOME.R}, ${o.ra - G.HOME.R}`);
+});
+test('flying a stored vessel again picks it up where it is now', () => {
+  const s = G.Career.s = G.newSave('sandbox', 3); G.universe();
+  const { F } = G;
+  G.flightStart(G.PRESETS['Orbiter I'](), 'Returner');
+  const c = F.craft; c.landed = null;
+  const r = G.HOME.R + 150000, v = Math.sqrt(G.HOME.mu / r);
+  c.pos = [r, 0]; c.vel = [0, v];
+  const rec = G.vesselFromCraft(c, 0, { id: 5, name: 'Returner' });
+  s.vessels.push(rec);
+  const expect = G.propagate(r, 0, 0, v, 0, 3600).s;
+  G.flightLoadVessel(rec, 3600);
+  assert(F.craft.vid === 5 && F.t === 3600 && !s.vessels.includes(rec), 'not loaded');
+  assert(Math.hypot(F.craft.pos[0] - expect[0], F.craft.pos[1] - expect[1]) < 50, 'wrong place');
+});
+test('two free docking ports that meet slowly dock into one craft, and undock again', () => {
+  const a = new G.Craft(G.layoutDesign(G.designFromStack(['dockPort', 'pod', 'tankS125', 'gnat'])));
+  const b = new G.Craft(G.layoutDesign(G.designFromStack(['dockPort', 'probe', 'tankS125', 'gnat'])));
+  a.angle = Math.PI / 2; b.angle = -Math.PI / 2;
+  a.pos = [0, 600000]; a.vel = [2000, 0]; b.vel = [2000.2, 0];
+  const pa = a.parts.find((p) => p.def.dock), pb = b.parts.find((p) => p.def.dock);
+  const tipA = a.toWorld(pa.x, G.portFacing(a, pa) > 0 ? pa.top : pa.bot);
+  // place b so its port tip sits 0.3 m above a's
+  b.pos = [0, 0];
+  const tb = b.toWorld(pb.x, G.portFacing(b, pb) > 0 ? pb.top : pb.bot);
+  b.pos = [tipA[0] - tb[0], tipA[1] + 0.3 - tb[1]];
+  const dk = G.findDock(a, b);
+  assert(dk, 'should be able to dock');
+  const na = a.parts.length, nb = b.parts.length;
+  G.dockCrafts(a, dk.pa, b, dk.pb);
+  assert(a.parts.length === na + nb && new Set(a.parts.map((p) => p.uid)).size === na + nb, 'merged parts');
+  assert(G.dockedPairs(a).length === 1, 'one docked pair');
+  const gn = a.parts.filter((p) => p.id === 'gnat');
+  assert(gn.some((p) => p.inv) && gn.some((p) => !p.inv), 'the docked engine should face the other way');
+  for (const e of gn) e.ignited = true;
+  a.throttle = 1;
+  a.engineStep(0.1, 0);
+  assert(Math.abs(a.thrust) < 1, 'opposite engines should cancel, got ' + a.thrust);
+  const [p, q] = G.dockedPairs(a)[0];
+  const leaving = G.undockParts(a, p, q);
+  assert(leaving.length === nb, 'undock should split off the other craft');
+});
+test('rescue contracts strand an astronaut in orbit, and recovering them completes the contract', () => {
+  const s = G.career(21);
+  s.milestones.orbit = 1;
+  s.vessels = []; s.vesselSeq = 1;
+  let c = null;
+  for (let i = 0; i < 80 && !c; i++) { const x = G.genContract(s); if (x && x.type === 'rescue') c = x; }
+  assert(c, 'no rescue contract offered');
+  s.contracts.push(c);
+  assert(G.acceptContract(s, c.id) === null, 'accept');
+  const v = s.vessels.find((x) => x.id === c.p.vid);
+  assert(v && v.kind === 'stranded' && v.crew[0].name === c.p.crewName, 'stranded vessel');
+  assert(v.parts.some((p) => p.id === 'dockPort'), 'needs a docking port');
+  // its port should face backwards along its orbit, so a chaser can dock
+  G.advanceVessel(v, s.ut + 1800);
+  const rel = G.wrapPi(v.angle - Math.atan2(v.s[3], v.s[2]));
+  assert(Math.abs(Math.abs(rel) - Math.PI) < 0.1, 'port not facing retrograde: ' + rel);
+  const done = G.checkContracts(s, { kind: 'recover', crew: G.crewNames(v.crew) });
+  G.crewHome(v.crew, v.flags);
+  assert(done.includes(c) && s.crew.some((m) => m.name === c.p.crewName && m.status === 'available'), 'not rescued');
+  G.Career.s = null;
+});
+test('tutorials are set up and sound is safe without an audio device', () => {
+  assert(G.TUTORIALS.length === 4 && G.TUTORIALS.every((t) => t.steps.length >= 4), 'tutorials');
+  assert(G.TUTORIALS[0].steps[0].done({ stageIdx: 1 }) && !G.TUTORIALS[0].steps[0].done({ stageIdx: 0 }), 'first step check');
+  G.playSound('boom'); G.playSound('stage');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

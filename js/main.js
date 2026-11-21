@@ -4,6 +4,7 @@
 /* ---------------- screens & modals ---------------- */
 
 function showHangar() {
+  if (Tut.active) endTutorial();
   F.running = false;
   hideModal();
   showScreen('hangar');
@@ -37,38 +38,44 @@ function launchDesign(design, name, crewId) {
   }
   showScreen('flight');
   resizeFlight();
-  flightStart(design, name, { t0: s.ut, crewId: crew ? crew.id : null, keepTarget: true });
+  advanceAll(s.ut);
+  flightStart(design, name, { t0: s.ut, keepTarget: true });
   fillTargetSelect();
   F.snapshot = snapshot;
-  if (crew) flash(`${crew.name} is aboard ${name}. Press SPACE to launch!`, 5);
+  if (crew) {
+    const pod = F.craft.parts.find((p) => p.def.pod);
+    F.crew = [{ id: crew.id, name: crew.name, pod: pod.uid }];
+    crew.vessel = F.vid;
+    F.revertCrew = crew.id;
+    flash(`${crew.name} is aboard ${name}. Press SPACE to launch!`, 5);
+  }
 }
 
-/* Bring the program's clock forward to the end of the flight and release the crew. */
+/* End the flight: bring the clock forward, and either bring the crew home (recovered) or leave the
+   vessel in the universe, where it keeps flying and can be picked up from the Tracking Station. */
 function finishFlight(recovered) {
-  const s = Career.s;
+  if (F.tutorial) { endTutorial(); return; }
+  const s = universe();
   s.ut = Math.max(s.ut, F.t);
-  if (F.crewId) {
-    const cm = s.crew.find((c) => c.id === F.crewId);
-    if (cm && cm.status === 'flying') {
-      cm.status = 'available';
-      if (recovered) {
-        cm.flights++;
-        for (const w of F.flags.visited) if (!cm.worlds.includes(w)) cm.worlds.push(w);
-      }
-    }
+  if (recovered) crewHome(F.crew, F.flags);
+  else if (!F.craft.dead) {
+    s.vessels.push(vesselFromCraft(F.craft, F.t, activeMeta()));
+    for (const x of F.crew) { const cm = x.id && s.crew.find((c) => c.id === x.id); if (cm) { cm.status = 'flying'; cm.vessel = F.vid; } }
   }
-  F.crewId = null;
+  unloadOthers();
+  F.crew = [];
   if (isCareer()) refreshContracts(s);
   persist();
 }
 
 /* Undo everything since launch. */
 function revertFlight(toHangar) {
+  if (!F.canRevert) return;
   Career.s = JSON.parse(F.snapshot);
   persist();
   hideModal();
   if (toHangar) showHangar();
-  else launchDesign(F.design, F.craftName, F.crewId);
+  else launchDesign(F.design, F.craftName, F.revertCrew);
 }
 
 let modalOpen = false;
@@ -114,6 +121,7 @@ its Δv (how much speed it can add) and TWR (thrust-to-weight; above 1 to lift o
   <div>Mouse wheel: zoom · <kbd>Esc</kbd> Menu</div>
   <div><kbd>R</kbd> RCS · <kbd>Q</kbd>/<kbd>E</kbd> slide · <kbd>H</kbd>/<kbd>N</kbd> forward/back</div>
   <div><kbd>B</kbd> Science panel (career)</div>
+  <div><kbd>8</kbd> Tgt · <kbd>9</kbd> Match · <kbd>U</kbd> Undock · <kbd>[</kbd>/<kbd>]</kbd> Switch</div>
   <div>Hangar: <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>X</kbd> symmetry · <kbd>Del</kbd> remove</div>
 </div>
 <h3>Getting to orbit</h3>
@@ -143,6 +151,11 @@ The throttle cuts when the burn is done. The <b>Δv map</b> lists what each trip
 <p>Capsules and probe cores hold some charge; reaction wheels use it and engines and solar panels refill it. A probe core with a flat
 battery can't steer or stage. Coming home fast heats whatever faces the airflow. Put an <b>Ablator Shield</b> under the capsule and keep
 it pointed retrograde.</p>
+<h3>Vessels, rendezvous and docking</h3>
+<p>Leaving a flight (Menu → <b>Space Centre</b>) keeps the vessel flying. Find it again in the <b>Tracking Station</b>. To meet another
+vessel, pick it as your <b>Target</b>, plan burns until the closest approach is small, then match speed with SAS <b>Match</b> (<kbd>9</kbd>).
+Up close, SAS <b>Tgt</b> (<kbd>8</kbd>) lines your docking port up with theirs; slide with RCS (<kbd>Q</kbd>/<kbd>E</kbd>) and move in gently
+(<kbd>H</kbd>) under 1 m/s. <kbd>U</kbd> undocks, and <kbd>[</kbd> / <kbd>]</kbd> switch to a nearby vessel.</p>
 <h3>Career mode</h3>
 <p>Take contracts in <b>Mission Control</b>; they pay an advance, then a reward the moment you complete them. Rockets cost money to launch,
 so build within budget, then <b>recover</b> them on Verdan to get most of their value back (more the closer you land to the launch site).
@@ -178,34 +191,44 @@ function showMilestones() {
 
 function openMenu() {
   if (!F.running || F.endShown) return;
-  const c = F.craft;
   const btns = [{ label: 'Resume', cls: 'primary', fn: hideModal }];
+  if (F.tutorial) {
+    btns.push({ label: 'Restart tutorial', fn: () => { const id = Tut.active.id; endTutorial(); startTutorial(id); } });
+    btns.push({ label: 'Quit tutorial', fn: () => { endTutorial(); showHub(); } });
+    btns.push({ label: 'Controls', fn: showHelp });
+    showModal(`<h2>Paused</h2><p class="muted">Tutorial: ${esc(Tut.active.name)}</p>`, btns);
+    return;
+  }
   if (canRecover()) btns.push({ label: 'Recover vessel', fn: recover });
-  btns.push({ label: 'Revert to launch', fn: () => revertFlight(false) });
-  btns.push({ label: 'Revert to hangar', fn: () => revertFlight(true) });
-  btns.push({ label: 'End flight', fn: confirmEndFlight });
+  if (F.canRevert) {
+    btns.push({ label: 'Revert to launch', fn: () => revertFlight(false) });
+    btns.push({ label: 'Revert to hangar', fn: () => revertFlight(true) });
+  }
+  btns.push({ label: 'Space Centre', fn: confirmEndFlight });
   btns.push({ label: 'Δv map', fn: () => showDvMap(openMenu) });
   btns.push({ label: 'Controls', fn: showHelp });
   showModal(`<h2>Paused</h2><p class="muted">${esc(F.craftName)} · ${fmtClock(F.t - F.launchT)} · ${fmtDate(F.t)}</p>`, btns);
 }
 
-function canRecover() { const c = F.craft; return c.landed && c.landed.body === HOME && !c.dead && F.flags.maxAlt > 100; }
+function canRecover() { const c = F.craft; return c.landed && c.landed.body === HOME && !c.dead && (F.flags.maxAlt > 100 || !F.canRevert); }
 
 function confirmEndFlight() {
-  const career = isCareer();
-  showModal(`<h2>End this flight?</h2><p>The vessel is left behind${career ? ' and its cost is not refunded' : ''}. Your crew is flown home.
-    Contracts and science you earned stay. Time moves on to ${fmtDate(F.t)}.</p>`, [
-    { label: 'End flight', cls: 'primary', fn: () => { finishFlight(false); showHub(); } },
+  const c = F.craft, b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t), o = F.orbit;
+  const risky = !c.landed && o && (o.e >= 1 ? false : o.rp - b.R < (b.atmo ? b.atmo.top : 0));
+  showModal(`<h2>Back to the Space Centre?</h2><p>${esc(F.craftName)} stays where it is and keeps flying. Pick it up again from the
+    <b>Tracking Station</b>.${F.crew.length ? ` ${esc(crewNames(F.crew).join(', '))} stay${F.crew.length > 1 ? '' : 's'} aboard.` : ''}</p>
+    ${risky ? '<p class="warn warn">It is on a path that dips into the atmosphere or the ground, so it will probably be lost while you are away.</p>' : ''}`, [
+    { label: 'Go to the Space Centre', cls: 'primary', fn: () => { finishFlight(false); showHub(); } },
     { label: 'Cancel', fn: openMenu },
   ]);
 }
 
 function showCrashModal() {
-  const lost = F.crewLost ? `<p><b>${esc(F.crewLost)}</b> was lost. Reputation −10.</p>` : '';
+  const lost = F.crewLost.length ? `<p><b>${esc(F.crewLost.join(', '))}</b> ${F.crewLost.length > 1 ? 'were' : 'was'} lost.${isCareer() ? ' Reputation −10 each.' : ''}</p>` : '';
   showModal(`<h2>Vessel destroyed</h2><p>${esc(F.craftName)} was lost after ${fmtClock(F.t - F.launchT).slice(3)}. ${esc(F.deathReason || '')}.</p>${lost}
     <p class="muted">Tip: land under 6 m/s, or 12 m/s with landing legs. Deploy the parachute well before the ground.</p>`, [
-    { label: 'Revert to launch', cls: 'primary', fn: () => revertFlight(false) },
-    { label: 'Revert to hangar', fn: () => revertFlight(true) },
+    ...(F.canRevert ? [{ label: 'Revert to launch', cls: 'primary', fn: () => revertFlight(false) }, { label: 'Revert to hangar', fn: () => revertFlight(true) }] : []),
+    ...(F.tutorial ? [{ label: 'Restart tutorial', cls: 'primary', fn: () => { const id = Tut.active.id; endTutorial(); startTutorial(id); } }] : []),
     { label: 'Space Centre', fn: () => { finishFlight(false); showHub(); } },
   ]);
 }
@@ -224,12 +247,14 @@ function recover() {
     flightEvent({ kind: 'science', body: BODY_BY_ID[r.body], sit: r.sit });
     p.result = null;
   }
+  flightEvent({ kind: 'recover', crew: crewNames(F.crew) });
   if (isCareer()) {
     const L = c.landed, phi = Math.atan2(L.ry, L.rx);
     factor = recoveryFactor(phi, terrainH(HOME, phi) < 0);
     refund = c.parts.reduce((a, p) => a + partValue(p), 0) * factor;
     addFunds(refund);
   }
+  const homeCrew = crewNames(F.crew);
   finishFlight(true);
   const names = F.flightMilestones.map((id) => `<li>★ ${milestoneName(id)}</li>`).join('');
   const contracts = F.flightContracts.map((t) => `<li>✓ ${esc(t)}</li>`).join('');
@@ -238,6 +263,7 @@ function recover() {
     <div class="kv"><span>Mission time</span><b>${fmtClock(F.t - F.launchT).slice(3)}</b></div>
     <div class="kv"><span>Highest altitude</span><b>${fmtDist(F.flags.maxAlt)}</b></div>
     <div class="kv"><span>Worlds visited</span><b>${visited || 'None yet'}</b></div>
+    ${homeCrew.length ? `<div class="kv"><span>Crew home safe</span><b>${esc(homeCrew.join(', '))}</b></div>` : ''}
     ${isCareer() ? `<div class="kv"><span>Recovery (${Math.round(factor * 100)}% of value)</span><b>+${fmtFunds(refund)}</b></div>` : ''}
     ${isCareer() && sci ? `<div class="kv"><span>Science recovered</span><b>+${sci.toFixed(1)} ⚗</b></div><ul class="plain">${sciLines.join('')}</ul>` : ''}
     ${contracts ? `<h3>Contracts completed</h3><ul class="plain">${contracts}</ul>` : ''}
@@ -253,6 +279,15 @@ function toggleRcs() {
   if (!c.rcsParts.length) { flash('No RCS thrusters on this craft', 2); return; }
   c.rcsOn = !c.rcsOn;
   flash(c.rcsOn ? 'RCS on · Q/E slide sideways · H/N forward/back' : 'RCS off', 2);
+}
+
+/* [ and ] switch between vessels close enough to see. */
+function cycleNearby(dir) {
+  const near = F.others.filter((o) => !o.dead);
+  if (!near.length) { flash('No other vessels nearby', 2); return; }
+  const o = near[dir > 0 ? 0 : near.length - 1];
+  switchToVessel(o.vid);
+  fillTargetSelect();
 }
 
 function toggleMap() {
@@ -287,12 +322,14 @@ function onKeyDown(e) {
     case 'KeyT': setSas(F.sas === 'off' ? 'stab' : 'off'); break;
     case 'KeyR': toggleRcs(); break;
     case 'KeyB': toggleScience(); break;
+    case 'KeyU': undock(); break;
+    case 'BracketLeft': case 'BracketRight': cycleNearby(e.code === 'BracketRight' ? 1 : -1); break;
     case 'KeyF': cycleMapFocus(); break;
     case 'Escape': openMenu(); break;
     case 'Equal': case 'NumpadAdd': zoomBy(1.25); break;
     case 'Minus': case 'NumpadSubtract': zoomBy(0.8); break;
     default:
-      if (/^Digit[1-7]$/.test(e.code)) setSas(SAS_MODES[+e.code.slice(5) - 1]);
+      if (/^Digit[1-9]$/.test(e.code)) setSas(SAS_MODES[+e.code.slice(5) - 1]);
   }
 }
 function zoomBy(f) {
@@ -301,6 +338,8 @@ function zoomBy(f) {
 }
 
 function wireUi() {
+  window.addEventListener('pointerdown', initSound);
+  window.addEventListener('keydown', initSound);
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', (e) => { F.keys[e.code] = false; });
   window.addEventListener('blur', () => { for (const k in F.keys) F.keys[k] = false; });
@@ -339,6 +378,8 @@ function wireUi() {
   $('bWarpDn').addEventListener('click', () => changeWarp(-1));
   $('bRecover').addEventListener('click', recover);
   $('bRcs').addEventListener('click', toggleRcs);
+  $('bUndock').addEventListener('click', undock);
+  $('bSwitch').addEventListener('click', () => { if (F.target && F.target.vid !== undefined) { switchToVessel(F.target.vid); fillTargetSelect(); } });
   document.querySelectorAll('#sasBtns button').forEach((b) => b.addEventListener('click', () => setSas(b.dataset.sas)));
   document.querySelectorAll('[data-hold]').forEach((b) => {
     const k = b.dataset.hold;
@@ -359,9 +400,10 @@ function loop(now) {
   const dt = Math.min(0.05, (now - lastFrame) / 1000);
   lastFrame = now;
   if (F.running) {
-    if (!F.paused) flightUpdate(dt);
+    if (!F.paused) { flightUpdate(dt); tutorialTick(); }
     flightRender();
   }
+  updateSound(F.craft, F.craft ? F.craft.pressure || 0 : 0, F.craft ? F.craft.q || 0 : 0, F.running && !F.paused);
   requestAnimationFrame(loop);
 }
 

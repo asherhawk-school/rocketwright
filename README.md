@@ -22,7 +22,7 @@ then visit http://localhost:8000.
   money, and recovering your craft refunds most of it. Run experiments with six science instruments (each worth more on new worlds and in new
   situations), transmit or recover the results, and research a 14-node tech tree. Astronauts gain experience and can be lost.
   Reverting a flight undoes it; saves can be exported and imported. **Sandbox mode** unlocks everything with no money.
-- **Hangar**: drag 49 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
+- **Hangar**: drag 51 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS.
 - **Staging editor**: automatic staging you can reorder, with simulated Δv, thrust-to-weight and burn time for every stage.
@@ -37,6 +37,19 @@ then visit http://localhost:8000.
   bodies, apoapsis/periapsis readouts, and time warp up to 1,000,000× (RK4 on rails with steps that never skip an SOI boundary).
 - **Map view**: every orbit in the system, focus any body (F, or click it), the predicted path through every SOI change with
   ghosts of planets where they'll be when you arrive, and the next encounters in the HUD.
+- **Persistent universe**: vessels you leave in flight keep orbiting (or sit landed) while time moves on, and can be lost if
+  they were on a path into the air or the ground. The **Tracking Station** lists every vessel with a map, lets you fly any of
+  them again, recover landed ones, terminate them, or wait for days to pass. Pieces that separate with a capsule or probe on
+  them become vessels of their own.
+- **Rendezvous and docking**: target any vessel to see the closest approach, distance and relative speed. SAS can point at
+  the target or cancel your relative speed, and up close it lines your docking port up face to face with theirs. Bring two
+  free docking ports together slowly to dock (crews and tanks combine); undock with U. Switch between nearby vessels with [ and ].
+- **Rescue contracts** strand an astronaut in orbit; dock with their capsule and bring them home to add them to your roster.
+- **Tutorials**: guided first flight, reaching orbit, docking, and landing on Pallid. They never touch your save.
+- **Sound** synthesised in the browser: engine rumble that fades in thin air, solid-booster crackle, wind, staging,
+  parachutes, docking and explosions, with a volume setting.
+- **Day and night**: the sky darkens and the planet's night side is shaded by the sun's direction; terrain is coloured by
+  height (beaches, grass, rock, snow).
 - **Manoeuvre nodes**: click your path (or use “Node at Ap/Pe”) to plan a burn, drag its handles or use the editor, see the
   resulting orbit and encounters, the burn time and when to start; time warp stops before the burn, SAS points along it and the
   throttle cuts when it's done.
@@ -57,7 +70,8 @@ then visit http://localhost:8000.
 | A / D, ← / → | Rotate |
 | W / S, Shift, ↑ / ↓ | Throttle up / down |
 | Z / X | Full / cut throttle |
-| T, 1–7 | SAS toggle / modes (7 = manoeuvre node) |
+| T, 1–9 | SAS toggle / modes (7 node, 8 target, 9 match target speed) |
+| U; [ / ] | Undock; switch to a nearby vessel |
 | R; Q / E; H / N | RCS toggle; slide sideways; forward / back |
 | B | Science panel (career) |
 | M | Map view (F changes focus) |
@@ -77,7 +91,8 @@ node tests/run.js
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
 career rules (research, science values, contracts, recovery, crew loss), power and shadows, reentry heating with and
-without a heat shield, and flying a manoeuvre node to its planned orbit.
+without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
+docking and undocking, and rescue contracts.
 
 ## Code layout
 
@@ -86,6 +101,10 @@ without a heat shield, and flying a manoeuvre node to its planned orbit.
 - `js/render.js`: part, flame, terrain and launch pad drawing
 - `js/systems.js`: electricity and reentry heating
 - `js/navigation.js`: manoeuvre nodes, targets, transfer windows and the Δv map
+- `js/universe.js`: saved vessels, on-rails motion, crew aboard, rescue capsules
+- `js/docking.js`: docking ports, merging and undocking craft
+- `js/sound.js`: synthesised audio
+- `js/tutorials.js`: guided missions
 - `js/flight.js`: simulation loop, time warp, camera, map view, HUD
 - `js/career/`: the save game, money and crew (`career.js`), experiments (`science.js`), research (`tech.js`), contracts
   (`contracts.js`) and the title screen, Space Centre and building screens (`hub.js`)

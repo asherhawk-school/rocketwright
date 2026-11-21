@@ -77,6 +77,17 @@ function contractBuilders(s) {
         reward: r100(16000 * (1 + f(b))), sci: Math.round(10 + 5 * f(b)), rep: 6 + 2 * f(b), days: 40 + 70 * f(b) };
     }]);
   }
+  if (m.orbit) B.push([1.2, () => {
+    const used = new Set(s.crew.map((c) => c.name).concat((s.vessels || []).flatMap((v) => (v.crew || []).map((x) => x.name)),
+      s.contracts.filter((c) => c.type === 'rescue').map((c) => c.p.crewName)));
+    const name = CREW_POOL.find((n) => !used.has(n) && rand(s) < 0.5) || CREW_POOL.find((n) => !used.has(n));
+    if (!name) return null;
+    const b = reachableBodies(s).includes(MOON) && rand(s) < 0.35 ? MOON : HOME;
+    const alt = Math.round(((b.atmo ? b.atmo.top + 15000 : 15000) + rand(s) * b.R * 0.3) / 1000) * 1000;
+    return { type: 'rescue', title: `Rescue ${name}`,
+      desc: `${name} is stuck in a capsule orbiting ${b.name} at ${fmtNum(alt / 1000)} km. Dock with it using a docking port, then bring them home and recover them.`,
+      p: { crewName: name, body: b.id, alt }, reward: r100(25000 * (1 + (BODY_SCI[b.id] || 1) * 0.6)), sci: 10, rep: 10, days: 60 + 60 * (BODY_SCI[b.id] || 1) };
+  }]);
   if (m.orbit) B.push([1, () => {
     const b = pick(s, bodies);
     const lo = Math.round(((b.atmo ? b.atmo.top : b.R * 0.05) + rand(s) * b.R * 0.4) / 10000) * 10;
@@ -134,6 +145,7 @@ function acceptContract(s, id) {
   c.state = 'active';
   c.deadline = s.ut + c.days * DAY;
   s.funds += c.advance;
+  if (c.type === 'rescue') c.p.vid = spawnStranded(s, BODY_BY_ID[c.p.body], c.p.alt, c.p.crewName, rand(s) * TAU).id;
   return null;
 }
 function declineContract(s, id) {
@@ -149,6 +161,7 @@ function completeContract(s, c) {
 }
 function failContract(s, c) {
   c.state = 'failed';
+  if (c.type === 'rescue' && s.vessels) s.vessels = s.vessels.filter((v) => !(v.crew || []).some((x) => x.name === c.p.crewName && x.stranded));
   s.funds -= c.penalty;
   s.rep = clamp(s.rep - c.rep, -100, 1000);
 }
@@ -169,6 +182,7 @@ function checkContracts(s, ev) {
       case 'orbit': ok = ev.kind === 'tick' && b.id === p.body && stableOrbit(ev, b); break;
       case 'land': ok = ev.kind === 'land' && b.id === p.body; break;
       case 'science': ok = ev.kind === 'science' && b.id === p.body && ev.sit === p.sit; break;
+      case 'rescue': ok = ev.kind === 'recover' && (ev.crew || []).includes(p.crewName); break;
       case 'satellite': ok = ev.kind === 'tick' && b.id === p.body && ev.hasAntenna && stableOrbit(ev, b) &&
         ev.orbit.rp - b.R >= p.lo && ev.orbit.ra - b.R <= p.hi; break;
     }
