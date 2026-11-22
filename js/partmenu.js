@@ -40,7 +40,24 @@ function partInfo(c, p) {
     out.push(`${state} · limit ${lim}%`);
     out.push(`Max ${d.thrust} kN · Isp ${d.ispSL}–${d.ispVac} s`);
   }
-  if (d.chute) out.push(`${c.chuteOpen ? (c.chuteArea > 300 ? 'Fully open' : 'Partly open') : 'Packed'} · opens fully below ${SETTING_DEFS.deployAlt.fmt(cfgVal(p, 'deployAlt'))}`);
+  if (d.chute) {
+    const key = d.drogue ? 'drogueAlt' : 'deployAlt';
+    const st = p.torn ? 'Torn off' : !p.open ? 'Packed' : p.area > (d.chuteSemi + d.chuteFull) / 2 ? 'Fully open' : 'Partly open';
+    out.push(`${st} · opens fully below ${SETTING_DEFS[key].fmt(cfgVal(p, key))}`);
+    if (!d.drogue) out.push(`<span class="muted">Tears if it opens fully above ${CHUTE_TEAR_Q} kPa (now ${fmtNum(c.q || 0, 1)})</span>`);
+  }
+  if (d.gas) out.push(`Argon ${fmtNum(p.gas, 3)} / ${fmtNum(d.gas, 3)} t`);
+  if (d.prop === 'gas') out.push(`Uses argon and ${d.ecUse} charge/s at full thrust`);
+  if (d.prop === 'mono') out.push('Burns monopropellant');
+  if (d.fairing) out.push(p.shell ? `Shell on · ${shellH(p)} m tall` : 'Shell thrown off');
+  if (d.inflate) out.push(p.inflated ? `Inflated · ${d.wOpen} m wide` : 'Packed');
+  if (d.brakeArea) out.push(p.brake ? 'Deployed' : 'Stowed');
+  if (d.cellEC) out.push(p.cellOff ? 'Switched off' : p.cellRun > 0 ? `Making ${fmtNum(p.cellRun, 1)} charge/s` : 'Standing by (batteries full or no fuel)');
+  if (d.seats) {
+    const n = F.crew.filter((x) => x.pod === p.uid).length;
+    out.push(`Seats ${n} / ${d.seats}`);
+  }
+  if (p.enclosed) out.push('<span class="muted">Inside a fairing</span>');
   if (d.decoupler) out.push(d.crossfeed ? 'Decoupler (lets fuel through)' : 'Decoupler');
   if (d.dock) out.push(p.links.some((u) => { const q = c.byUid.get(u); return q && q.def.dock; }) ? 'Docked' : freePorts(c).includes(p) ? 'Free port' : 'Port (blocked)');
   if (d.solar) out.push('Solar panel');
@@ -68,7 +85,11 @@ function partActions(c, p) {
       a.push(['drop', 'Discard']);
     } else if (canRun(p, b, sit)) a.push(['run', `Run (${subjectLeft(Career.s, subjectId(d.exp, b, sit), subjectCap(d.exp, b, sit)).toFixed(1)} ⚗)`]);
   }
-  if (d.chute && !c.chuteOpen) a.push(['chute', 'Deploy parachute']);
+  if (d.chute && !p.open && !p.torn) a.push(['chute', d.drogue ? 'Deploy drogue' : 'Deploy parachute']);
+  if (d.fairing && p.shell) a.push(['fairing', 'Open fairing']);
+  if (d.inflate && !p.inflated) a.push(['inflate', 'Inflate shield']);
+  if (d.brakeArea) a.push(['brake', p.brake ? 'Stow air brakes' : 'Deploy air brakes']);
+  if (d.cellEC) a.push(['cell', p.cellOff ? 'Switch on' : 'Switch off']);
   if (isEngine(d)) {
     if (!p.ignited) a.push(['engOn', 'Start engine']);
     else if (!d.solid) a.push(['engOff', 'Shut down']);
@@ -77,7 +98,7 @@ function partActions(c, p) {
   if (d.dock && p.links.some((u) => { const q = c.byUid.get(u); return q && q.def.dock; })) a.push(['undock', 'Undock here']);
   return a;
 }
-const liveSettings = (d) => partSettingKeys(d).filter((k) => k !== 'fill');
+const liveSettings = (d) => partSettingKeys(d).filter((k) => k !== 'fill' && k !== 'fairH');
 
 function renderPartMenu() {
   const el = document.getElementById('partMenu');
@@ -109,7 +130,11 @@ function partMenuAction(kind) {
   const c = F.craft, p = c.byUid.get(PM.uid);
   if (!p) return;
   if (kind === 'run' || kind === 'tx' || kind === 'drop') scienceAction(kind, p.uid);
-  else if (kind === 'chute') { c.chuteOpen = true; playSound('chute'); flash('Parachute deployed', 2); }
+  else if (kind === 'chute') { p.open = true; c.chuteOpen = true; playSound('chute'); flash(`${shortName(p.def)} deployed`, 2); }
+  else if (kind === 'fairing') { p.shell = false; jettisonFairing(c, p); playSound('stage'); flash('Fairing open', 2); }
+  else if (kind === 'inflate') { p.inflated = true; c.recompute(); playSound('chute'); flash('Heat shield inflated', 2); }
+  else if (kind === 'brake') toggleBrakes();
+  else if (kind === 'cell') { const on = !!p.cellOff; for (const q of c.cells) if (q === p || (p.sym && q.sym === p.sym)) q.cellOff = !on; }
   else if (kind === 'engOn') { p.ignited = true; flash(`${shortName(p.def)} started`, 2); }
   else if (kind === 'engOff') { p.ignited = false; flash(`${shortName(p.def)} shut down`, 2); }
   else if (kind === 'decouple') { fireDecoupler(c, p); PM.uid = null; PM.pinned = false; }
@@ -163,7 +188,17 @@ function wirePartMenu() {
     if (p.sym) for (const q of c.parts) if (q.sym === p.sym) q.cfg = { ...(q.cfg || {}), [k]: +e.target.value };
     e.target.nextElementSibling.textContent = SETTING_DEFS[k].fmt(+e.target.value);
     if (k === 'deployAlt') c.chuteAlt = Math.max(0, ...c.parts.filter((q) => q.def.chute).map((q) => cfgVal(q, 'deployAlt')));
+    if (k === 'fairH') c.recompute();
     F.dvTick = 0;
   });
   el.addEventListener('change', (e) => e.target.blur());
+}
+
+/* Air brakes all deploy or stow together (K). */
+function toggleBrakes() {
+  const c = F.craft;
+  if (!c || c.dead || !c.brakes.length) return;
+  const on = !c.brakes.some((p) => p.brake);
+  for (const p of c.brakes) p.brake = on;
+  flash(on ? 'Air brakes out' : 'Air brakes in', 1.5);
 }

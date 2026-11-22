@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -764,6 +764,175 @@ test('a quad mount takes four engines, and the Cluster Lifter reaches orbit', ()
   assert(xs.length === 4 && Math.abs(xs[0] + 1.875) < 1e-9 && Math.abs(xs[3] - 1.875) < 1e-9, xs.join());
   const r = flyToOrbit(G.PRESETS['Cluster Lifter'](), 'Cluster Lifter');
   assert(!r.dead && r.phase === 'done' && r.pe > 70000 && r.maxSpin < 0.6, `phase ${r.phase}, Pe ${r.pe.toFixed(0)}, spin ${r.maxSpin.toFixed(2)}`);
+});
+
+console.log('\nNew parts');
+/* A craft dropped into the air at a given height and speed (falling straight down, nose up). */
+function dropTest(ids, alt, speed, setup) {
+  const { F } = G;
+  const d = G.designFromStack(ids);
+  if (setup) setup(d);
+  G.flightStart(d, 'Drop');
+  const c = F.craft; c.landed = null; F.t = 0; F.debris = []; F.sas = 'off';
+  c.pos = [0, G.HOME.R + alt]; c.vel = [0, -speed]; c.angle = Math.PI / 2; c.angVel = 0;
+  return c;
+}
+function runFor(c, secs, each) {
+  const { F } = G;
+  for (let i = 0; i < secs / G.PHYS_DT && !c.dead && !c.landed; i++) {
+    c.ctrl = 0;
+    G.stepCraft(c, G.PHYS_DT, true);
+    F.t += G.PHYS_DT;
+    if (each) each(c);
+  }
+  return c;
+}
+test('every new part has a cost, a research node and a picture-able kind', () => {
+  for (const id of ['shield3', 'bloom', 'chuteDrogue', 'chuteBig', 'airbrake', 'hearth', 'whisper', 'spindle', 'puff', 'gasTank', 'gasDrum',
+    'heron', 'cabin', 'fairing2', 'fairing3', 'strut', 'batteryDisc', 'batteryBank', 'fuelCell', 'fuelCellL']) {
+    const d = G.PART_DEFS[id];
+    assert(d && d.cost > 100 || id === 'strut', id + ' cost');
+    assert(G.PART_TECH[id], id + ' research');
+  }
+});
+test('a main canopy opened too fast tears off, but a drogue first brings the capsule down safely', () => {
+  const { F } = G;
+  // main alone, set to open fully high up while falling fast
+  let c = dropTest(['chute', 'pod'], 2800, 380, (d) => G.setPartCfg(d, d.parts[0].uid, 'deployAlt', 3000));
+  G.doStage();
+  runFor(c, 120);
+  const main = c.parts.find((p) => p.def.chute);
+  assert(main.torn && c.dead, `torn ${main.torn}, dead ${c.dead}`);
+  // drogue opens first, the main later and lower
+  c = dropTest(['chuteDrogue', 'pod'], 9000, 300, (d) => {
+    const pod = d.parts.find((p) => p.id === 'pod').uid;
+    G.attachPart(d, 'chuteRadial', pod, 'side', 1, 0.3, true);
+  });
+  for (const p of c.chutes) if (p.def.drogue) p.open = true;
+  let mainOpened = false;
+  runFor(c, 2500, (k) => {
+    const v = Math.hypot(k.vel[0], k.vel[1]);
+    if (!mainOpened && v < 120) { mainOpened = true; for (const p of k.chutes) p.open = true; }
+  });
+  const torn = c.chutes.some((p) => p.torn);
+  assert(!c.dead && c.landed && !torn, `dead ${c.dead}, landed ${!!c.landed}, torn ${torn}`);
+});
+test('air brakes add drag', () => {
+  const speedAfter = (on) => {
+    const c = dropTest(['pod', 'tankM'], 30000, 600, (d) => G.attachPart(d, 'airbrake', d.parts[1].uid, 'side', 1, 0.5, true));
+    if (on) G.toggleBrakes();
+    assert(c.brakes.length === 2 && c.brakes.every((p) => !!p.brake === on), 'brakes');
+    runFor(c, 20);
+    return Math.hypot(c.vel[0], c.vel[1]);
+  };
+  const off = speedAfter(false), on = speedAfter(true);
+  assert(on < off - 20, `brakes off ${off.toFixed(0)}, on ${on.toFixed(0)} m/s`);
+});
+test('an inflated shield slows the capsule high up and keeps it cool', () => {
+  const { F } = G;
+  const go = (inflate) => {
+    const d = G.designFromStack(['chute', 'pod', 'bloom']);
+    G.flightStart(d, 'Bloom');
+    const c = F.craft; c.landed = null; F.t = 0; F.debris = [];
+    const r = G.HOME.R + 69000, fpa = -0.25, v = 3200;
+    c.pos = [0, r]; c.vel = [v * Math.cos(fpa), v * Math.sin(fpa)];
+    c.angle = Math.atan2(c.vel[1], c.vel[0]) + Math.PI;
+    const sh = c.parts.find((p) => p.def.inflate);
+    if (inflate) { sh.inflated = true; c.recompute(); }
+    F.sas = 'off';
+    let peak = 0, slowAt = 0;
+    for (let i = 0; i < 60 * 400 && !c.dead; i++) {
+      c.ctrl = 0;
+      G.stepCraft(c, G.PHYS_DT, true);
+      F.t += G.PHYS_DT;
+      for (const p of c.parts) if (p.def.pod) peak = Math.max(peak, p.temp);
+      const alt = Math.hypot(...c.pos) - G.HOME.R;
+      if (!slowAt && Math.hypot(...c.vel) < 1000) slowAt = alt;
+      if (alt < 15000) break;
+    }
+    return { dead: c.dead, peak, slowAt, w: c.width };
+  };
+  const packed = go(false), open = go(true);
+  assert(open.w > 5.9, 'inflated width ' + open.w);
+  assert(!open.dead && open.peak < 1500, `inflated: dead ${open.dead}, peak ${open.peak.toFixed(0)} K`);
+  assert(open.slowAt > packed.slowAt + 5000, `slowed below 1 km/s at ${open.slowAt.toFixed(0)} m (packed ${packed.slowAt.toFixed(0)} m)`);
+});
+test('the ion drive burns argon and charge, and stops on a flat battery', () => {
+  const { F } = G;
+  const d = G.designFromStack(['probe', 'batteryBank', 'gasDrum', 'whisper']);
+  const a = G.analyzeDesign(d);
+  assert(a.rows[0].dv > 8000, 'ion Δv ' + a.rows[0].dv.toFixed(0));
+  G.flightStart(d, 'Ion');
+  const c = F.craft; c.landed = null;
+  c.pos = [0, G.HOME.R + 300000]; c.vel = [Math.sqrt(G.HOME.mu / (G.HOME.R + 300000)), 0];
+  G.doStage(); c.throttle = 1;
+  const gas0 = c.propTotal('gas'), ec0 = G.ecTotal(c);
+  const T = c.engineStep(1, 0);
+  assert(Math.abs(T - 2.5) < 0.01, 'thrust ' + T);
+  assert(c.propTotal('gas') < gas0 && G.ecTotal(c) < ec0 - 8, `gas ${gas0}->${c.propTotal('gas')}, charge ${ec0}->${G.ecTotal(c)}`);
+  G.ecDrain(c, 1e9);
+  assert(c.engineStep(1, 0) === 0 && !c.engineHasFuel(c.engines[0]), 'thrust with a flat battery');
+});
+test('monoprop engines, aerospikes and atomic engines behave as described', () => {
+  const { F } = G;
+  // a monoprop engine burns the capsule's monopropellant
+  const d = G.designFromStack(['pod', 'puff']);
+  G.flightStart(d, 'Puff');
+  const c = F.craft; G.doStage(); c.throttle = 1;
+  const m0 = c.monoTotal();
+  assert(c.engineStep(1, 1) > 0 && c.monoTotal() < m0, 'mono');
+  const spike = G.PART_DEFS.spindle, ox = G.PART_DEFS.ox, nuke = G.PART_DEFS.hearth;
+  assert(spike.ispSL / spike.ispVac > ox.ispSL / ox.ispVac, 'aerospike keeps its efficiency at sea level');
+  assert(nuke.ispVac > 2 * G.PART_DEFS.wren.ispVac, 'atomic engine efficiency');
+});
+test('a fairing covers its payload, then splits open and leaves', () => {
+  const { F } = G;
+  const d = G.designFromStack(['probe', 'tankM125', 'fairing2', 'tankM', 'kestrel', 'decoupler', 'tankL', 'ox']);
+  const t = d.parts.find((p) => p.id === 'tankM125').uid;
+  G.attachPart(d, 'solar', t, 'side', 1, 0.2, true);
+  const fair = d.parts.find((p) => p.id === 'fairing2').uid;
+  G.setPartCfg(d, fair, 'fairH', 3);
+  const a = G.analyzeDesign(d);
+  const fStage = a.stages.findIndex((s) => s.includes(fair));
+  const kStage = a.stages.findIndex((s) => s.some((u) => G.designFromStack && a.parts.find((p) => p.uid === u && p.id === 'kestrel')));
+  assert(fStage === kStage + 1, `fairing stage ${fStage}, upper engine stage ${kStage}`);
+  G.flightStart(d, 'Payload');
+  const c = F.craft;
+  const enclosed = c.parts.filter((p) => p.enclosed).map((p) => p.id).sort();
+  assert(enclosed.join() === 'probe,solar,solar,tankM125', 'enclosed ' + enclosed.join());
+  assert(c.aeroWidth < c.width + 1e-9 && Math.abs(c.aeroWidth - 2.3) < 1e-9, `aero width ${c.aeroWidth}`);
+  const m0 = c.M, deb = F.debris.length;
+  c.landed = null;
+  while (c.stageIdx <= fStage) G.doStage();
+  assert(!c.shells.length && c.M < m0 - 0.1 && F.debris.length >= deb + 2, `mass ${m0} -> ${c.M}, debris ${F.debris.length}`);
+  assert(c.parts.every((p) => !p.enclosed), 'nothing enclosed after');
+  assert(G.stageLabel([fair], (u) => c.byUid.get(u) || a.parts.find((p) => p.uid === u)) === 'Open fairing', 'label');
+});
+test('a fuel cell makes power from fuel when the batteries are low', () => {
+  const { F } = G;
+  const d = G.designFromStack(['probe', 'batteryDisc', 'tankM125', 'fuelCellL', 'gnat']);
+  G.flightStart(d, 'Cell');
+  const c = F.craft;
+  G.ecDrain(c, 1e9);
+  const f0 = c.parts.find((p) => p.def.fuel).fuel;
+  for (let i = 0; i < 50; i++) G.electricStep(c, 0.1, 0, 0);
+  assert(G.ecTotal(c) > 40 && c.parts.find((p) => p.def.fuel).fuel < f0, `charge ${G.ecTotal(c)}`);
+  c.cells[0].cellOff = true;
+  const e1 = G.ecTotal(c);
+  for (let i = 0; i < 50; i++) G.electricStep(c, 0.1, 0, 0);
+  assert(G.ecTotal(c) < e1, 'switched off');
+});
+test('the Heron and a crew cabin seat seven, and new part states survive a save', () => {
+  const { F } = G;
+  const d = G.designFromStack(['chuteBig', 'heron', 'cabin', 'shield3']);
+  assert(G.designSeats(d) === 7, 'seats ' + G.designSeats(d));
+  G.flightStart(G.designFromStack(['probe', 'gasDrum', 'fairing2', 'tankM', 'bloom', 'whisper']), 'Save');
+  const c = F.craft;
+  c.parts.find((p) => p.def.inflate).inflated = true;
+  c.parts.find((p) => p.def.fairing).shell = false;
+  c.parts.find((p) => p.def.gas).gas = 0.123;
+  const c2 = G.craftFromVessel(JSON.parse(JSON.stringify(G.vesselFromCraft(c, F.t, { id: 1, name: 'x' }))));
+  assert(c2.parts.find((p) => p.def.inflate).inflated && !c2.shells.length && Math.abs(c2.propTotal('gas') - 0.123) < 1e-9, 'states');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

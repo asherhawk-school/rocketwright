@@ -4,7 +4,7 @@
 const $ = (id) => document.getElementById(id);
 const Hangar = {
   design: newDesign(), name: 'Orbiter I', sel: null, sym: true, showMarkers: true,
-  undo: [], redo: [], view: null, a: null, drag: null, hover: null, crewId: null,
+  undo: [], redo: [], view: null, a: null, drag: null, hover: null, crewId: null, crewN: 1,
 };
 
 /* ---------------- palette ---------------- */
@@ -309,6 +309,7 @@ function drawBuild() {
   if (craft) {
     const order = craft.parts.slice().sort((p, q) => (p.def.radial ? 1 : 0) - (q.def.radial ? 1 : 0));
     for (const p of order) drawPart(ctx, p, lw);
+    for (const f of craft.shells) drawShell(ctx, f, lw, 0.28);
     const box = (p, col, dash) => {
       const hw = maxWidth(p.def) / 2 + 0.12;
       ctx.strokeStyle = col; ctx.lineWidth = 2 / v.s;
@@ -527,13 +528,19 @@ function updateStats() {
     const extra = [];
     if (locked.length) extra.push({ lvl: 'err', text: `Uses parts you haven't researched: ${locked.map((id) => PART_DEFS[id].name).join(', ')}.` });
     if (cost > s.funds) extra.push({ lvl: 'err', text: `This rocket costs ${fmtFunds(cost)} but you have ${fmtFunds(s.funds)}.` });
-    if (Hangar.design.parts.some((p) => PART_DEFS[p.id].pod)) {
+    const seats = designSeats(Hangar.design);
+    if (seats > 0) {
       const av = availableCrew(s).sort((x, y) => crewRank(y) - crewRank(x));
       if (!av.length) extra.push({ lvl: 'err', text: 'No astronauts available. Hire one in the Astronaut Office.' });
       else {
         if (!av.some((c) => c.id === Hangar.crewId)) Hangar.crewId = av[0].id;
         const sel = $('crewSelect');
         sel.innerHTML = av.map((c) => `<option value="${c.id}" ${c.id === Hangar.crewId ? 'selected' : ''}>${c.name} ${'★'.repeat(crewRank(c))}</option>`).join('');
+        const most = Math.min(seats, av.length);
+        Hangar.crewN = clamp(Hangar.crewN || 1, 1, most);
+        const cnt = $('crewCount');
+        cnt.innerHTML = Array.from({ length: most }, (_, i) => `<option value="${i + 1}" ${i + 1 === Hangar.crewN ? 'selected' : ''}>${i + 1} aboard</option>`).join('');
+        cnt.classList.toggle('hidden', most < 2);
         $('crewRow').classList.remove('hidden');
       }
     }
@@ -590,6 +597,7 @@ function wireHangar() {
   window.addEventListener('pointerup', onPointerUp);
   $('selDel').addEventListener('click', removeSel);
   $('crewSelect').addEventListener('change', (e) => { Hangar.crewId = +e.target.value; });
+  $('crewCount').addEventListener('change', (e) => { Hangar.crewN = +e.target.value; });
   $('btnUndo').addEventListener('click', undo);
   $('btnRedo').addEventListener('click', redo);
   $('btnSym').addEventListener('click', () => setSymmetry(!Hangar.sym));

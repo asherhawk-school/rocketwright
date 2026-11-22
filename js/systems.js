@@ -62,7 +62,15 @@ function solarInput(c, t) {
 /* One step of the power budget. wheelUse = kN·m of reaction-wheel torque being used. */
 function electricStep(c, dt, t, wheelUse) {
   let gain = solarInput(c, t);
-  for (const e of c.engines) if (e.burn > 0 && !e.def.solid) gain += EC_ALTERNATOR * e.burn;
+  for (const e of c.engines) if (e.burn > 0 && !e.def.solid && !e.def.prop) gain += EC_ALTERNATOR * e.burn;
+  // fuel cells top the batteries up from rocket fuel in their own stage
+  for (const p of c.cells || []) {
+    p.cellRun = 0;
+    if (p.cellOff || ecTotal(c) >= c.ecMax - 0.01) continue;
+    const got = c.takeFuel(c.groups.get(p.uid), p.def.cellEC * dt * CELL_FUEL_PER_EC) / CELL_FUEL_PER_EC;
+    p.cellRun = dt > 0 ? got / dt : 0;
+    gain += p.cellRun;
+  }
   c.ecRate = gain;
   ecAdd(c, gain * dt);
   const probes = c.parts.filter((p) => p.def.probe).length;
@@ -81,7 +89,8 @@ const T_AMBIENT = 290;
 const HEAT_K = 2.5e-4;             // how strongly air friction heats parts
 const MAX_TEMP_BY_KIND = {
   nose: 2400, engine: 2000, srb: 1800, fins: 1500, legs: 1500, sensor: 1200, antenna: 1200, solar: 1100, chute: 1300,
-  jar: 1500, spike: 1400, sniffer: 1200, rcs: 1500, probe: 1400, battery: 1300, pod: 2200, shield: 3300,
+  jar: 1500, spike: 1400, sniffer: 1200, rcs: 1500, probe: 1400, battery: 1300, pod: 2200, shield: 3300, fairing: 2000, ion: 1300,
+  aerospike: 2000, airbrake: 2400, strut: 1600, cabin: 2000, fuelcell: 1300, fuelcellL: 1300, batbank: 1300, gastank: 1300, gasdrum: 1300,
 };
 function partMaxTemp(def) { return def.maxTemp || MAX_TEMP_BY_KIND[def.kind] || 1800; }
 
@@ -114,7 +123,9 @@ function heatStep(c, dt, rho, vx, vy) {
     if (F > 0) {
       const norm = span > 1e-6 ? (p._s - smin) / span : 1;
       const exposure = 0.04 + 0.96 * norm * norm * norm;
-      heatIn = (exposure * F * maxWidth(p.def) * HEAT_K) / Math.max(p.m, 0.25);
+      heatIn = (exposure * F * Math.min(partWidth(p), 3) * HEAT_K) / Math.max(p.m, 0.25);
+      if (p.enclosed) heatIn *= 0.03;        // inside a fairing
+      if (p.inflated) heatIn *= 0.35;        // the inflated shield spreads its heat over a huge area
       if (p.def.kind === 'shield' && p.ablator > 0) {
         heatIn *= 0.3;
         if (p.temp > 700) p.ablator = Math.max(0, p.ablator - 0.0006 * ((p.temp - 700) / 1000) * dt);

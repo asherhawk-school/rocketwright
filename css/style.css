@@ -169,6 +169,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 .bar div { height: 100%; width: 0; background: linear-gradient(90deg, #f0a030, #ffd34d); }
 .bar.solid div { background: linear-gradient(90deg, #c8402f, #ff7a4d); }
 .bar.mono div { background: linear-gradient(90deg, #5fb97a, #b6f5c8); }
+.bar.gas div { background: linear-gradient(90deg, #4a7fd0, #a8d0ff); }
 .bar.ec div { background: linear-gradient(90deg, #3a7bd5, #7fd4ff); }
 .fuel em { font-style: normal; font-family: var(--mono); font-size: 10px; width: 52px; text-align: right; }
 #heatWarn { margin-top: 4px; font-size: 13px; font-weight: 700; color: #ffb38a; text-shadow: 0 1px 3px #000; }

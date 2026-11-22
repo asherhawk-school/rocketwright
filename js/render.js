@@ -252,6 +252,133 @@ function drawPart(ctx, p, lw) {
       ctx.quadraticCurveTo(-tw * 1.1, lerp(yb, bot, 0.65), -tw, yb);
       ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.fillStyle = '#5b616b'; ctx.fillRect(-bw, bot, 2 * bw, 0.07);
+      if (d.nuclear) {
+        ctx.fillStyle = cylGrad(ctx, -hw, hw, '#4a5058', '#c8ced8', '#3e434b');
+        ctx.fillRect(-hw, top - mh - 0.05, 2 * hw, 0.6); ctx.strokeRect(-hw, top - mh - 0.05, 2 * hw, 0.6);
+        ctx.fillStyle = '#e8d030'; ctx.beginPath(); ctx.arc(0, top - mh + 0.25, 0.16, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#2a2d33'; ctx.beginPath(); ctx.arc(0, top - mh + 0.25, 0.05, 0, TAU); ctx.fill();
+      }
+      break;
+    }
+    case 'pod3': {
+      ctx.fillStyle = cylGrad(ctx, -hb, hb, '#8a9099', '#f2f4f7', '#727882');
+      poly(ctx, [[-hb, bot + 0.15], [hb, bot + 0.15], [hw, top], [-hw, top]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#6b4a2e';
+      poly(ctx, [[-hb - 0.02, bot], [hb + 0.02, bot], [hb, bot + 0.17], [-hb, bot + 0.17]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#1d3a5c';
+      for (const wx of [-0.75, 0, 0.75]) poly(ctx, [[wx - 0.22, bot + 0.9], [wx + 0.22, bot + 0.9], [wx + 0.17, bot + 1.3], [wx - 0.17, bot + 1.3]]), ctx.fill();
+      ctx.fillStyle = '#c94a2c'; ctx.fillRect(-hw, top - 0.1, hw * 2, 0.1);
+      ctx.fillStyle = '#3b414b'; ctx.fillRect(-hb * 0.9, bot + 0.45, hb * 1.8, 0.08);
+      break;
+    }
+    case 'drogue': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#a07a1a', '#f4c64a', '#8a6a18');
+      poly(ctx, [[-hw * 0.93, bot], [hw * 0.93, bot], [hw * 0.6, top], [-hw * 0.6, top]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#3b414b'; ctx.fillRect(-hw * 0.8, bot + h * 0.4, hw * 1.6, 0.06);
+      break;
+    }
+    case 'bloom': {
+      if (p.inflated) {
+        const W = d.wOpen / 2;
+        ctx.fillStyle = '#c8b48a';
+        ctx.beginPath(); ctx.moveTo(-W, top); ctx.lineTo(W, top);
+        ctx.quadraticCurveTo(W * 0.85, bot - 0.5, 0, bot - 0.7); ctx.quadraticCurveTo(-W * 0.85, bot - 0.5, -W, top);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = 'rgba(80,60,40,0.6)'; ctx.lineWidth = Math.max(lw, 0.04);
+        ctx.beginPath();
+        for (let i = 1; i < 6; i++) { const t = i / 6; ctx.moveTo(-W * t, top - 0.1); ctx.quadraticCurveTo(-W * t * 0.8, bot - 0.4 * (1 - t), -W * t * 0.2, bot - 0.65 * (1 - t * 0.4)); }
+        for (let i = 1; i < 6; i++) { const t = i / 6; ctx.moveTo(W * t, top - 0.1); ctx.quadraticCurveTo(W * t * 0.8, bot - 0.4 * (1 - t), W * t * 0.2, bot - 0.65 * (1 - t * 0.4)); }
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = cylGrad(ctx, -hw, hw, '#7a6a50', '#d8c8a0', '#6a5a40');
+        ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+        ctx.fillStyle = '#3b414b'; ctx.fillRect(-hw, bot + h * 0.45, 2 * hw, 0.08);
+      }
+      break;
+    }
+    case 'airbrake': {
+      ctx.fillStyle = '#4a505a'; ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#c9ccd2';
+      if (p.brake) poly(ctx, [[hw, top - 0.1], [hw + 0.9, top + 0.35], [hw + 1.0, top + 0.2], [hw + 0.12, top - 0.35]]);
+      else poly(ctx, [[hw, bot + 0.1], [hw + 0.12, bot + 0.1], [hw + 0.12, top - 0.1], [hw, top - 0.1]]);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#e0b030'; ctx.fillRect(-hw, bot + h * 0.45, 2 * hw, 0.08);
+      break;
+    }
+    case 'aerospike': {
+      ctx.fillStyle = '#3a3f48';
+      poly(ctx, [[-hw, top], [hw, top], [hw, top - h * 0.3], [-hw, top - h * 0.3]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#2a2d33', '#b0b6c0', '#24272c');
+      poly(ctx, [[-hw * 0.95, top - h * 0.3], [hw * 0.95, top - h * 0.3], [hw * 0.18, bot], [-hw * 0.18, bot]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#c8642c'; ctx.fillRect(-hw, top - h * 0.3 - 0.06, 2 * hw, 0.08);
+      break;
+    }
+    case 'ion': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#9aa0a8', '#e8eaee', '#7a8089');
+      poly(ctx, [[-hw, top], [hw, top], [hw * 0.85, bot + 0.12], [-hw * 0.85, bot + 0.12]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#20242b'; ctx.fillRect(-hw * 0.8, bot, hw * 1.6, 0.14); ctx.strokeRect(-hw * 0.8, bot, hw * 1.6, 0.14);
+      ctx.fillStyle = '#6ab8ff';
+      for (let x = -hw * 0.65; x < hw * 0.7; x += 0.22) ctx.fillRect(x, bot + 0.03, 0.1, 0.06);
+      break;
+    }
+    case 'gastank': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#6a7f9a', '#dce8f5', '#5a6f8a');
+      ctx.beginPath(); ctx.roundRect(-hw, bot, 2 * hw, h, hw); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#2b2f36'; ctx.fillRect(-hw, bot + h * 0.45, 2 * hw, 0.08);
+      break;
+    }
+    case 'gasdrum': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#6a7f9a', '#dce8f5', '#5a6f8a');
+      ctx.beginPath(); ctx.roundRect(-hw, bot, 2 * hw, h, 0.2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#2b2f36'; ctx.fillRect(-hw, top - 0.08, 2 * hw, 0.08); ctx.fillRect(-hw, bot, 2 * hw, 0.08);
+      ctx.fillStyle = '#6ab8ff'; ctx.fillRect(hw * 0.55, bot + 0.15, 0.1, (h - 0.3) * (d.gas ? p.gas / d.gas : 0));
+      break;
+    }
+    case 'cabin': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#8a9099', '#f2f4f7', '#727882');
+      ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#3b414b'; ctx.fillRect(-hw, top - 0.1, 2 * hw, 0.1); ctx.fillRect(-hw, bot, 2 * hw, 0.1);
+      ctx.fillStyle = '#1d3a5c';
+      for (const wx of [-0.5, 0.5]) { ctx.beginPath(); ctx.arc(wx, bot + h * 0.55, 0.22, 0, TAU); ctx.fill(); }
+      ctx.fillStyle = 'rgba(255,220,140,0.7)';
+      for (const wx of [-0.5, 0.5]) { ctx.beginPath(); ctx.arc(wx - 0.05, bot + h * 0.58, 0.08, 0, TAU); ctx.fill(); }
+      break;
+    }
+    case 'fairing': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, ...DARK);
+      ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#e0b030'; ctx.fillRect(-hw, top - 0.08, 2 * hw, 0.08);
+      break;
+    }
+    case 'fairHalf': {
+      // one half of a fairing shell; x = 0 is its middle, the outer side faces +x
+      const hh = hw / 2;
+      ctx.fillStyle = cylGrad(ctx, -hh, hh, '#c9ccd2', '#f7f8fa', '#aeb2ba');
+      ctx.beginPath();
+      ctx.moveTo(-hh, bot); ctx.lineTo(hh, bot); ctx.lineTo(hh, bot + h * 0.7);
+      ctx.quadraticCurveTo(hh, top - h * 0.05, -hh, top); ctx.closePath(); ctx.fill(); ctx.stroke();
+      break;
+    }
+    case 'strut': {
+      ctx.strokeStyle = '#6a717c'; ctx.lineWidth = 0.12;
+      ctx.beginPath(); ctx.moveTo(-hw, top - 0.1); ctx.lineTo(hw + 0.5, bot + 0.1); ctx.stroke();
+      ctx.lineWidth = lw; ctx.strokeStyle = OUTLINE;
+      ctx.fillStyle = '#3a3f47'; ctx.fillRect(-hw, top - 0.25, 0.25, 0.25); ctx.fillRect(hw + 0.35, bot, 0.25, 0.25);
+      break;
+    }
+    case 'batbank': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, ...DARK); ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#e0b030';
+      for (let y = bot + 0.15; y < top - 0.1; y += 0.25) ctx.fillRect(-hw * 0.8, y, hw * 1.6, 0.08);
+      ctx.fillStyle = '#7dffa8'; ctx.fillRect(hw * 0.85, bot + 0.1, 0.1, (h - 0.2) * (d.ec ? p.ec / d.ec : 0));
+      break;
+    }
+    case 'fuelcell': case 'fuelcellL': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#5a6a5a', '#c6d8c6', '#4a5a4a');
+      ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#2b2f36';
+      for (let x = -hw + 0.08; x < hw - 0.05; x += 0.16) ctx.fillRect(x, bot + 0.1, 0.07, h - 0.2);
+      ctx.fillStyle = p.cellRun > 0 ? '#7dffa8' : '#3a5a3a'; ctx.fillRect(-hw * 0.3, top - 0.12, hw * 0.6, 0.06);
       break;
     }
     case 'srb': {
@@ -269,7 +396,7 @@ function drawPart(ctx, p, lw) {
   ctx.restore();
 }
 
-function flameHalfWidth(d) { return d.kind === 'srb' ? (d.w / 2) * 0.62 : d.bell / 2; }
+function flameHalfWidth(d) { return d.kind === 'srb' ? (d.w / 2) * 0.62 : d.bell ? d.bell / 2 : d.w * 0.35; }
 
 function drawFlame(ctx, p, pressure, flick) {
   const d = p.def;
@@ -282,7 +409,11 @@ function drawFlame(ctx, p, pressure, flick) {
   ctx.translate(p.x, 0);
   if (p.inv) { ctx.translate(0, p.top + p.bot); ctx.scale(1, -1); }
   const g = ctx.createLinearGradient(0, y0, 0, y0 - L);
-  if (d.kind === 'srb') {
+  if (d.kind === 'ion') {
+    g.addColorStop(0, 'rgba(200,230,255,0.9)'); g.addColorStop(0.3, 'rgba(90,160,255,0.6)'); g.addColorStop(1, 'rgba(40,80,255,0)');
+  } else if (d.nuclear) {
+    g.addColorStop(0, 'rgba(230,250,255,0.95)'); g.addColorStop(0.3, 'rgba(150,220,255,0.7)'); g.addColorStop(1, 'rgba(120,120,255,0)');
+  } else if (d.kind === 'srb') {
     g.addColorStop(0, 'rgba(255,245,210,0.95)'); g.addColorStop(0.3, 'rgba(255,160,50,0.8)'); g.addColorStop(1, 'rgba(255,60,0,0)');
   } else {
     g.addColorStop(0, 'rgba(235,242,255,0.95)'); g.addColorStop(0.25, 'rgba(255,205,130,0.8)'); g.addColorStop(1, 'rgba(255,90,30,0)');
@@ -301,11 +432,9 @@ function drawFlame(ctx, p, pressure, flick) {
 }
 
 function drawCanopy(ctx, c) {
-  const chutes = c.parts.filter((p) => p.def.chute);
-  if (!chutes.length) return;
-  const s = (Math.sqrt(c.chuteArea) * 0.6) / Math.sqrt(chutes.length);
-  const L = s * 1.1 + 2;
+  const chutes = c.parts.filter((p) => p.def.chute && p.open && p.area > 1);
   for (const cp of chutes) {
+    const s = Math.sqrt(cp.area) * 0.6, L = s * 1.1 + 2;
     const y0 = cp.top, x0 = cp.x + (cp.def.radial ? (cp.flip ? -1 : 1) * s * 0.6 : 0);
     ctx.save();
     ctx.translate(x0, 0);
@@ -314,7 +443,7 @@ function drawCanopy(ctx, c) {
     ctx.beginPath();
     for (const f of [-1, -0.5, 0.5, 1]) { ctx.moveTo(cp.x - x0, y0); ctx.lineTo(f * s, y0 + L); }
     ctx.stroke();
-    ctx.fillStyle = '#e8643a';
+    ctx.fillStyle = cp.def.drogue ? '#f0b830' : '#e8643a';
     ctx.beginPath();
     ctx.moveTo(-s, y0 + L);
     ctx.quadraticCurveTo(-s * 0.95, y0 + L + s * 0.9, 0, y0 + L + s * 0.85);
@@ -338,7 +467,7 @@ function drawCraft(ctx, c, cam, zoom, pressure) {
   ctx.translate(c.pos[0] - cam[0], c.pos[1] - cam[1]);
   ctx.rotate(c.angle - Math.PI / 2);
   ctx.translate(-c.xc, -c.yc);
-  if (c.chuteArea > 1 && c.hasChute) drawCanopy(ctx, c);
+  if (c.hasChute) drawCanopy(ctx, c);
   ctx.globalCompositeOperation = 'lighter';
   const flick = 0.9 + Math.random() * 0.2;
   for (const p of c.parts) if (p.burn > 0) drawFlame(ctx, p, pressure, flick);
@@ -352,6 +481,7 @@ function drawCraft(ctx, c, cam, zoom, pressure) {
   ctx.globalCompositeOperation = 'source-over';
   const lw = Math.max(0.03, 1 / zoom);
   for (const p of c.parts) drawPart(ctx, p, lw);
+  for (const f of c.shells || []) drawShell(ctx, f, lw, 1);
   // red-hot parts glow
   ctx.globalCompositeOperation = 'lighter';
   for (const p of c.parts) {
@@ -362,6 +492,25 @@ function drawCraft(ctx, c, cam, zoom, pressure) {
     ctx.fillRect(p.x - hw, p.bot, 2 * hw, p.def.h);
   }
   ctx.globalCompositeOperation = 'source-over';
+  ctx.restore();
+}
+
+/* A fairing's shell over its payload (see-through in the hangar). */
+function drawShell(ctx, f, lw, alpha) {
+  const H = shellH(f), hw = f.def.shellW / 2, y0 = f.top, y1 = f.top + H;
+  ctx.save();
+  ctx.translate(f.x, 0);
+  if (f.inv) { ctx.translate(0, 2 * f.top); ctx.scale(1, -1); }
+  ctx.globalAlpha = alpha;
+  ctx.lineWidth = lw; ctx.strokeStyle = OUTLINE;
+  ctx.fillStyle = cylGrad(ctx, -hw, hw, '#c9ccd2', '#f7f8fa', '#aeb2ba');
+  ctx.beginPath();
+  ctx.moveTo(-f.def.w / 2, y0); ctx.lineTo(-hw, y0 + Math.min(0.5, H * 0.1)); ctx.lineTo(-hw, y0 + H * 0.65);
+  ctx.quadraticCurveTo(-hw, y1, 0, y1); ctx.quadraticCurveTo(hw, y1, hw, y0 + H * 0.65);
+  ctx.lineTo(hw, y0 + Math.min(0.5, H * 0.1)); ctx.lineTo(f.def.w / 2, y0); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(60,64,72,0.7)';
+  ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(0, y1); ctx.stroke();
   ctx.restore();
 }
 
@@ -376,9 +525,13 @@ function drawPartIcon(canvas, id, W = 46, H = 54) {
   let x0 = -maxWidth(def) / 2 - 0.1, x1 = maxWidth(def) / 2 + 0.1, yTop = 0, yBot = -def.h;
   if (def.kind === 'legs') { p.footX = 1.3; p.footY = -def.h - 0.9; x1 = 1.75; yBot = p.footY; }
   if (def.kind === 'rcs') { x1 += 0.2; yTop += 0.15; yBot -= 0.15; }
+  if (def.kind === 'airbrake') x1 += 0.2;
+  if (def.kind === 'strut') x1 += 0.6;
+  if (def.fairing) { p.shell = true; p.cfg = { fairH: 2.2 }; p.def = def; yTop = 2.2; x0 = -def.shellW / 2 - 0.1; x1 = -x0; }
   const s = Math.min((W - 6) / (x1 - x0), (H - 6) / (yTop - yBot));
   ctx.setTransform(dpr * s, 0, 0, -dpr * s, dpr * (W / 2 - ((x0 + x1) / 2) * s), dpr * (H / 2 + ((yTop + yBot) / 2) * s));
   drawPart(ctx, p, 1 / s);
+  if (def.fairing) drawShell(ctx, p, 1 / s, 0.55);
 }
 
 /* Terrain of a body in world space, sampled only across the part of the surface in view. */

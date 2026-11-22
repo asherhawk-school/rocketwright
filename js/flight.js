@@ -26,7 +26,7 @@ function initFlightView() {
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
-    'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'bRcs', 'hNext', 'hPitch',
+    'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bRcs', 'hNext', 'hPitch',
     'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
@@ -175,10 +175,33 @@ function doStage() {
     msgs.push(`Ignition: ${names}`);
     if (first && c.throttle === 0) c.throttle = 1;
   }
+  if (res.fairings) { for (const f of res.fairings) jettisonFairing(c, f); msgs.push('Fairing open'); }
+  if (res.inflated) msgs.push('Heat shield inflated');
   if (res.chute) { msgs.push('Parachute deployed'); playSound('chute'); }
   else playSound('stage');
   F.dvTick = 0;
   if (msgs.length) flash(msgs.join(' · '));
+}
+
+/* The two halves of a fairing shell, thrown off sideways as debris. */
+function jettisonFairing(c, f) {
+  const H = shellH(f), hw = f.def.shellW / 2;
+  for (const s of [-1, 1]) {
+    const def = { kind: 'fairHalf', name: 'Fairing half', mass: SHELL_MASS_PER_M * f.def.shellW * H / 2, h: H, w: hw, maxTemp: 2000 };
+    const part = { uid: 1, id: 'fairHalf', def, x: f.x + s * hw / 2, top: f.top + H, bot: f.top, flip: s < 0, inv: false, links: [], cfg: {},
+      fuel: 0, solid: 0, mono: 0, gas: 0, ec: 0, ablator: 0, temp: f.temp, burn: 0, m: 0, side: s };
+    const d = new Craft([part]);
+    d.angle = c.angle;
+    d.xc = undefined;
+    d.recompute();
+    d.pos = c.toWorld(part.x, (part.top + part.bot) / 2);
+    const wv = c.rotLocal(s * 4, 0.5);
+    d.vel = [c.vel[0] + wv[0], c.vel[1] + wv[1]];
+    d.angVel = c.angVel - s * 0.6;
+    F.debris.push(d);
+  }
+  c.recompute();
+  F.dvTick = 0;
 }
 
 /* Join a neighbouring vessel at the docking ports found by findDock. */
@@ -380,6 +403,8 @@ function syncLanded(c) {
   c.vel[0] = bv[0]; c.vel[1] = bv[1];
 }
 
+const CHUTE_TEAR_Q = 40; // kPa
+
 function stepCraft(c, dt, player) {
   const t = F.t;
   const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], t);
@@ -435,15 +460,31 @@ function stepCraft(c, dt, player) {
   const vrx = c.vel[0] - bv[0], vry = c.vel[1] - bv[1];
   const v = Math.hypot(vrx, vry);
   c.q = (0.5 * at.rho * v * v) / 1000;
-  if (c.chuteOpen && c.hasChute && at.rho > 0) {
-    const target = c.radar < (c.chuteAlt || 1500) ? 720 : 45;
-    c.chuteArea += (target - c.chuteArea) * Math.min(1, dt * 0.8);
+  if (c.hasChute && at.rho > 0) {
+    let A = 0;
+    for (const p of c.chutes) {
+      if (!p.open) continue;
+      const full = c.radar < cfgVal(p, p.def.drogue ? 'drogueAlt' : 'deployAlt');
+      const target = full ? p.def.chuteFull : p.def.chuteSemi;
+      // a main canopy opening fully while the air rushes past too fast rips off; drogues are built for it
+      if (full && !p.def.drogue && c.q > CHUTE_TEAR_Q && p.area < p.def.chuteFull * 0.9) {
+        p.open = false; p.torn = true; p.area = 0;
+        if (player) flash(`${p.def.name} tore off! Too fast: open a drogue first or wait to slow down.`, 4);
+        continue;
+      }
+      p.area += (target - p.area) * Math.min(1, dt * 0.8);
+      A += p.area;
+    }
+    c.chuteArea = A;
+    c.chuteOpen = c.chutes.some((p) => p.open);
   }
   if (at.rho > 0 && v > 0.1) {
     const q = (0.5 * at.rho * v * v) / 1000; // kPa
     const vhx = vrx / v, vhy = vry / v;
     const sinA = Math.abs(ax * vhy - ay * vhx);
-    const CdA = 0.55 * Math.PI * (c.width / 2) * (1 + 4 * sinA) + c.chuteArea;
+    let CdA = 0.55 * Math.PI * (c.aeroWidth / 2) * (1 + 4 * sinA) + c.chuteArea;
+    for (const p of c.brakes) if (p.brake) CdA += p.def.brakeArea;
+    for (const p of c.parts) if (p.inflated) CdA += 0.9 * Math.PI * (p.def.wOpen / 2) ** 2 * Math.abs(ax * vhx + ay * vhy);
     const dv = Math.min(((q * CdA) / c.M) * dt, v * 0.9);
     c.vel[0] -= vhx * dv; c.vel[1] -= vhy * dv;
     ngx -= (vhx * dv) / dt; ngy -= (vhy * dv) / dt;
@@ -451,9 +492,17 @@ function stepCraft(c, dt, player) {
     // fins behind the centre of mass add stability; fins in front of it reduce it
     let stab = 0.12;
     for (const f of c.fins) stab += 0.3 * clamp(((c.yc - (f.top + f.bot) / 2) / Math.max(c.length, 1)) * 4, -1, 1);
+    for (const f of c.brakes) if (f.brake) stab += 0.4 * clamp(((c.yc - (f.top + f.bot) / 2) / Math.max(c.length, 1)) * 4, -1, 1);
     const kR = q * c.length * 2 * Math.max(stab, 0.02);
     tq -= kR * Math.sin(wrapPi(c.angle - flowAng));
     kSpring += kR;
+    // a big inflated shield acts like a shuttlecock: the craft swings round to fly shield first
+    for (const f of c.parts) if (f.inflated) {
+      const arm = c.yc - (f.top + f.bot) / 2;
+      const kS = q * f.def.wOpen * f.def.wOpen * 0.5 * Math.min(Math.abs(arm) + 0.3, 3);
+      tq -= kS * Math.sin(wrapPi(c.angle - flowAng - (arm > 0 ? Math.PI : 0)));
+      kSpring += kS;
+    }
     if (c.chuteArea > 1) {
       const kC = q * c.chuteArea * 0.4;
       tq -= kC * Math.sin(wrapPi(c.angle - flowAng - Math.PI));
@@ -1523,7 +1572,11 @@ function updateHud() {
   for (const p of c.parts) if (p.def.mono) { mono += p.mono; monoMax += p.def.mono; }
   h.fLiqRow.style.display = liqMax > 0 ? '' : 'none';
   h.fSolRow.style.display = solMax > 0 ? '' : 'none';
-  h.fMonoRow.style.display = monoMax > 0 && c.rcsParts.length ? '' : 'none';
+  h.fMonoRow.style.display = monoMax > 0 && (c.rcsParts.length || c.engines.some((e) => e.def.prop === 'mono')) ? '' : 'none';
+  let gas = 0, gasMax = 0;
+  for (const p of c.parts) if (p.def.gas) { gas += p.gas; gasMax += p.def.gas; }
+  h.fGasRow.style.display = gasMax > 0 ? '' : 'none';
+  h.fGas.style.width = (gasMax ? (100 * gas) / gasMax : 0) + '%';
   h.fLiq.style.width = (liqMax ? (100 * liq) / liqMax : 0) + '%';
   h.fSol.style.width = (solMax ? (100 * sol) / solMax : 0) + '%';
   h.fMono.style.width = (monoMax ? (100 * mono) / monoMax : 0) + '%';

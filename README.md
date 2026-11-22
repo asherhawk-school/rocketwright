@@ -22,19 +22,25 @@ then visit http://localhost:8000.
   money, and recovering your craft refunds most of it. Run experiments with six science instruments (each worth more on new worlds and in new
   situations), transmit or recover the results, and research a 14-node tech tree. Astronauts gain experience and can be lost.
   Reverting a flight undoes it; saves can be exported and imported. **Sandbox mode** unlocks everything with no money.
-- **Hangar**: drag 55 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
+- **Hangar**: drag 75 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS, plus engine mounts
   (twin, tri and quad) for clusters of engines side by side.
+- **Advanced parts**: a 3-seat Heron capsule and a 4-seat crew cabin (fly several astronauts at once), shell fairings that cover a
+  payload and split open, an atomic engine, an ion drive that burns argon and electricity, an aerospike that works well at any
+  altitude, a small monopropellant engine, big batteries and fuel cells, struts, a 3 m heat shield, an inflatable heat shield,
+  drogue parachutes and air brakes.
 - **Staging editor**: automatic staging you can reorder by dragging parts between stages (or between two stages to make a new one),
   with simulated Δv, thrust-to-weight and burn time for every stage.
-- **Part settings**: when each parachute opens fully, engine and booster thrust limits, and how much fuel each tank carries.
+- **Part settings**: when each parachute opens fully, engine and booster thrust limits, how much fuel each tank carries, and how
+  tall a fairing's shell is.
 - **Part menu in flight**: hover a part for its details; click it to run science, open a parachute, start or stop an engine,
   fire one decoupler, undock, or change its settings.
   Craft are saved in your browser.
 - **Flight physics**: thrust with altitude-dependent Isp, fuel flow through the part tree (boosters drain first through crossfeed),
   off-centre thrust torque, side-booster separation, RCS translation, atmospheric drag, fin stability,
-  reaction wheels and engine gimbal, parachutes, terrain and oceans, crash and landing detection.
+  reaction wheels and engine gimbal, parachutes (a main canopy that opens fully too fast tears off; drogues don't), air brakes,
+  terrain and oceans, crash and landing detection.
 - **Solar system**: the star Helion with six planets and seven moons, all original: scorched Cinder; home world Verdan and
   its moon Pallid; desert Ochre (Pip, Shard); the gas giant Tempest (Gale with air and seas, volcanic Ember, icy Frost); frozen
   Glacis; and distant Umbra. Each has its own gravity, terrain, colours, and in some cases air and seas. Gas giants have no surface.
@@ -78,6 +84,7 @@ then visit http://localhost:8000.
 | T, 1–9 | SAS toggle / modes (7 node, 8 target, 9 match target speed) |
 | U; [ / ] | Undock; switch to a nearby vessel |
 | R; Q / E; H / N | RCS toggle; slide sideways; forward / back |
+| K | Air brakes out / in |
 | B | Science panel (career) |
 | M | Map view (F changes focus) |
 | , / . | Time warp slower / faster |
@@ -97,7 +104,8 @@ Headless checks for staging, fuel flow, symmetry, save migration, autopilot flig
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
 career rules (research, science values, contracts, recovery, crew loss), power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
-docking and undocking, and rescue contracts.
+docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
+fairings, fuel cells and crew seats.
 
 ## Code layout
 

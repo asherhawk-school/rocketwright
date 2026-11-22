@@ -14,7 +14,8 @@ function universe() {
 
 /* ---------------- serialisation ---------------- */
 
-const PART_KEYS = ['uid', 'id', 'x', 'top', 'bot', 'flip', 'inv', 'links', 'fuel', 'solid', 'mono', 'ec', 'ablator', 'ignited', 'result', 'spent', 'sym', 'cfg'];
+const PART_KEYS = ['uid', 'id', 'x', 'top', 'bot', 'flip', 'inv', 'links', 'fuel', 'solid', 'mono', 'gas', 'ec', 'ablator', 'ignited', 'result', 'spent', 'sym', 'cfg',
+  'shell', 'open', 'area', 'torn', 'inflated', 'brake', 'cellOff', 'gear'];
 
 function serialiseParts(parts) {
   return parts.map((p) => {
@@ -26,7 +27,7 @@ function serialiseParts(parts) {
 }
 function deserialiseParts(list) {
   return list.filter((o) => PART_DEFS[o.id]).map((o) => ({
-    fuel: 0, solid: 0, mono: 0, ec: 0, ablator: 0, ignited: false, flip: false, inv: false, sym: null,
+    fuel: 0, solid: 0, mono: 0, gas: 0, ec: 0, ablator: 0, ignited: false, flip: false, inv: false, sym: null, shell: false, open: false, area: 0,
     ...JSON.parse(JSON.stringify(o)), def: PART_DEFS[o.id], temp: T_AMBIENT, burn: 0, m: 0,
   }));
 }
@@ -54,8 +55,9 @@ function craftFromVessel(v) {
   c.pos = [v.s[0], v.s[1]];
   c.vel = [v.s[2], v.s[3]];
   if (v.landed) c.landed = { body: BODY_BY_ID[v.landed.body], rx: v.landed.rx, ry: v.landed.ry };
-  c.chuteOpen = !!v.chuteOpen;
-  c.chuteArea = v.chuteArea || 0;
+  // saves from before parachutes opened one by one
+  if (v.chuteOpen && !c.chutes.some((p) => p.open)) for (const p of c.chutes) { p.open = true; p.area = (v.chuteArea || 0) / c.chutes.length; }
+  c.recompute();
   c.rcsOn = !!v.rcsOn;
   c.vid = v.id;
   return c;

@@ -167,6 +167,58 @@ Object.assign(PART_DEFS, {
     desc: 'Heat shield for 1.25 m craft.' },
 });
 
+Object.assign(PART_DEFS.pod, { seats: 1 });
+Object.assign(PART_DEFS.chute, { chuteFull: 720, chuteSemi: 45 });
+Object.assign(PART_DEFS.chuteRadial, { chuteFull: 400, chuteSemi: 25 });
+Object.assign(PART_DEFS, {
+  // Reentry and recovery
+  shield3: { kind: 'shield', name: 'Ablator Shield W', cat: 'Structure', mass: 0.45, ablator: 0.6, h: 0.4, w: 3, maxTemp: 3300,
+    desc: 'Heat shield for 3 m capsules like the Heron.' },
+  bloom: { kind: 'bloom', name: 'Bloom Heat Shield', cat: 'Structure', mass: 0.4, h: 0.4, w: 1.25, wOpen: 6, maxTemp: 2600,
+    inflate: true, desc: 'Packs small, then inflates into a 6 m shield. The huge disc slows you high in thin air, so it never gets as hot. Inflate it from the part menu or by staging. It can\'t be packed again.' },
+  chuteDrogue: { kind: 'drogue', name: 'Streamer Drogue', cat: 'Command', mass: 0.08, h: 0.4, w: 0.9, chute: true, drogue: true,
+    noTop: true, chuteFull: 70, chuteSemi: 22, desc: 'A small, tough parachute that can open at high speed. It steadies and slows the capsule so the main canopy can open safely.' },
+  chuteBig: { kind: 'chute', name: 'Great Canopy', cat: 'Command', mass: 0.25, h: 0.55, w: 1.4, chute: true, noTop: true,
+    chuteFull: 1800, chuteSemi: 90, desc: 'A big parachute for the 3-seat Heron capsule and other heavy craft.' },
+  airbrake: { kind: 'airbrake', name: 'Flap Brake', cat: 'Utility', radial: true, mass: 0.05, h: 1.0, w: 0.3, maxTemp: 2400,
+    brakeArea: 5, desc: 'A panel that swings out into the airflow to slow you down. Toggle with K or from the part menu. Mount in pairs near the back.' },
+  // Advanced engines
+  hearth: { kind: 'engine', name: 'Hearth Atomic Engine', cat: 'Engines', mass: 3.0, h: 2.4, w: 1.25, thrust: 60, ispVac: 800,
+    ispSL: 185, gimbal: 1, bell: 1.05, nuclear: true, desc: 'A reactor heats fuel to make thrust. Low thrust and heavy, but more than twice as efficient as any rocket engine in space.' },
+  whisper: { kind: 'ion', name: 'Whisper Ion Drive', cat: 'Engines', mass: 0.25, h: 0.55, w: 1.25, thrust: 2.5, ispVac: 4200, ispSL: 100,
+    gimbal: 0, prop: 'gas', ecUse: 9, desc: 'Electric thruster with a very gentle push and amazing efficiency. Burns argon (from argon tanks anywhere on the craft) and 9 charge per second.' },
+  spindle: { kind: 'aerospike', name: 'Spindle Aerospike', cat: 'Engines', mass: 1.0, h: 1.3, w: 1.25, thrust: 180, ispVac: 340, ispSL: 325,
+    gimbal: 0, desc: 'Keeps nearly the same efficiency from the ground up to space, so one engine can do the whole climb. No gimbal.' },
+  puff: { kind: 'engine', name: 'Puff Monoprop Engine', cat: 'Engines', mass: 0.08, h: 0.5, w: 1.25, thrust: 18, ispVac: 250, ispSL: 120,
+    gimbal: 0, bell: 0.55, prop: 'mono', desc: 'A small engine that burns monopropellant from anywhere on the craft. Good for tiny probes and landers.' },
+  gasTank: { kind: 'gastank', name: 'Argon Flask', cat: 'Fuel', radial: true, mass: 0.03, gas: 0.08, h: 0.8, w: 0.45,
+    desc: 'Side-mounted argon tank for ion drives.' },
+  gasDrum: { kind: 'gasdrum', name: 'Argon Drum', cat: 'Fuel', mass: 0.12, gas: 0.45, h: 0.8, w: 1.25, desc: '1.25 m argon tank for ion drives.' },
+  // Crew and structure
+  heron: { kind: 'pod3', name: 'Heron Capsule', cat: 'Command', mass: 2.6, h: 2.2, w: 1.4, wb: 3, torque: 15, mono: 0.3, pod: true,
+    seats: 3, ec: 150, maxTemp: 2200, exp: 'crew', desc: 'A 3 m capsule with three seats, stronger reaction wheels and more power. Pair it with the Great Canopy and a 3 m heat shield.' },
+  cabin: { kind: 'cabin', name: 'Bunkhouse Module', cat: 'Utility', mass: 1.2, h: 2.0, w: 2, seats: 4, maxTemp: 2000,
+    desc: 'Room for four astronauts. It can\'t fly the craft on its own; it needs a capsule or probe core too.' },
+  fairing2: { kind: 'fairing', name: 'Shell Fairing', cat: 'Structure', mass: 0.1, h: 0.3, w: 2, shellW: 2.3, fairing: true,
+    desc: 'Put your payload on top of it. A smooth shell covers whatever sits above it (set the height), cutting drag and heat. Staging splits the shell open and throws it away.' },
+  fairing3: { kind: 'fairing', name: 'Shell Fairing W', cat: 'Structure', mass: 0.2, h: 0.35, w: 3, shellW: 3.4, fairing: true,
+    desc: 'A 3 m fairing for big payloads.' },
+  strut: { kind: 'strut', name: 'Brace Strut', cat: 'Structure', radial: true, mass: 0.01, h: 1.4, w: 0.25,
+    desc: 'A diagonal brace for side boosters and tanks. Craft here are rigid, so struts are for looks, and they cost very little.' },
+  batteryDisc: { kind: 'batring', name: 'Battery Disc', cat: 'Utility', mass: 0.03, h: 0.25, w: 1.25, ec: 400,
+    desc: 'A 1.25 m disc of batteries: 400 units of charge.' },
+  batteryBank: { kind: 'batbank', name: 'Battery Bank', cat: 'Utility', mass: 0.2, h: 0.8, w: 2, ec: 2500,
+    desc: 'A big 2 m battery: 2,500 units of charge.' },
+  fuelCell: { kind: 'fuelcell', name: 'Fuel Cell', cat: 'Utility', radial: true, mass: 0.05, h: 0.6, w: 0.45, cellEC: 1.5,
+    desc: 'Turns rocket fuel from its own stage into power (1.5 per second) whenever the batteries aren\'t full. Can be switched off.' },
+  fuelCellL: { kind: 'fuelcellL', name: 'Fuel Cell Array', cat: 'Utility', mass: 0.25, h: 0.6, w: 1.25, cellEC: 12,
+    desc: 'A 1.25 m stack of fuel cells: 12 power per second from rocket fuel.' },
+});
+/* fuel (tonnes) a fuel cell burns per unit of charge */
+const CELL_FUEL_PER_EC = 2e-5;
+/* fairing shell mass per metre of height, by base width */
+const SHELL_MASS_PER_M = 0.025;
+
 /* What each part costs in career mode (fuel included). */
 const PART_COSTS = {
   pod: 600, chute: 400, wheel: 900,
@@ -177,6 +229,9 @@ const PART_COSTS = {
   nose125: 150, nose2: 250, pylon: 200, fins: 150, legs: 300, rcs: 450,
   thermo: 250, baro: 400, jar: 600, seismic: 900, sniffer: 1200, antenna: 300,
   probe: 700, battery: 150, batteryRing: 600, solar: 500, shield2: 600, shield125: 300, dockPort: 800, chuteRadial: 450,
+  shield3: 1100, bloom: 2200, chuteDrogue: 400, chuteBig: 900, airbrake: 450, hearth: 9000, whisper: 7000, spindle: 3800, puff: 500,
+  gasTank: 400, gasDrum: 1500, heron: 3800, cabin: 2500, fairing2: 600, fairing3: 1100, strut: 40, batteryDisc: 400, batteryBank: 1800,
+  fuelCell: 700, fuelCellL: 3000,
 };
 for (const id in PART_DEFS) PART_DEFS[id].cost = PART_COSTS[id] || 100;
 
@@ -189,11 +244,16 @@ const SETTING_DEFS = {
   thrustLimit: { label: 'Thrust limit', min: 0, max: 100, step: 5, def: 100, unit: '%', fmt: (v) => `${v}%` },
   srbLimit: { label: 'Thrust limit', min: 30, max: 100, step: 5, def: 100, unit: '%', fmt: (v) => `${v}% (burns longer when lower)` },
   fill: { label: 'Load', min: 0, max: 100, step: 5, def: 100, unit: '%', fmt: (v) => `${v}%` },
+  drogueAlt: { label: 'Opens fully below', min: 1000, max: 15000, step: 250, def: 6000, unit: 'm',
+    fmt: (v) => `${fmtNum(v)} m (${fmtNum(Math.round(v * 3.281 / 100) * 100)} ft)` },
+  fairH: { label: 'Shell height', min: 1, max: 16, step: 0.5, def: 5, unit: 'm', fmt: (v) => `${v} m` },
 };
 function partSettingKeys(def) {
+  if (def.drogue) return ['drogueAlt'];
   if (def.chute) return ['deployAlt'];
+  if (def.fairing) return ['fairH'];
   if (def.thrust && !def.rcs) return [def.solid ? 'srbLimit' : 'thrustLimit'];
-  if (def.fuel || def.mono) return ['fill'];
+  if (def.fuel || def.mono || def.gas) return ['fill'];
   return [];
 }
 function cfgVal(p, key) {

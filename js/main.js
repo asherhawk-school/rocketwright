@@ -17,20 +17,23 @@ function showHangar() {
 function launch() {
   const a = analyzeDesign(Hangar.design);
   if (!a.valid || !Career.s) return;
-  launchDesign(Hangar.design, Hangar.name, Hangar.crewId);
+  launchDesign(Hangar.design, Hangar.name, Hangar.crewId, Hangar.crewN);
 }
-function launchDesign(design, name, crewId) {
+function launchDesign(design, name, crewId, crewN = 1) {
   const s = Career.s;
   const snapshot = JSON.stringify(s);
-  let crew = null;
+  let crew = [];
   if (isCareer()) {
     const cost = designCost(design);
     if (lockedParts(design).length) { toast('This design uses parts you have not researched'); return; }
     if (s.funds < cost) { toast(`Not enough funds: this rocket costs ${fmtFunds(cost)}`); return; }
-    if (design.parts.some((p) => PART_DEFS[p.id].pod)) {
-      crew = s.crew.find((c) => c.id === crewId && c.status === 'available') || availableCrew(s)[0];
-      if (!crew) { toast('No astronauts available. Hire one in the Astronaut Office.'); return; }
-      crew.status = 'flying';
+    const seats = designSeats(design);
+    if (seats > 0) {
+      const lead = s.crew.find((c) => c.id === crewId && c.status === 'available') || availableCrew(s)[0];
+      if (!lead) { toast('No astronauts available. Hire one in the Astronaut Office.'); return; }
+      const rest = availableCrew(s).filter((c) => c !== lead).sort((x, y) => crewRank(y) - crewRank(x));
+      crew = [lead, ...rest].slice(0, clamp(crewN || 1, 1, seats));
+      for (const c of crew) c.status = 'flying';
     }
     s.funds -= cost;
     s.flights++;
@@ -43,12 +46,15 @@ function launchDesign(design, name, crewId) {
   fillTargetSelect();
   F.snapshot = snapshot;
   saveCheckpoint();
-  if (crew) {
-    const pod = F.craft.parts.find((p) => p.def.pod);
-    F.crew = [{ id: crew.id, name: crew.name, pod: pod.uid }];
-    crew.vessel = F.vid;
-    F.revertCrew = crew.id;
-    flash(`${crew.name} is aboard ${name}. Press SPACE to launch!`, 5);
+  if (crew.length) {
+    // capsules fill first, then cabins
+    const seatList = [];
+    for (const p of [...F.craft.parts.filter((q) => q.def.pod), ...F.craft.parts.filter((q) => !q.def.pod)]) for (let i = 0; i < (p.def.seats || 0); i++) seatList.push(p.uid);
+    F.crew = crew.map((c, i) => ({ id: c.id, name: c.name, pod: seatList[i] }));
+    for (const c of crew) c.vessel = F.vid;
+    F.revertCrew = crew[0].id;
+    F.revertCrewN = crew.length;
+    flash(`${crew.length > 1 ? crewNames(F.crew).join(', ') + ' are' : crew[0].name + ' is'} aboard ${name}. Press SPACE to launch!`, 5);
   }
 }
 
@@ -78,7 +84,7 @@ function revertFlight(toHangar) {
   persist();
   hideModal();
   if (toHangar) showHangar();
-  else launchDesign(F.design, F.craftName, F.revertCrew);
+  else launchDesign(F.design, F.craftName, F.revertCrew, F.revertCrewN || 1);
 }
 
 let modalOpen = false;
@@ -329,6 +335,7 @@ function onKeyDown(e) {
     case 'KeyX': if (!c.dead) c.throttle = 0; break;
     case 'KeyT': setSas(F.sas === 'off' ? 'stab' : 'off'); break;
     case 'KeyR': toggleRcs(); break;
+    case 'KeyK': toggleBrakes(); break;
     case 'KeyB': toggleScience(); break;
     case 'KeyU': undock(); break;
     case 'BracketLeft': case 'BracketRight': cycleNearby(e.code === 'BracketRight' ? 1 : -1); break;
