@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -616,6 +616,67 @@ test('tutorials are set up and sound is safe without an audio device', () => {
   assert(G.TUTORIALS.length === 4 && G.TUTORIALS.every((t) => t.steps.length >= 4), 'tutorials');
   assert(G.TUTORIALS[0].steps[0].done({ stageIdx: 1 }) && !G.TUTORIALS[0].steps[0].done({ stageIdx: 0 }), 'first step check');
   G.playSound('boom'); G.playSound('stage');
+});
+
+console.log('Saving through interruptions');
+/* Simulate closing the page: throw away everything in memory and load the save from storage again. */
+const reloadGame = () => { G.F.running = false; G.Career.s = null; return G.loadSave(); };
+test('a flight interrupted mid-air comes back as a vessel, with its crew still aboard', () => {
+  const { F } = G;
+  G.setSave(G.newSave('career', 31));
+  const s = G.Career.s;
+  G.flightStart(G.PRESETS['Orbiter I'](), 'Interrupted', { t0: 0 });
+  const cm = s.crew[0];
+  cm.status = 'flying';
+  F.crew = [{ id: cm.id, name: cm.name, pod: F.craft.parts.find((p) => p.def.pod).uid }];
+  G.persist();
+  const c = F.craft; c.landed = null;
+  const r = G.HOME.R + 120000;
+  c.pos = [r, 0]; c.vel = [0, Math.sqrt(G.HOME.mu / r)]; F.t = 5000;
+  G.saveCheckpoint();
+  const s2 = reloadGame();
+  const v = s2.vessels.find((x) => x.name === 'Interrupted');
+  assert(v, 'vessel not restored');
+  assert(Math.abs(Math.hypot(v.s[0], v.s[1]) - r) < 1 && s2.ut === 5000, 'wrong place or time');
+  assert(v.crew.length === 1 && s2.crew[0].status === 'flying', 'crew should still be aboard');
+  assert(!G.Store.get('flight', null), 'checkpoint should be used up');
+  assert(G.Career.restoreNote && /Interrupted/.test(G.Career.restoreNote), 'player should be told');
+});
+test('nearby vessels loaded during the flight are not lost if the game closes', () => {
+  const { F } = G;
+  G.setSave(G.newSave('sandbox', 32));
+  const s = G.universe();
+  G.flightStart(G.PRESETS['Orbiter I'](), 'Chaser', { t0: 0 });
+  const c = F.craft; c.landed = null;
+  const r = G.HOME.R + 150000, v = Math.sqrt(G.HOME.mu / r);
+  c.pos = [r, 0]; c.vel = [0, v];
+  const st = G.spawnStranded(s, G.HOME, 150000, 'Odile Brandt', 0.0004);
+  G.persist();
+  for (let i = 0; i < 3; i++) G.flightUpdate(1 / 60);
+  assert(F.others.length === 1 && !s.vessels.includes(st), 'the capsule should be loaded next to us');
+  G.persist(); // a save written mid-flight no longer lists the loaded capsule...
+  G.saveCheckpoint(); // ...but the checkpoint does
+  const s2 = reloadGame();
+  assert(s2.vessels.some((x) => x.name === "Brandt's Capsule") && s2.vessels.some((x) => x.name === 'Chaser'), s2.vessels.map((x) => x.name).join());
+});
+test('astronauts stuck as "flying" with no vessel are freed on load', () => {
+  G.setSave(G.newSave('career', 33));
+  G.Career.s.crew[1].status = 'flying';
+  G.persist();
+  G.clearCheckpoint();
+  const s2 = reloadGame();
+  assert(s2.crew[1].status === 'available', 'still stuck');
+});
+test('ending a flight normally or starting a new game leaves no stale checkpoint', () => {
+  const { F } = G;
+  G.setSave(G.newSave('sandbox', 34));
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Hop', { t0: 0 });
+  G.saveCheckpoint();
+  assert(G.Store.get('flight', null), 'checkpoint should exist mid-flight');
+  G.setSave(G.newSave('career', 35));
+  assert(!G.Store.get('flight', null), 'new game should clear it');
+  F.running = false;
+  G.Career.s = null;
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -63,6 +63,7 @@ function showHub() {
   F.running = false;
   hideModal();
   showScreen('hub');
+  if (Career.restoreNote) { toast(Career.restoreNote); Career.restoreNote = null; }
   if (isCareer()) {
     const failed = refreshContracts(Career.s);
     persist();

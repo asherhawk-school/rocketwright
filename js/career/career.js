@@ -24,7 +24,11 @@ function newSave(mode, seed) {
 }
 
 const isCareer = () => !!(Career.s && Career.s.mode === 'career');
-function setSave(s) { Career.s = s; persist(); }
+function setSave(s) {
+  Career.s = s;
+  if (typeof clearCheckpoint === 'function') clearCheckpoint(); // a new or imported game starts with no flight in progress
+  persist();
+}
 function persist() {
   if (!Career.s) return;
   if (Career.noPersist) { for (const f of Career.listeners) f(); return; } // tutorials don't touch your save
@@ -34,6 +38,16 @@ function persist() {
 function loadSave() {
   const s = Store.get('save', null);
   Career.s = s && s.v === SAVE_VERSION ? s : null;
+  // tidy up after a game that was closed mid-flight
+  if (Career.s && !(typeof F !== 'undefined' && F.running) && typeof restoreCheckpoint === 'function') {
+    const cp = restoreCheckpoint(Career.s);
+    const fixed = repairCrew(Career.s);
+    if (cp || fixed) {
+      Store.set('save', Career.s);
+      Career.restoreNote = cp && cp.active ? `Your last flight was interrupted. ${cp.active.name} is waiting in the Tracking Station.`
+        : fixed ? `${fixed} astronaut${fixed > 1 ? 's were' : ' was'} stuck after an interrupted flight and ${fixed > 1 ? 'are' : 'is'} available again.` : null;
+    }
+  }
   return Career.s;
 }
 function onCareerChange(f) { Career.listeners.push(f); }

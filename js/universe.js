@@ -186,3 +186,46 @@ function recoverRecord(v) {
   s.vessels = s.vessels.filter((x) => x !== v);
   return { refund, sci, done };
 }
+
+/* ---------------- flight checkpoints ----------------
+   While you fly, the active vessel (and any nearby vessels loaded alongside it) are written to a separate
+   checkpoint every few seconds and whenever the page is hidden or closed. If the game is closed mid-flight,
+   the next load puts them back into the universe, so the ship waits in the Tracking Station where you left it. */
+
+const CHECKPOINT_KEY = 'flight';
+
+function saveCheckpoint() {
+  if (!F.running || F.tutorial || Career.noPersist || !Career.s || !F.craft) return;
+  Store.set(CHECKPOINT_KEY, {
+    t: F.t,
+    active: F.craft.dead ? null : vesselFromCraft(F.craft, F.t, activeMeta()),
+    others: F.others.filter((o) => !o.dead && o.meta).map((o) => vesselFromCraft(o, F.t, o.meta)),
+  });
+}
+function clearCheckpoint() { Store.set(CHECKPOINT_KEY, null); }
+
+/* Put an interrupted flight's vessels back into save s. Returns the checkpoint, or null if there was none. */
+function restoreCheckpoint(s) {
+  const cp = Store.get(CHECKPOINT_KEY, null);
+  if (!cp) return null;
+  if (!s.vessels) { s.vessels = []; s.vesselSeq = 1; }
+  s.ut = Math.max(s.ut, cp.t || 0);
+  for (const v of [cp.active, ...(cp.others || [])]) {
+    if (!v) continue;
+    s.vessels = s.vessels.filter((x) => x.id !== v.id); // the checkpoint is newer than any stored copy
+    s.vessels.push(v);
+    s.vesselSeq = Math.max(s.vesselSeq || 1, v.id + 1);
+  }
+  clearCheckpoint();
+  return cp;
+}
+
+/* Astronauts marked as flying but aboard no vessel (left behind by an interrupted flight) go back to work. */
+function repairCrew(s) {
+  const aboard = new Set((s.vessels || []).flatMap((v) => (v.crew || []).filter((x) => x.id).map((x) => x.id)));
+  let fixed = 0;
+  for (const c of s.crew || []) {
+    if (c.status === 'flying' && !aboard.has(c.id)) { c.status = 'available'; c.vessel = null; fixed++; }
+  }
+  return fixed;
+}

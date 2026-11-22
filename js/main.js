@@ -42,6 +42,7 @@ function launchDesign(design, name, crewId) {
   flightStart(design, name, { t0: s.ut, keepTarget: true });
   fillTargetSelect();
   F.snapshot = snapshot;
+  saveCheckpoint();
   if (crew) {
     const pod = F.craft.parts.find((p) => p.def.pod);
     F.crew = [{ id: crew.id, name: crew.name, pod: pod.uid }];
@@ -66,11 +67,13 @@ function finishFlight(recovered) {
   F.crew = [];
   if (isCareer()) refreshContracts(s);
   persist();
+  clearCheckpoint();
 }
 
 /* Undo everything since launch. */
 function revertFlight(toHangar) {
   if (!F.canRevert) return;
+  clearCheckpoint();
   Career.s = JSON.parse(F.snapshot);
   persist();
   hideModal();
@@ -339,6 +342,9 @@ function zoomBy(f) {
 
 function wireUi() {
   window.addEventListener('pointerdown', initSound);
+  // save the flight when the page is hidden, closed or reloaded
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveCheckpoint(); });
+  window.addEventListener('pagehide', saveCheckpoint);
   window.addEventListener('keydown', initSound);
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', (e) => { F.keys[e.code] = false; });
@@ -402,6 +408,8 @@ function loop(now) {
   if (F.running) {
     if (!F.paused) { flightUpdate(dt); tutorialTick(); }
     flightRender();
+    // autosave the flight every few seconds
+    if (now - (F.lastCheckpoint || 0) > 5000) { F.lastCheckpoint = now; saveCheckpoint(); }
   }
   updateSound(F.craft, F.craft ? F.craft.pressure || 0 : 0, F.craft ? F.craft.q || 0 : 0, F.running && !F.paused);
   requestAnimationFrame(loop);

@@ -94,6 +94,7 @@ function flightLoadVessel(v, t) {
   for (const k in F.keys) F.keys[k] = false;
   updateSasButtons();
   flash(`Now flying ${v.name}`, 3);
+  saveCheckpoint();
 }
 
 /* Put loaded nearby vessels back into the save as records. */
