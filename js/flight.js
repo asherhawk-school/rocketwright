@@ -735,9 +735,12 @@ function toggleScience() {
   if (!isCareer()) return;
   F.sciOpen = !F.sciOpen;
   F.hud.sciPanel.classList.toggle('hidden', !F.sciOpen);
+  F.sciSig = '';
   if (F.sciOpen) renderSciencePanel();
 }
 
+/* The panel is rebuilt only when its set of buttons changes; otherwise only the text is updated in place.
+   (Rebuilding it on a timer replaced buttons between mouse-down and mouse-up, so clicks were lost.) */
 function renderSciencePanel() {
   const c = F.craft, s = Career.s, el = F.hud.sciList;
   if (!F.sciOpen || !s) return;
@@ -749,22 +752,42 @@ function renderSciencePanel() {
   for (const p of c.parts) {
     if (!p.def.exp || c.dead) continue;
     const e = EXPERIMENTS[p.def.exp];
-    let status, btns = '';
+    let status;
+    const btns = []; // [kind, label, disabled]
     if (p.result) {
       const left = subjectLeft(s, p.result.id, p.result.cap);
       status = `Holding: ${SITUATIONS[p.result.sit].label.toLowerCase()} ${BODY_BY_ID[p.result.body].name} · ${left.toFixed(1)} ⚗ if recovered`;
-      if (antenna) btns += `<button data-sci="tx" data-uid="${p.uid}">Transmit ${(left * TRANSMIT_FRACTION).toFixed(1)}</button>`;
-      btns += `<button data-sci="drop" data-uid="${p.uid}">Discard</button>`;
+      if (antenna) btns.push(['tx', `Transmit ${(left * TRANSMIT_FRACTION).toFixed(1)}`, false]);
+      btns.push(['drop', 'Discard', false]);
     } else if (p.spent) status = 'Used. Recover it to reset.';
     else if (canRun(p, b, sit)) {
       const v = subjectLeft(s, subjectId(p.def.exp, b, sit), subjectCap(p.def.exp, b, sit));
       status = v < 0.05 ? 'Nothing new to learn here' : `Worth ${v.toFixed(1)} ⚗ here`;
-      btns = `<button data-sci="run" data-uid="${p.uid}" ${v < 0.05 ? 'disabled' : ''}>Run</button>`;
+      btns.push(['run', 'Run', v < 0.05]);
     } else status = 'Does not work here';
-    rows.push(`<div class="sci-row"><div><b>${e.name}</b><div class="muted">${status}</div></div><div class="sci-btns">${btns}</div></div>`);
+    rows.push({ uid: p.uid, name: e.name, status, btns });
   }
-  if (!antenna && rows.length) rows.push('<div class="muted small-note">Add a Whip Antenna to transmit results without coming home.</div>');
-  el.innerHTML = rows.join('') || '<div class="muted">No experiments on this craft. Add science parts in the hangar.</div>';
+  const sig = `${antenna}|` + rows.map((r) => `${r.uid}:${r.btns.map((x) => x[0]).join(',')}`).join('|');
+  if (sig !== F.sciSig) {
+    F.sciSig = sig;
+    el.innerHTML = rows.map((r) => `<div class="sci-row" data-row="${r.uid}"><div><b>${r.name}</b><div class="muted sci-status"></div></div>
+      <div class="sci-btns">${r.btns.map(([k]) => `<button data-sci="${k}" data-uid="${r.uid}"></button>`).join('')}</div></div>`).join('') +
+      (!antenna && rows.length ? '<div class="muted small-note">Add a Whip Antenna to transmit results without coming home.</div>' : '') ||
+      '<div class="muted">No experiments on this craft. Add science parts in the hangar.</div>';
+  }
+  for (const r of rows) {
+    const row = el.querySelector(`[data-row="${r.uid}"]`);
+    if (!row) continue;
+    const st = row.querySelector('.sci-status');
+    if (st.textContent !== r.status) st.textContent = r.status;
+    const buttons = row.querySelectorAll('button');
+    r.btns.forEach(([, label, disabled], i) => {
+      const bt = buttons[i];
+      if (!bt) return;
+      if (bt.textContent !== label) bt.textContent = label;
+      if (bt.disabled !== disabled) bt.disabled = disabled;
+    });
+  }
 }
 
 function scienceAction(kind, uid) {
@@ -787,6 +810,7 @@ function scienceAction(kind, uid) {
     if (p.result && EXPERIMENTS[p.result.exp].oneShot) p.spent = true;
     p.result = null;
   }
+  F.sciSig = '';
   renderSciencePanel();
 }
 

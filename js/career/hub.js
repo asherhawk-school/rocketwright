@@ -136,6 +136,7 @@ function showMissionControl() {
 
 function showResearch(selId) {
   const s = Career.s;
+  if (typeof selId !== 'string' || !TECH_BY_ID[selId]) selId = null;
   const CW = 214, RH = 104, cols = Math.max(...TECH_NODES.map((n) => n.col)) + 1, rows = Math.max(...TECH_NODES.map((n) => n.row)) + 1;
   const W = cols * CW, H = rows * RH;
   if (!selId) selId = (TECH_NODES.find((n) => techState(s, n) === 'open') || TECH_NODES[0]).id;
@@ -381,7 +382,7 @@ function wireHub() {
   $('btnNewSandbox').addEventListener('click', () => startNew('sandbox'));
   $('bldHangar').addEventListener('click', showHangar);
   $('bldMission').addEventListener('click', showMissionControl);
-  $('bldResearch').addEventListener('click', showResearch);
+  $('bldResearch').addEventListener('click', () => showResearch());
   $('bldCrew').addEventListener('click', showCrew);
   $('bldMilestones').addEventListener('click', showMilestones);
   $('bldTracking').addEventListener('click', showTracking);

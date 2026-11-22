@@ -381,7 +381,9 @@ function wireUi() {
   });
 
   // flight HUD buttons (never keep focus, so Space keeps staging)
-  document.querySelectorAll('#flight button').forEach((b) => b.addEventListener('mousedown', (e) => e.preventDefault()));
+  // Buttons in flight never take keyboard focus (so Space keeps staging). Delegated, so buttons created
+  // later (science panel, part menu) are covered too.
+  $('flight').addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
   $('bStage').addEventListener('click', doStage);
   $('bMap').addEventListener('click', toggleMap);
   $('bMenu').addEventListener('click', openMenu);
