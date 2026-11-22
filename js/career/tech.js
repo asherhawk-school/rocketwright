@@ -29,6 +29,11 @@ const TECH_NODES = [
   { id: 'nuclear', name: 'Nuclear Propulsion', cost: 320, req: ['advengines'], col: 5, row: 1, parts: ['hearth'] },
   { id: 'power', name: 'Advanced Electrics', cost: 90, req: ['solar'], col: 4, row: 5, parts: ['batteryBank', 'fuelCell', 'fuelCellL'] },
   { id: 'ion', name: 'Ion Propulsion', cost: 280, req: ['power'], col: 5, row: 5, parts: ['whisper', 'gasTank', 'gasDrum'] },
+  { id: 'aviation', name: 'Aviation', cost: 30, req: ['start'], col: 1, row: 6,
+    parts: ['cockpit', 'fuselage', 'tailCone', 'wingS', 'elevon', 'skid', 'intake', 'jetFan'] },
+  { id: 'aerodynamics', name: 'Aerodynamics', cost: 90, req: ['aviation'], col: 2, row: 6, parts: ['wingL', 'strake', 'canard', 'gear', 'intakeRad'] },
+  { id: 'supersonic', name: 'Supersonic Flight', cost: 220, req: ['aerodynamics'], col: 3, row: 6, parts: ['jetTurbo'] },
+  { id: 'rovers', name: 'Rovers', cost: 80, req: ['landing'], col: 3, row: 5, parts: ['roverWheel'] },
   { id: 'veryheavy', name: 'Very Heavy Rocketry', cost: 300, req: ['large'], col: 6, row: 0, parts: ['colossus', 'tankT24'] },
 ];
 const TECH_BY_ID = Object.fromEntries(TECH_NODES.map((n) => [n.id, n]));

@@ -214,6 +214,40 @@ Object.assign(PART_DEFS, {
   fuelCellL: { kind: 'fuelcellL', name: 'Fuel Cell Array', cat: 'Utility', mass: 0.25, h: 0.6, w: 1.25, cellEC: 12,
     desc: 'A 1.25 m stack of fuel cells: 12 power per second from rocket fuel.' },
 });
+Object.assign(PART_DEFS, {
+  // Planes
+  cockpit: { kind: 'cockpit', name: 'Swift Cockpit', cat: 'Aero', mass: 0.9, h: 2.2, w: 0.2, wb: 1.25, noTop: true, pod: true, seats: 1,
+    torque: 6, mono: 0.05, ec: 50, maxTemp: 1800, exp: 'crew', desc: 'A pointed one-seat cockpit for planes. It goes at the very front.' },
+  fuselage: { kind: 'fuselage', name: 'Fuselage Tank', cat: 'Aero', mass: 0.2, fuel: 1.6, h: 3.0, w: 1.25,
+    desc: 'A long 1.25 m fuel tank shaped for planes.' },
+  tailCone: { kind: 'tailcone', name: 'Tail Cone', cat: 'Aero', mass: 0.05, h: 1.4, w: 1.25, wb: 0.25, noBottom: true,
+    desc: 'Tapers the back of a plane to a point.' },
+  intake: { kind: 'intake', name: 'Ram Intake', cat: 'Aero', mass: 0.06, h: 1.0, w: 0.9, wb: 1.25, noTop: true, intake: 1,
+    desc: 'Scoops air for jet engines. Goes at the front of a fuselage. Every jet needs air.' },
+  intakeRad: { kind: 'scoop', name: 'Scoop Intake', cat: 'Aero', radial: true, mass: 0.03, h: 1.1, w: 0.35, intake: 0.6,
+    desc: 'A side-mounted air scoop for jet engines.' },
+  wingS: { kind: 'wing', name: 'Glide Wing S', cat: 'Aero', radial: true, wing: 3, mass: 0.08, h: 2.0, w: 1.4,
+    desc: 'A small wing. Wings lift when they meet the air at an angle. Put the main wings near the centre of mass.' },
+  wingL: { kind: 'wing', name: 'Glide Wing L', cat: 'Aero', radial: true, wing: 7.5, mass: 0.2, h: 3.4, w: 2.6,
+    desc: 'A big wing for heavy planes.' },
+  strake: { kind: 'strake', name: 'Root Strake', cat: 'Aero', radial: true, wing: 1.2, mass: 0.03, h: 1.8, w: 0.5,
+    desc: 'A long, thin wing strip that adds a little lift along the fuselage.' },
+  elevon: { kind: 'elevon', name: 'Trim Flap', cat: 'Aero', radial: true, wing: 1.3, ctrlSurf: true, mass: 0.04, h: 0.9, w: 1.0,
+    desc: 'A moving wing surface that pitches the plane (A/D and SAS use it). Put it at the back, far from the centre of mass.' },
+  canard: { kind: 'canard', name: 'Canard Vane', cat: 'Aero', radial: true, wing: 0.8, ctrlSurf: true, mass: 0.03, h: 0.7, w: 0.8,
+    desc: 'A small moving surface for the front of a plane.' },
+  jetFan: { kind: 'jet', name: 'Gust Turbofan', cat: 'Engines', mass: 1.2, h: 1.8, w: 1.25, thrust: 110, ispVac: 8000, ispSL: 8000,
+    gimbal: 0, bell: 0.95, jet: true, jetV: 520, desc: 'An air-breathing jet engine: very efficient, but only works in air with oxygen (Verdan and Gale), and fades above about 450 m/s. Needs an intake.' },
+  jetTurbo: { kind: 'jet', name: 'Bolt Turbojet', cat: 'Engines', mass: 1.4, h: 2.0, w: 1.25, thrust: 150, ispVac: 4000, ispSL: 4000,
+    gimbal: 0, bell: 0.9, jet: true, jetV: 1500, desc: 'A fast jet engine for high, quick flight: strongest around 600–900 m/s. Needs air with oxygen and an intake.' },
+  // Wheels
+  gear: { kind: 'gear', name: 'Fold Landing Gear', cat: 'Ground', radial: true, wheel: true, retract: true, mass: 0.06, h: 0.8, w: 0.35,
+    leg: 0.9, wheelR: 0.35, maxImpact: 9, desc: 'Plane wheels that fold away (G). Mount on the underside: one near the nose, two just behind the centre of mass. K brakes.' },
+  skid: { kind: 'gear', name: 'Fixed Skid Wheel', cat: 'Ground', radial: true, wheel: true, mass: 0.03, h: 0.5, w: 0.3,
+    leg: 0.45, wheelR: 0.25, maxImpact: 7, desc: 'A small wheel that does not fold. Light and cheap.' },
+  roverWheel: { kind: 'rwheel', name: 'Trek Rover Wheel', cat: 'Ground', radial: true, wheel: true, motor: 1.5, mass: 0.08, h: 1.1, w: 0.45,
+    leg: 0.2, wheelR: 0.5, maxImpact: 8, desc: 'A powered wheel for rovers. With the craft on the ground, ↑/↓ drive forward and back (uses power). K brakes.' },
+});
 /* fuel (tonnes) a fuel cell burns per unit of charge */
 const CELL_FUEL_PER_EC = 2e-5;
 /* fairing shell mass per metre of height, by base width */
@@ -232,10 +266,12 @@ const PART_COSTS = {
   shield3: 1100, bloom: 2200, chuteDrogue: 400, chuteBig: 900, airbrake: 450, hearth: 9000, whisper: 7000, spindle: 3800, puff: 500,
   gasTank: 400, gasDrum: 1500, heron: 3800, cabin: 2500, fairing2: 600, fairing3: 1100, strut: 40, batteryDisc: 400, batteryBank: 1800,
   fuelCell: 700, fuelCellL: 3000,
+  cockpit: 1400, fuselage: 500, tailCone: 200, intake: 400, intakeRad: 300, wingS: 300, wingL: 700, strake: 150, elevon: 400, canard: 350,
+  jetFan: 3500, jetTurbo: 4500, gear: 500, skid: 150, roverWheel: 700,
 };
 for (const id in PART_DEFS) PART_DEFS[id].cost = PART_COSTS[id] || 100;
 
-const CATEGORIES = ['Command', 'Fuel', 'Engines', 'Coupling', 'Structure', 'Utility', 'Science'];
+const CATEGORIES = ['Command', 'Fuel', 'Engines', 'Coupling', 'Structure', 'Aero', 'Ground', 'Utility', 'Science'];
 
 /* Adjustable settings, per kind of part. They're stored on each part as cfg[key]. */
 const SETTING_DEFS = {
@@ -314,7 +350,7 @@ const CINDER = makeBody({ id: 'cinder', name: 'Cinder', parent: SUN, orbitR: 4.5
   terrain: [[1400, 3, 0.2], [700, 8, 1.7], [300, 21, 0.9], [120, 57, 2.5], [40, 173, 0.4], [12, 601, 1.2], [4, 1999, 0]],
   colLand: '#8a5a44', colSoil: '#4e3326', colMap: '#a0624a', desc: 'A scorched, airless rock close to Helion.' });
 const HOME = makeBody({ id: 'verdan', name: 'Verdan', parent: SUN, orbitR: 1.4e10, phase0: 0.3, R: 500000, mu: 9.81 * 500000 * 500000,
-  atmo: { top: 70000, rho0: 1.2, H: 5600 }, ocean: true, pad: true, hOff: 150,
+  atmo: { top: 70000, rho0: 1.2, H: 5600 }, ocean: true, pad: true, oxygen: true, hOff: 150,
   terrain: [[380, 3, 0.4], [240, 7, 1.3], [130, 17, 2.1], [55, 41, 0.7], [22, 113, 1.9], [7, 457, 0.3], [2.5, 1601, 0]],
   sky: ['#3f84dc', '#a8d4ff'], colLand: '#4f8f3a', colSoil: '#5a4632', colWater: '#2a66ad', colMap: '#3d78c0',
   desc: 'Home. Oceans, hills and a thick blue sky.' });
@@ -335,7 +371,7 @@ const TEMPEST = makeBody({ id: 'tempest', name: 'Tempest', parent: SUN, orbitR: 
   atmo: { top: 300000, rho0: 1.5, H: 30000 }, sky: ['#7a5a3a', '#d8b27a'],
   colLand: '#e2c79c', colSoil: '#b08a5a', colMap: '#d9b47e', desc: 'A banded gas giant. There is no surface: go too deep and you are crushed.' });
 const GALE = makeBody({ id: 'gale', name: 'Gale', parent: TEMPEST, orbitR: 3.0e7, phase0: 0.9, R: 400000, mu: 6 * 4e5 * 4e5,
-  atmo: { top: 55000, rho0: 0.9, H: 6000 }, ocean: true, hOff: 80,
+  atmo: { top: 55000, rho0: 0.9, H: 6000 }, ocean: true, oxygen: true, hOff: 80,
   terrain: [[500, 3, 1.1], [300, 8, 2.3], [140, 19, 0.4], [60, 47, 1.6], [20, 131, 2.9], [6, 503, 0.8]],
   sky: ['#2f8a8a', '#9ad8c8'], colLand: '#3f8f7a', colSoil: '#3d4a3a', colWater: '#1f6f7a', colMap: '#4a9a8a',
   desc: 'Tempest\'s largest moon, with air and teal seas.' });
@@ -364,6 +400,8 @@ for (const b of BODIES) {
 const BODY_BY_ID = Object.fromEntries(BODIES.map((b) => [b.id, b]));
 const HOME_CHAIN = new Set([HOME, SUN]);
 const PAD_PHI = Math.PI / 2;
+/* The runway runs east of the pad (towards smaller angles), from RUNWAY_START to RUNWAY_END radians away. */
+const RUNWAY_START = 500 / 500000, RUNWAY_END = 3300 / 500000;
 
 /* Position, velocity and acceleration of `b` relative to the world origin (Verdan), as
    [x, y, vx, vy, ax, ay]. Offsets are summed only up to the nearest ancestor shared with Verdan,
@@ -418,7 +456,9 @@ function terrainH(b, phi) {
   let h = b.hOff;
   for (const [a, f, p] of b.terrain) h += a * Math.sin(f * phi + p);
   if (b.pad) {
-    const k = smoothstep(0.0004, 0.006, Math.abs(wrapPi(phi - PAD_PHI)));
+    // the pad and the runway east of it are flat
+    const d = wrapPi(phi - PAD_PHI), out = d > 0 ? d : d < -RUNWAY_END ? -RUNWAY_END - d : 0;
+    const k = smoothstep(0.0004, 0.006, out);
     h = h * k + 4 * (1 - k);
   }
   return h;

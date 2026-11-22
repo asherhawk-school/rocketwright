@@ -6,7 +6,7 @@
 <title>Rocketwright</title>
 <meta name="description" content="Build rockets, fly them to orbit and land on the moon. A 2D spaceflight sandbox that runs in your browser.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2c5 5 6 12 4 20h-8c-2-8-1-15 4-20z' fill='%23eef1f5'/%3E%3Cpath d='M12 22h8l-1 4h-6z' fill='%23555'/%3E%3Cpath d='M14 26h4l-2 5z' fill='%23ff9a3c'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=17">
+<link rel="stylesheet" href="css/style.css?v=18">
 </head>
 <body>
 
@@ -95,6 +95,7 @@
         <button id="btnAutoStage" class="hidden small-btn" title="Go back to automatic staging">Auto</button></h3>
       <div id="stageList"></div>
       <div id="warnings"></div>
+      <label class="field" id="siteRow">Launch from<select id="launchSite"><option value="pad">Launch pad (standing up)</option><option value="runway">Runway (lying on its wheels)</option></select></label>
       <button id="btnLaunch" class="launch">LAUNCH</button>
     </aside>
   </div>
@@ -170,6 +171,8 @@
         <button data-sas="kill" title="Point against your speed relative to the target, to match its speed (9)">Match</button>
       </div>
       <button id="bRcs" class="rcs-btn hidden" title="RCS thrusters (R). Q/E slide sideways, H/N forward/back">RCS (R)</button>
+      <button id="bGear" class="rcs-btn hidden" title="Landing gear up / down (G)">Gear (G)</button>
+      <button id="bBrakes" class="rcs-btn hidden" title="Wheel and air brakes (K)">Brakes (K)</button>
     </div>
     <div class="thr-wrap card">
       <div class="label">THR</div>
@@ -232,23 +235,23 @@
 <div id="toast"></div>
 <div id="modal" class="hidden"><div class="modal-card" id="modalCard"></div></div>
 
-<script src="js/data.js?v=17"></script>
-<script src="js/vessel.js?v=17"></script>
-<script src="js/render.js?v=17"></script>
-<script src="js/systems.js?v=17"></script>
-<script src="js/navigation.js?v=17"></script>
-<script src="js/docking.js?v=17"></script>
-<script src="js/sound.js?v=17"></script>
-<script src="js/career/career.js?v=17"></script>
-<script src="js/career/science.js?v=17"></script>
-<script src="js/career/tech.js?v=17"></script>
-<script src="js/career/contracts.js?v=17"></script>
-<script src="js/universe.js?v=17"></script>
-<script src="js/flight.js?v=17"></script>
-<script src="js/partmenu.js?v=17"></script>
-<script src="js/hangar.js?v=17"></script>
-<script src="js/career/hub.js?v=17"></script>
-<script src="js/tutorials.js?v=17"></script>
-<script src="js/main.js?v=17"></script>
+<script src="js/data.js?v=18"></script>
+<script src="js/vessel.js?v=18"></script>
+<script src="js/render.js?v=18"></script>
+<script src="js/systems.js?v=18"></script>
+<script src="js/navigation.js?v=18"></script>
+<script src="js/docking.js?v=18"></script>
+<script src="js/sound.js?v=18"></script>
+<script src="js/career/career.js?v=18"></script>
+<script src="js/career/science.js?v=18"></script>
+<script src="js/career/tech.js?v=18"></script>
+<script src="js/career/contracts.js?v=18"></script>
+<script src="js/universe.js?v=18"></script>
+<script src="js/flight.js?v=18"></script>
+<script src="js/partmenu.js?v=18"></script>
+<script src="js/hangar.js?v=18"></script>
+<script src="js/career/hub.js?v=18"></script>
+<script src="js/tutorials.js?v=18"></script>
+<script src="js/main.js?v=18"></script>
 </body>
 </html>

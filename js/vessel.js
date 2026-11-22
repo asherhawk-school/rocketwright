@@ -15,6 +15,13 @@ const activatable = (def) => !!(def.decoupler || isEngine(def) || def.chute || d
 const partWidth = (p) => (p.inflated && p.def.wOpen ? p.def.wOpen : maxWidth(p.def));
 /* A fairing's shell: height, width and mass while it is still on. */
 const shellH = (p) => cfgVal(p, 'fairH');
+/* Wings and wheels stick out of the flight plane (into the screen), so they don't widen the body or touch the ground with their corners. */
+const outOfPlane = (def) => !!(def.wing || def.wheel);
+/* Where a wheel touches the ground, in craft-local coordinates (its outward side). */
+function wheelPoint(p) {
+  const s = p.flip ? -1 : 1, d = p.def;
+  return [p.x + s * (d.w / 2 + d.leg + d.wheelR), (p.top + p.bot) / 2];
+}
 
 /* ---------------- design editing ---------------- */
 
@@ -376,7 +383,7 @@ class Craft {
       const hw = partWidth(p) / 2;
       minX = Math.min(minX, p.x - hw); maxX = Math.max(maxX, p.x + hw);
       minY = Math.min(minY, p.bot); maxY = Math.max(maxY, p.top);
-      if (!p.enclosed) { aMin = Math.min(aMin, p.x - hw); aMax = Math.max(aMax, p.x + hw); }
+      if (!p.enclosed && !outOfPlane(p.def)) { aMin = Math.min(aMin, p.x - hw); aMax = Math.max(aMax, p.x + hw); }
     }
     for (const f of this.shells) {
       const hw = f.def.shellW / 2;
@@ -395,6 +402,10 @@ class Craft {
     this.brakes = this.parts.filter((p) => p.def.brakeArea);
     this.chutes = this.parts.filter((p) => p.def.chute);
     this.cells = this.parts.filter((p) => p.def.cellEC);
+    this.wings = this.parts.filter((p) => p.def.wing);
+    this.wheels = this.parts.filter((p) => p.def.wheel);
+    this.motors = this.wheels.filter((p) => p.def.motor);
+    this.intakeArea = this.parts.reduce((a, p) => a + (p.def.intake || 0), 0);
     this.seats = this.parts.reduce((a, p) => a + (p.def.seats || 0), 0);
     this.hasLegs = this.legs.length > 0;
     this.hasChute = this.chutes.length > 0;
@@ -410,6 +421,7 @@ class Craft {
     for (const p of this.parts) { const g = groups.get(p.uid); gBot.set(g, Math.min(gBot.has(g) ? gBot.get(g) : Infinity, p.bot)); }
     const pts = [];
     for (const p of this.parts) {
+      if (outOfPlane(p.def)) continue;
       let wt = p.def.w / 2, wb = (p.def.wb !== undefined ? p.def.wb : p.def.w) / 2;
       if (p.inflated) wt = wb = p.def.wOpen / 2;
       pts.push([p.x - wt, p.top], [p.x + wt, p.top], [p.x - wb, p.bot], [p.x + wb, p.bot]);
@@ -554,7 +566,14 @@ class Craft {
     for (const e of this.engines) {
       e.burn = 0;
       if (!e.ignited || e.def.solid || thr <= 0) continue;
-      const k = thr * (cfgVal(e, 'thrustLimit') / 100);
+      let k = thr * (cfgVal(e, 'thrustLimit') / 100);
+      if (e.def.jet) {
+        // jets spool up and down slowly, and only work in air with oxygen
+        e.spool = (e.spool || 0) + clamp(thr - (e.spool || 0), -dt * 0.6, dt * 0.6);
+        e.jetK = jetFactor(this, e);
+        k = e.spool * (cfgVal(e, 'thrustLimit') / 100) * e.jetK;
+        if (k <= 0) continue;
+      }
       const need = (e.def.thrust / (e.def.ispVac * G0)) * k * dt;
       if (e.def.prop) { propNeed[e.def.prop] += need; if (e.def.ecUse) ecNeed += e.def.ecUse * k * dt; continue; }
       const g = this.groups.get(e.uid);
@@ -577,7 +596,8 @@ class Craft {
         const use = Math.min(e.solid, flow * dt);
         e.solid -= use;
         frac = use / ((d.thrust / (d.ispVac * G0)) * dt);
-      } else if (d.prop) frac = thr * (cfgVal(e, 'thrustLimit') / 100) * (propRatio[d.prop] || 0);
+      } else if (d.jet) frac = (e.spool || 0) * (cfgVal(e, 'thrustLimit') / 100) * (e.jetK || 0) * (ratio.get(this.groups.get(e.uid)) || 0);
+      else if (d.prop) frac = thr * (cfgVal(e, 'thrustLimit') / 100) * (propRatio[d.prop] || 0);
       else frac = thr * (cfgVal(e, 'thrustLimit') / 100) * (ratio.get(this.groups.get(e.uid)) || 0);
       if (frac <= 0) continue;
       const f = ((d.thrust * isp) / d.ispVac) * frac * (e.inv ? -1 : 1); // upside-down engines push backwards
@@ -594,6 +614,8 @@ class Craft {
   }
 
   monoTotal() { return this.propTotal('mono'); }
+
+  isRolling() { return !!(this.rolling || (this.landed && this.landed.wheels)); }
 
   /* RCS: tx/ty translate (local, -1..1), rot = rotation command. Returns local force (kN) and
      the fraction of RCS rotation authority available. Monoprop flows from anywhere on the craft. */
@@ -641,6 +663,17 @@ class Craft {
     this.recompute();
     return res;
   }
+}
+
+/* How much of its rated thrust a jet can make right now: needs oxygen, air density and intakes; fades with speed. */
+function jetFactor(c, e) {
+  const air = c.air;
+  if (!air || !air.oxygen || air.rho <= 0) return 0;
+  const lit = c.engines.filter((q) => q.def.jet && q.ignited).length || 1;
+  const intake = Math.min(1, c.intakeArea / (0.6 * lit));
+  const x = air.v / e.def.jetV;
+  const speed = Math.max(0, (1 + 0.8 * x) * (1 - x * x * x * x));
+  return intake * speed * Math.pow(air.rho / 1.2, 0.7);
 }
 
 function cloneParts(parts) { return parts.map((p) => ({ ...p, links: p.links.slice() })); }
@@ -774,6 +807,26 @@ const PRESETS = {
     const mount = d.parts.find((p) => p.id === 'twinMountL').uid;
     attachPart(d, 'ox', mount, 'slot:0', 0, 0, true); // its twin fills the other slot
     attachPart(d, 'fins', d.parts.find((p) => p.id === 'tankXL').uid, 'side', 1, 7.2 - 2.2 * 0.75, true);
+    return d;
+  },
+  'Swallow Jet': () => {
+    const d = designFromStack(['cockpit', 'fuselage', 'fuselage', 'jetFan']);
+    const [f1, f2] = d.parts.filter((p) => p.id === 'fuselage').map((p) => p.uid);
+    attachPart(d, 'wingL', f1, 'side', 1, 1.9, true);
+    attachPart(d, 'elevon', f2, 'side', 1, 2.15, true);
+    attachPart(d, 'intakeRad', f1, 'side', 1, 0.3, true);
+    attachPart(d, 'gear', f1, 'side', 1, 0.2, false);   // nose wheel
+    attachPart(d, 'gear', f2, 'side', 1, 0.5, false);   // main wheel, just behind the centre of mass
+    return d;
+  },
+  'Dune Rover': () => {
+    const d = designFromStack(['probe', 'batteryDisc', 'tankM125']);
+    const probe = d.parts.find((p) => p.id === 'probe').uid, body = d.parts.find((p) => p.id === 'tankM125').uid;
+    setPartCfg(d, body, 'fill', 0);
+    attachPart(d, 'roverWheel', probe, 'side', 1, -0.3, false);
+    attachPart(d, 'roverWheel', body, 'side', 1, 0.8, false);
+    attachPart(d, 'solar', body, 'side', -1, 0.15, false);
+    attachPart(d, 'antenna', probe, 'side', -1, 0, false);
     return d;
   },
   'Pallid Lander': () => {

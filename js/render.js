@@ -381,6 +381,87 @@ function drawPart(ctx, p, lw) {
       ctx.fillStyle = p.cellRun > 0 ? '#7dffa8' : '#3a5a3a'; ctx.fillRect(-hw * 0.3, top - 0.12, hw * 0.6, 0.06);
       break;
     }
+    case 'cockpit': {
+      ctx.fillStyle = cylGrad(ctx, -hb, hb, '#8a9099', '#f2f4f7', '#727882');
+      ctx.beginPath(); ctx.moveTo(-hb, bot); ctx.lineTo(hb, bot);
+      ctx.quadraticCurveTo(hb, bot + h * 0.7, hw, top); ctx.lineTo(-hw, top);
+      ctx.quadraticCurveTo(-hb, bot + h * 0.7, -hb, bot); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#1d3a5c';
+      ctx.beginPath(); ctx.moveTo(-hb * 0.55, bot + h * 0.32); ctx.lineTo(-hb * 0.15, bot + h * 0.62); ctx.lineTo(-hb * 0.15, bot + h * 0.3); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(160,215,255,0.5)';
+      ctx.beginPath(); ctx.moveTo(-hb * 0.5, bot + h * 0.34); ctx.lineTo(-hb * 0.3, bot + h * 0.48); ctx.lineTo(-hb * 0.3, bot + h * 0.33); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#c94a2c'; ctx.fillRect(-hb, bot, 2 * hb, 0.1);
+      break;
+    }
+    case 'fuselage': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#9aa0a8', '#eef0f3', '#858b94');
+      ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.strokeStyle = 'rgba(60,64,72,0.5)'; ctx.lineWidth = Math.max(lw, 0.03);
+      ctx.beginPath();
+      for (let y = bot + 0.75; y < top - 0.1; y += 0.75) { ctx.moveTo(-hw, y); ctx.lineTo(hw, y); }
+      ctx.stroke();
+      ctx.fillStyle = '#f0a030'; ctx.fillRect(hw * 0.6, bot + 0.15, 0.1, (h - 0.3) * (d.fuel ? p.fuel / d.fuel : 0));
+      break;
+    }
+    case 'tailcone': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#9aa0a8', '#eef0f3', '#858b94');
+      ctx.beginPath(); ctx.moveTo(-hw, top); ctx.lineTo(hw, top);
+      ctx.quadraticCurveTo(hw, bot + h * 0.3, hb, bot); ctx.lineTo(-hb, bot);
+      ctx.quadraticCurveTo(-hw, bot + h * 0.3, -hw, top); ctx.closePath(); ctx.fill(); ctx.stroke();
+      break;
+    }
+    case 'intake': {
+      ctx.fillStyle = cylGrad(ctx, -hb, hb, '#7a8089', '#d8dce2', '#6a7079');
+      poly(ctx, [[-hb, bot], [hb, bot], [hw, top], [-hw, top]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#15181d'; ctx.beginPath(); ctx.ellipse(0, top, hw * 0.85, 0.12, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#c8402f'; ctx.fillRect(-hb, bot, 2 * hb, 0.1);
+      break;
+    }
+    case 'scoop': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#7a8089', '#d8dce2', '#6a7079');
+      poly(ctx, [[-hw, bot], [hw * 0.2, bot], [hw, top - 0.1], [hw, top], [-hw, top]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#15181d'; ctx.fillRect(-hw * 0.6, top - 0.12, hw * 1.5, 0.12);
+      break;
+    }
+    case 'wing': case 'strake': case 'elevon': case 'canard': {
+      // a planform seen from above: the root runs along the fuselage, the tip sweeps back
+      const sweep = d.kind === 'strake' ? 0.7 : d.kind === 'wing' ? 0.45 : 0.2;
+      const tipC = d.kind === 'strake' ? 0.15 : d.kind === 'wing' ? 0.35 : 0.7;
+      ctx.fillStyle = d.ctrlSurf ? '#d8dbe0' : '#c6cad1';
+      poly(ctx, [[-hw, top], [hw, top - h * sweep], [hw, top - h * sweep - h * tipC], [-hw, bot]]); ctx.fill(); ctx.stroke();
+      if (d.ctrlSurf) {
+        ctx.fillStyle = '#e0b030';
+        poly(ctx, [[-hw, bot + h * 0.35], [hw, top - h * sweep - h * tipC * 0.55], [hw, top - h * sweep - h * tipC], [-hw, bot]]); ctx.fill(); ctx.stroke();
+      } else {
+        ctx.fillStyle = '#c8402f';
+        poly(ctx, [[hw - 0.12, top - h * sweep], [hw, top - h * sweep], [hw, top - h * sweep - h * tipC], [hw - 0.12, top - h * sweep - h * tipC]]); ctx.fill();
+      }
+      break;
+    }
+    case 'jet': {
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#5a6068', '#c8ced8', '#4a5058');
+      poly(ctx, [[-hw, top], [hw, top], [hw * 0.95, bot + h * 0.3], [-hw * 0.95, bot + h * 0.3]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#2a2d33';
+      poly(ctx, [[-hw * 0.95, bot + h * 0.3], [hw * 0.95, bot + h * 0.3], [hw * 0.6, bot], [-hw * 0.6, bot]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#e0b030'; ctx.fillRect(-hw, top - 0.1, 2 * hw, 0.1);
+      ctx.strokeStyle = 'rgba(30,32,36,0.6)'; ctx.lineWidth = Math.max(lw, 0.03);
+      ctx.beginPath(); for (const f of [0.55, 0.75]) { ctx.moveTo(-hw * 0.95, bot + h * f); ctx.lineTo(hw * 0.95, bot + h * f); } ctx.stroke();
+      break;
+    }
+    case 'gear': case 'rwheel': {
+      // housing on the hull, a leg out to the wheel; folded gear tucks the wheel against the housing
+      const cy = (top + bot) / 2, R = d.wheelR, out = p.gearUp ? hw - R * 0.2 : hw + d.leg;
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#4a505a', '#9aa2ad', '#40454d');
+      ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      if (!p.gearUp) {
+        ctx.strokeStyle = '#59606b'; ctx.lineWidth = 0.12;
+        ctx.beginPath(); ctx.moveTo(hw, cy); ctx.lineTo(out, cy); ctx.stroke();
+        ctx.lineWidth = lw; ctx.strokeStyle = OUTLINE;
+      }
+      ctx.fillStyle = '#23262b'; ctx.beginPath(); ctx.arc(out, cy, R, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = d.motor ? '#e0b030' : '#9aa2ad'; ctx.beginPath(); ctx.arc(out, cy, R * 0.45, 0, TAU); ctx.fill();
+      break;
+    }
     case 'srb': {
       const nz = Math.min(0.55, h * 0.18), bw = hw * 0.92;
       ctx.fillStyle = cylGrad(ctx, -bw, bw, '#a7abb2', '#fbfbfb', '#8f949c');
@@ -409,7 +490,9 @@ function drawFlame(ctx, p, pressure, flick) {
   ctx.translate(p.x, 0);
   if (p.inv) { ctx.translate(0, p.top + p.bot); ctx.scale(1, -1); }
   const g = ctx.createLinearGradient(0, y0, 0, y0 - L);
-  if (d.kind === 'ion') {
+  if (d.jet) {
+    g.addColorStop(0, 'rgba(255,200,140,0.55)'); g.addColorStop(0.4, 'rgba(255,140,80,0.25)'); g.addColorStop(1, 'rgba(255,100,50,0)');
+  } else if (d.kind === 'ion') {
     g.addColorStop(0, 'rgba(200,230,255,0.9)'); g.addColorStop(0.3, 'rgba(90,160,255,0.6)'); g.addColorStop(1, 'rgba(40,80,255,0)');
   } else if (d.nuclear) {
     g.addColorStop(0, 'rgba(230,250,255,0.95)'); g.addColorStop(0.3, 'rgba(150,220,255,0.7)'); g.addColorStop(1, 'rgba(120,120,255,0)');
@@ -527,6 +610,7 @@ function drawPartIcon(canvas, id, W = 46, H = 54) {
   if (def.kind === 'rcs') { x1 += 0.2; yTop += 0.15; yBot -= 0.15; }
   if (def.kind === 'airbrake') x1 += 0.2;
   if (def.kind === 'strut') x1 += 0.6;
+  if (def.wheel) x1 += def.leg + def.wheelR;
   if (def.fairing) { p.shell = true; p.cfg = { fairH: 2.2 }; p.def = def; yTop = 2.2; x0 = -def.shellW / 2 - 0.1; x1 = -x0; }
   const s = Math.min((W - 6) / (x1 - x0), (H - 6) / (yTop - yBot));
   ctx.setTransform(dpr * s, 0, 0, -dpr * s, dpr * (W / 2 - ((x0 + x1) / 2) * s), dpr * (H / 2 + ((yTop + yBot) / 2) * s));
@@ -659,7 +743,30 @@ function daylight(c, b, t) {
   return smoothstep(Math.sin(dip) - 0.12, Math.sin(dip) + 0.12, elev);
 }
 
+function drawRunway(ctx, cam, viewR) {
+  const r = HOME.R + 4;
+  const a0 = PAD_PHI - RUNWAY_START, a1 = PAD_PHI - RUNWAY_END;
+  const mid = (a0 + a1) / 2, mx = r * Math.cos(mid) - cam[0], my = r * Math.sin(mid) - cam[1];
+  if (Math.hypot(mx, my) > viewR + 1500) return;
+  const pt = (a, h) => [(r + h) * Math.cos(a) - cam[0], (r + h) * Math.sin(a) - cam[1]];
+  ctx.fillStyle = '#3a3d42';
+  ctx.beginPath();
+  const N = 40;
+  for (let i = 0; i <= N; i++) { const q = pt(lerp(a0, a1, i / N), 0.05); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }
+  for (let i = N; i >= 0; i--) { const q = pt(lerp(a0, a1, i / N), -1.2); ctx.lineTo(q[0], q[1]); }
+  ctx.closePath(); ctx.fill();
+  // centre-line dashes and threshold bars
+  ctx.fillStyle = '#e8e8e0';
+  const len = (a0 - a1) * r;
+  for (let s = 40; s < len - 40; s += 60) {
+    const q0 = pt(a0 - s / r, 0.06), q1 = pt(a0 - (s + 25) / r, 0.06);
+    ctx.fillRect(Math.min(q0[0], q1[0]), Math.min(q0[1], q1[1]) - 0.15, Math.abs(q1[0] - q0[0]) || 0.3, 0.3);
+  }
+  for (const a of [a0 - 8 / r, a1 + 8 / r]) { const q = pt(a, 0.06); ctx.fillRect(q[0] - 2, q[1] - 0.2, 4, 0.4); }
+}
+
 function drawPad(ctx, cam, viewR) {
+  drawRunway(ctx, cam, viewR);
   const base = HOME.R + terrainH(HOME, PAD_PHI);
   const ox = -cam[0], oy = base - cam[1];
   if (Math.hypot(ox, oy) > viewR + 200) return;

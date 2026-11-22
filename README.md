@@ -22,7 +22,7 @@ then visit http://localhost:8000.
   money, and recovering your craft refunds most of it. Run experiments with six science instruments (each worth more on new worlds and in new
   situations), transmit or recover the results, and research a 14-node tech tree. Astronauts gain experience and can be lost.
   Reverting a flight undoes it; saves can be exported and imported. **Sandbox mode** unlocks everything with no money.
-- **Hangar**: drag 75 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
+- **Hangar**: drag 90 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS, plus engine mounts
   (twin, tri and quad) for clusters of engines side by side.
@@ -30,6 +30,11 @@ then visit http://localhost:8000.
   payload and split open, an atomic engine, an ion drive that burns argon and electricity, an aerospike that works well at any
   altitude, a small monopropellant engine, big batteries and fuel cells, struts, a 3 m heat shield, an inflatable heat shield,
   drogue parachutes and air brakes.
+- **Planes and rovers**: a cockpit, fuselage, wings, control surfaces, air intakes, a turbofan and a turbojet, folding landing gear
+  and powered rover wheels. Wings make lift from the angle they meet the air (and stall when it gets too steep); control surfaces
+  pitch the plane with A/D and SAS. Jets only work in air with oxygen (Verdan and Gale), need an intake, and fade at high speed.
+  Wheels ride on springy suspension, roll, brake and drive. Craft with wheels start on the **runway** east of the pad (or pick the
+  pad in the hangar). Examples: the Swallow Jet and the Dune Rover.
 - **Staging editor**: automatic staging you can reorder by dragging parts between stages (or between two stages to make a new one),
   with simulated Δv, thrust-to-weight and burn time for every stage.
 - **Part settings**: when each parachute opens fully, engine and booster thrust limits, how much fuel each tank carries, and how
@@ -84,7 +89,9 @@ then visit http://localhost:8000.
 | T, 1–9 | SAS toggle / modes (7 node, 8 target, 9 match target speed) |
 | U; [ / ] | Undock; switch to a nearby vessel |
 | R; Q / E; H / N | RCS toggle; slide sideways; forward / back |
-| K | Air brakes out / in |
+| K | Brakes: air brakes out, wheel brakes on (again to release) |
+| G | Landing gear up / down |
+| ↑ / ↓ (rover on the ground) | Drive forward / back |
 | B | Science panel (career) |
 | M | Map view (F changes focus) |
 | , / . | Time warp slower / faster |
@@ -105,7 +112,8 @@ spheres of influence, frame accelerations, stable orbits around nested moons, in
 career rules (research, science values, contracts, recovery, crew loss), power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
-fairings, fuel cells and crew seats.
+fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers
+driving, braking and settling, and landing on gear (gently, hard, and gear up).
 
 ## Code layout
 

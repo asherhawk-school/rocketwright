@@ -52,6 +52,11 @@ function partInfo(c, p) {
   if (d.fairing) out.push(p.shell ? `Shell on · ${shellH(p)} m tall` : 'Shell thrown off');
   if (d.inflate) out.push(p.inflated ? `Inflated · ${d.wOpen} m wide` : 'Packed');
   if (d.brakeArea) out.push(p.brake ? 'Deployed' : 'Stowed');
+  if (d.wheel) out.push(`${p.gearUp ? 'Folded away' : p.touch || (c.landed && c.landed.wheels) ? 'On the ground' : 'Down'}${c.wheelBrake ? ' · brakes on' : ''}`);
+  if (d.motor) out.push(`Motor ${d.motor} kN · ↑/↓ drive on the ground`);
+  if (d.wing) out.push(`${d.ctrlSurf ? 'Control surface' : 'Wing'} · ${d.wing} m² of lift`);
+  if (d.intake) out.push(`Air intake (${d.intake} m²)`);
+  if (d.jet) out.push(`Needs oxygen-rich air · ${c.air && c.air.oxygen ? 'air here has oxygen' : 'no oxygen here'}`);
   if (d.cellEC) out.push(p.cellOff ? 'Switched off' : p.cellRun > 0 ? `Making ${fmtNum(p.cellRun, 1)} charge/s` : 'Standing by (batteries full or no fuel)');
   if (d.seats) {
     const n = F.crew.filter((x) => x.pod === p.uid).length;
@@ -89,6 +94,8 @@ function partActions(c, p) {
   if (d.fairing && p.shell) a.push(['fairing', 'Open fairing']);
   if (d.inflate && !p.inflated) a.push(['inflate', 'Inflate shield']);
   if (d.brakeArea) a.push(['brake', p.brake ? 'Stow air brakes' : 'Deploy air brakes']);
+  if (d.retract) a.push(['gear', p.gearUp ? 'Lower gear' : 'Raise gear']);
+  if (d.wheel) a.push(['brake', c.wheelBrake ? 'Release brakes' : 'Brakes on']);
   if (d.cellEC) a.push(['cell', p.cellOff ? 'Switch on' : 'Switch off']);
   if (isEngine(d)) {
     if (!p.ignited) a.push(['engOn', 'Start engine']);
@@ -134,6 +141,7 @@ function partMenuAction(kind) {
   else if (kind === 'fairing') { p.shell = false; jettisonFairing(c, p); playSound('stage'); flash('Fairing open', 2); }
   else if (kind === 'inflate') { p.inflated = true; c.recompute(); playSound('chute'); flash('Heat shield inflated', 2); }
   else if (kind === 'brake') toggleBrakes();
+  else if (kind === 'gear') toggleGear();
   else if (kind === 'cell') { const on = !!p.cellOff; for (const q of c.cells) if (q === p || (p.sym && q.sym === p.sym)) q.cellOff = !on; }
   else if (kind === 'engOn') { p.ignited = true; flash(`${shortName(p.def)} started`, 2); }
   else if (kind === 'engOff') { p.ignited = false; flash(`${shortName(p.def)} shut down`, 2); }
@@ -194,11 +202,22 @@ function wirePartMenu() {
   el.addEventListener('change', (e) => e.target.blur());
 }
 
-/* Air brakes all deploy or stow together (K). */
+/* Brakes (K): air brakes swing out and wheels grip. */
 function toggleBrakes() {
   const c = F.craft;
-  if (!c || c.dead || !c.brakes.length) return;
-  const on = !c.brakes.some((p) => p.brake);
+  if (!c || c.dead || (!c.brakes.length && !c.wheels.length)) return;
+  const on = !(c.wheelBrake || c.brakes.some((p) => p.brake));
   for (const p of c.brakes) p.brake = on;
-  flash(on ? 'Air brakes out' : 'Air brakes in', 1.5);
+  c.wheelBrake = on;
+  flash(on ? 'Brakes on' : 'Brakes off', 1.5);
+}
+/* Landing gear up or down (G). */
+function toggleGear() {
+  const c = F.craft;
+  const g = c && !c.dead ? c.wheels.filter((p) => p.def.retract) : [];
+  if (!g.length) { if (c && !c.dead) flash('No folding landing gear on this craft', 2); return; }
+  const up = !g.some((p) => p.gearUp);
+  for (const p of g) p.gearUp = up;
+  if (c.landed && c.landed.wheels && up) c.landed.wheels = false;
+  flash(up ? 'Gear up' : 'Gear down', 1.5);
 }

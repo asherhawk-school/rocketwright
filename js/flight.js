@@ -26,7 +26,7 @@ function initFlightView() {
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
-    'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bRcs', 'hNext', 'hPitch',
+    'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bGear', 'bBrakes', 'bRcs', 'hNext', 'hPitch',
     'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
@@ -53,6 +53,8 @@ function flightStart(design, name, opts = {}) {
   c.pos = [c.xc, padTop - (lowest - c.yc) + 0.02];
   c.vel = [0, 0];
   c.landed = { body: HOME, rx: c.pos[0], ry: c.pos[1] };
+  F.site = opts.site === 'runway' ? 'runway' : 'pad';
+  if (F.site === 'runway') placeOnRunway(c);
   Object.assign(F, {
     craft: c, debris: [], others: [], particles: [], t: opts.t0 || 0, launchT: opts.t0 || 0, crew: opts.crew || [], crewLost: [],
     vid: opts.vid || newVesselId(), canRevert: true, kind: 'ship', dockedMeta: {},
@@ -64,7 +66,29 @@ function flightStart(design, name, opts = {}) {
   F.zoom = clamp((F.H * 0.42) / (c.length + 8), 2, 30);
   for (const k in F.keys) F.keys[k] = false;
   updateSasButtons();
-  flash(`${F.craftName} is on the pad. Press SPACE to launch!`, 5);
+  flash(F.site === 'runway' ? `${F.craftName} is on the runway. SPACE starts the engines, Z for full throttle, A/D to pull up.`
+    : `${F.craftName} is on the pad. Press SPACE to launch!`, 5);
+}
+
+/* Lay a plane or rover on the runway, wheels down, nose pointing east along it. */
+function placeOnRunway(c) {
+  // the side with the most wheels is the underside; mirror the craft so that's +x (which points down)
+  let side = 0;
+  for (const w of c.wheels) side += Math.sign(wheelPoint(w)[0] - c.xc);
+  if (side < 0) {
+    for (const p of c.parts) { p.x = -p.x; p.flip = !p.flip; }
+    c.xc = undefined;
+    c.recompute();
+  }
+  let down = -Infinity;
+  for (const w of c.wheels) if (!w.gearUp) down = Math.max(down, wheelPoint(w)[0] - c.xc);
+  for (const [lx] of c.contacts) down = Math.max(down, lx - c.xc);
+  const phi = PAD_PHI - RUNWAY_START - 30 / HOME.R;
+  const r = HOME.R + terrainH(HOME, phi) + down + 0.01;
+  c.angle = phi - Math.PI / 2;
+  c.pos = [r * Math.cos(phi), r * Math.sin(phi)];
+  c.vel = [0, 0];
+  c.landed = { body: HOME, rx: c.pos[0], ry: c.pos[1], wheels: c.wheels.some((w) => !w.gearUp) };
 }
 
 function newVesselId() {
@@ -326,13 +350,15 @@ function flightUpdate(dt) {
   const c = F.craft, k = F.keys;
   F.frame++;
   if (!c.dead && hasControl(c)) {
-    if (k.ShiftLeft || k.ShiftRight || k.KeyW || k.ArrowUp || k.vThrUp) c.throttle = Math.min(1, c.throttle + dt * 0.8);
-    if (k.KeyS || k.ArrowDown || k.vThrDn) c.throttle = Math.max(0, c.throttle - dt * 0.8);
+    const driving = c.motors && c.motors.length && (c.isRolling() || (c.airT || 0) < 0.6); // short hops don't count
+    F.drive = driving ? (k.ArrowUp ? 1 : 0) - (k.ArrowDown ? 1 : 0) : 0;
+    if (k.ShiftLeft || k.ShiftRight || k.KeyW || (k.ArrowUp && !driving) || k.vThrUp) c.throttle = Math.min(1, c.throttle + dt * 0.8);
+    if (k.KeyS || (k.ArrowDown && !driving) || k.vThrDn) c.throttle = Math.max(0, c.throttle - dt * 0.8);
     F.userRot = (k.KeyA || k.ArrowLeft || k.vRotL ? 1 : 0) - (k.KeyD || k.ArrowRight || k.vRotR ? 1 : 0);
     if (F.userRot) F.hold = null;
     F.rcsTx = (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0);
     F.rcsTy = (k.KeyH ? 1 : 0) - (k.KeyN ? 1 : 0);
-  } else { F.userRot = 0; F.rcsTx = F.rcsTy = 0; }
+  } else { F.userRot = 0; F.drive = 0; F.rcsTx = F.rcsTy = 0; }
 
   enforceWarp();
   syncOthers();
@@ -416,6 +442,7 @@ function stepCraft(c, dt, player) {
   const at = atmo(b, alt);
   c.pressure = at.p;
   c.radar = alt - groundAlt(b, Math.atan2(ry, rx));
+  c.air = { rho: at.rho, v: Math.hypot(c.vel[0] - bv[0], c.vel[1] - bv[1]), oxygen: !!b.oxygen };
   const T = c.engineStep(dt, at.p);
   c.updateMass();
   const ax = Math.cos(c.angle), ay = Math.sin(c.angle);
@@ -426,9 +453,15 @@ function stepCraft(c, dt, player) {
     c.vel[0] = bv[0]; c.vel[1] = bv[1]; c.angVel = 0;
     rx = c.landed.rx; ry = c.landed.ry;
     const nx = g[0] + (ax * T) / c.M, ny = g[1] + (ay * T) / c.M;
+    const drive = player ? F.drive || 0 : 0;
     if ((nx * rx + ny * ry) / r > 0.02) {
       c.landed = null;
       if (player) flash('Liftoff!', 2);
+    } else if (c.landed.wheels && (Math.abs(T) > 0 || drive)) {
+      // on wheels: start rolling
+      c.landed = null;
+      c.rolling = b;
+      c.settle = 0;
     } else {
       if (T > 0) emitExhaust(c, dt, at.p, bv);
       if (player) { electricStep(c, dt, t, 0); c.gforce = Math.hypot(g[0], g[1]) / G0; }
@@ -503,13 +536,44 @@ function stepCraft(c, dt, player) {
       tq -= kS * Math.sin(wrapPi(c.angle - flowAng - (arm > 0 ? Math.PI : 0)));
       kSpring += kS;
     }
+    // wings lift across the airflow; control surfaces tilt with the controls
+    let aeroCap = 0;
+    if (c.wings.length) {
+      const lnx = -vhy, lny = vhx; // lift direction for a positive angle of attack
+      const alpha0 = wrapPi(c.angle - flowAng);
+      for (const w of c.wings) {
+        const S = w.def.wing, ly = (w.top + w.bot) / 2 - c.yc;
+        const rw = c.rotLocal(0, ly);
+        let a = alpha0;
+        const cr = rw[0] * lny - rw[1] * lnx; // torque per unit of lift
+        if (w.def.ctrlSurf) {
+          a += 0.3 * c.ctrl * (cr >= 0 ? 1 : -1);
+          aeroCap += q * S * 1.2 * Math.abs(cr);
+        }
+        const CL = liftCoef(a);
+        const L = q * S * CL, D = q * S * (0.015 + 0.06 * CL * CL);
+        let fx = lnx * L - vhx * D, fy = lny * L - vhy * D;
+        // don't let one step's lift reverse the motion across the flow
+        const fl = Math.hypot(fx, fy), cap = (c.M * v) / dt * 0.5;
+        if (fl > cap) { fx *= cap / fl; fy *= cap / fl; }
+        c.vel[0] += (fx / c.M) * dt; c.vel[1] += (fy / c.M) * dt;
+        ngx += fx / c.M; ngy += fy / c.M;
+        tq += rw[0] * fy - rw[1] * fx;
+        kSpring += q * S * 3 * Math.abs(ly);
+      }
+    }
+    c.aeroCap = aeroCap;
+    for (const p of c.wheels) if (!p.gearUp) {
+      const dg = q * 0.25;
+      c.vel[0] -= (vhx * dg / c.M) * dt; c.vel[1] -= (vhy * dg / c.M) * dt;
+    }
     if (c.chuteArea > 1) {
       const kC = q * c.chuteArea * 0.4;
       tq -= kC * Math.sin(wrapPi(c.angle - flowAng - Math.PI));
       kSpring += kC;
     }
     c.heat = at.rho * v * v * v;
-  } else c.heat = 0;
+  } else { c.heat = 0; c.aeroCap = 0; }
   if (player) c.gforce = lerp(c.gforce || 0, Math.hypot(ngx, ngy) / G0, Math.min(1, dt * 4));
   const hot = heatStep(c, dt, at.rho, vrx, vry);
   if (hot.length) {
@@ -521,6 +585,18 @@ function stepCraft(c, dt, player) {
     }
     if (c.dead) return;
   }
+  // wheels on the ground
+  const wh = c.wheels.length ? wheelStep(c, b, bp, bv, dt, player) : null;
+  if (wh && wh.n) {
+    c.vel[0] += (wh.fx / c.M) * dt; c.vel[1] += (wh.fy / c.M) * dt;
+    ngx += wh.fx / c.M; ngy += wh.fy / c.M;
+    tq += wh.tq;
+    if (!c.rolling && player && !c.dead && (c.airT || 0) > 1) onTouchdown(b, false, wh.impact);
+    c.rolling = b;
+    c.airT = 0;
+  } else { c.rolling = null; c.airT = (c.airT || 0) + dt; }
+  if (c.dead) return;
+  if (player) c.gforce = lerp(c.gforce || 0, Math.hypot(ngx, ngy) / G0, Math.min(1, dt * 4));
   kSpring = Math.min(kSpring, c.I * 800);
   tq -= 1.4 * Math.sqrt(kSpring * c.I) * c.angVel;
   c.angVel = clamp(c.angVel + (tq / c.I) * dt, -4, 4);
@@ -529,7 +605,80 @@ function stepCraft(c, dt, player) {
   c.pos[0] += c.vel[0] * dt;
   c.pos[1] += c.vel[1] * dt;
   if (T > 0) emitExhaust(c, dt, at.p, bv);
+  // a craft resting on its wheels settles: it stops jiggling and can time warp
+  if (wh && wh.n && !(Math.abs(T) > 0) && !(player && F.drive)) {
+    const sp = Math.hypot(c.vel[0] - bv[0], c.vel[1] - bv[1]);
+    c.settle = sp < 0.08 && Math.abs(c.angVel) < 0.01 ? (c.settle || 0) + dt : 0;
+    if (c.settle > 0.6) {
+      c.landed = { body: b, rx: c.pos[0] - bp[0], ry: c.pos[1] - bp[1], wheels: true };
+      c.vel = [bv[0], bv[1]]; c.angVel = 0; c.settle = 0;
+      return;
+    }
+  } else c.settle = 0;
   contact(c, b, t + dt, player);
+}
+
+/* Lift coefficient of a thin wing at angle of attack a: rises steeply, stalls past about 14°, and acts like a flat plate beyond. */
+function liftCoef(a) {
+  if (a > Math.PI / 2) a -= Math.PI; else if (a < -Math.PI / 2) a += Math.PI;
+  const s = Math.sign(a), x = Math.abs(a), STALL = 0.24, plate = 0.9 * Math.sin(2 * x);
+  if (x <= STALL) return s * 2 * Math.PI * x;
+  const peak = 2 * Math.PI * STALL;
+  if (x < STALL + 0.25) return s * lerp(peak, Math.max(plate, 0.75), (x - STALL) / 0.25);
+  return s * Math.max(plate, 0);
+}
+
+/* Spring-and-damper wheels: push the craft off the ground, roll along it, brake, and drive (rover motors). */
+const WHEEL_W = 15;                 // suspension stiffness, as a natural frequency (rad/s)
+function wheelStep(c, b, bp, bv, dt, player) {
+  const out = { fx: 0, fy: 0, tq: 0, n: 0, impact: 0 };
+  const live = c.wheels.filter((w) => !w.gearUp);
+  if (!live.length) return out;
+  const me = c.M / Math.max(2, live.length), k = me * WHEEL_W * WHEEL_W, cd = 2 * 0.9 * me * WHEEL_W;
+  const drive = player ? F.drive || 0 : 0;
+  let motorK = 0;
+  if (drive && c.motors.length) motorK = typeof ecDrain === 'function' ? ecDrain(c, 0.6 * c.motors.length * Math.abs(drive) * dt) : 1;
+  const nose = [Math.cos(c.angle), Math.sin(c.angle)];
+  const broken = [];
+  for (const w of live) {
+    const [lx, ly] = wheelPoint(w);
+    const P = c.toWorld(lx, ly);
+    const dx = P[0] - bp[0], dy = P[1] - bp[1], r = Math.hypot(dx, dy), phi = Math.atan2(dy, dx);
+    const h = terrainH(b, phi);
+    const pen = b.R + h - r;
+    if (pen <= 0 || (b.ocean && h < 0) || b.gas || b.star) { w.touch = false; continue; }
+    // ground slope
+    const dp = 1 / b.R, h1 = terrainH(b, phi - dp), h2 = terrainH(b, phi + dp);
+    let tx = (b.R + h2) * Math.cos(phi + dp) - (b.R + h1) * Math.cos(phi - dp);
+    let ty = (b.R + h2) * Math.sin(phi + dp) - (b.R + h1) * Math.sin(phi - dp);
+    const tl = Math.hypot(tx, ty); tx /= tl; ty /= tl;
+    let nx = ty, ny = -tx;
+    if (nx * dx + ny * dy < 0) { nx = -nx; ny = -ny; }
+    const rx = P[0] - c.pos[0], ry = P[1] - c.pos[1];
+    const vx = c.vel[0] - c.angVel * ry - bv[0], vy = c.vel[1] + c.angVel * rx - bv[1];
+    const vn = vx * nx + vy * ny, vt = vx * tx + vy * ty;
+    if (!w.touch) {
+      out.impact = Math.max(out.impact, -vn);
+      if (-vn > w.def.maxImpact) { broken.push(w); continue; }
+    }
+    w.touch = true;
+    const Fn = clamp(k * pen - cd * vn, 0, me * 80);
+    // rolling resistance, or brakes that grip (smooth near a standstill, so the craft doesn't chatter)
+    const mu = (c.wheelBrake ? 0.45 : 0.02) * Fn;
+    const Ft = -clamp((vt * me) / dt * 0.5, -mu, mu);
+    const fx = nx * Fn + tx * Ft, fy = ny * Fn + ty * Ft;
+    out.fx += fx; out.fy += fy; out.tq += rx * fy - ry * fx; out.n++;
+    if (w.def.motor && drive && motorK > 0) {
+      // the motor pushes at the axle, limited by how well the tyre grips
+      const fwd = Math.sign(nose[0] * tx + nose[1] * ty) || 1;
+      const fade = Math.max(0, 1 - Math.abs(vt) / 22);
+      const Fd = clamp(drive * fwd * w.def.motor * motorK * fade, -0.5 * Fn, 0.5 * Fn);
+      const ax = rx + nx * w.def.wheelR, ay = ry + ny * w.def.wheelR;
+      out.fx += tx * Fd; out.fy += ty * Fd; out.tq += ax * ty * Fd - ay * tx * Fd;
+    }
+  }
+  if (player) for (const w of broken) if (c.byUid.has(w.uid)) { flash(`${w.def.name} broke off: landed too hard`, 3); destroyPart(c, w); }
+  return out;
 }
 
 /* A single part overheats: it explodes, and anything no longer connected to the command part falls away. */
@@ -667,7 +816,7 @@ function controlInput(c) {
   if (!hasControl(c)) return 0;
   if (F.userRot) return F.userRot;
   if (F.sas === 'off' || c.landed) return 0;
-  const maxA = (c.torque + c.gimbalCap + (c.rcsOn && c.monoTotal() > 0 ? c.rcsTorqueCap : 0)) / c.I;
+  const maxA = (c.torque + c.gimbalCap + (c.aeroCap || 0) + (c.rcsOn && c.monoTotal() > 0 ? c.rcsTorqueCap : 0)) / c.I;
   if (maxA <= 1e-6) return 0;
   const damp = () => clamp((-c.angVel * 6) / maxA, -1, 1);
   let target;
@@ -715,7 +864,7 @@ function emitExhaust(c, dt, pressure, bv) {
   const ax = Math.cos(c.angle), ay = Math.sin(c.angle);
   for (const e of c.parts) {
     if (e.burn <= 0) continue;
-    let n = dt * 28 * e.burn * Math.min(1, pressure * 3) * Math.sqrt(e.def.thrust / 150);
+    let n = dt * 28 * e.burn * Math.min(1, pressure * 3) * Math.sqrt(e.def.thrust / 150) * (e.def.jet ? 0.12 : 1);
     while (n > 0) {
       if (Math.random() < n) {
         const dir = e.inv ? -1 : 1;
@@ -1587,6 +1736,10 @@ function updateHud() {
   h.hNext.textContent = c.stageIdx < c.stages.length ? 'Next: ' + stageLabel(c.stages[c.stageIdx], (u) => c.byUid.get(u)) : 'No stages left';
   h.bRcs.classList.toggle('on', c.rcsOn);
   h.bRcs.classList.toggle('hidden', !c.rcsParts.length);
+  h.bGear.classList.toggle('hidden', !c.wheels.some((p) => p.def.retract));
+  h.bGear.classList.toggle('on', c.wheels.some((p) => p.def.retract && !p.gearUp));
+  h.bBrakes.classList.toggle('hidden', !c.wheels.length && !c.brakes.length);
+  h.bBrakes.classList.toggle('on', !!(c.wheelBrake || c.brakes.some((p) => p.brake)));
   const rel = wrapPi(c.angle - Math.atan2(ry, rx));
   const pitch = 90 - (Math.abs(rel) * 180) / Math.PI;
   const side = Math.abs(rel) < 0.01 || Math.abs(rel) > Math.PI - 0.01 ? '' : rel > 0 ? '◀ ' : '▶ ';

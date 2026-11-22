@@ -17,9 +17,9 @@ function showHangar() {
 function launch() {
   const a = analyzeDesign(Hangar.design);
   if (!a.valid || !Career.s) return;
-  launchDesign(Hangar.design, Hangar.name, Hangar.crewId, Hangar.crewN);
+  launchDesign(Hangar.design, Hangar.name, Hangar.crewId, Hangar.crewN, $('launchSite').value);
 }
-function launchDesign(design, name, crewId, crewN = 1) {
+function launchDesign(design, name, crewId, crewN = 1, site = 'pad') {
   const s = Career.s;
   const snapshot = JSON.stringify(s);
   let crew = [];
@@ -42,7 +42,7 @@ function launchDesign(design, name, crewId, crewN = 1) {
   showScreen('flight');
   resizeFlight();
   advanceAll(s.ut);
-  flightStart(design, name, { t0: s.ut, keepTarget: true });
+  flightStart(design, name, { t0: s.ut, keepTarget: true, site });
   fillTargetSelect();
   F.snapshot = snapshot;
   saveCheckpoint();
@@ -84,7 +84,7 @@ function revertFlight(toHangar) {
   persist();
   hideModal();
   if (toHangar) showHangar();
-  else launchDesign(F.design, F.craftName, F.revertCrew, F.revertCrewN || 1);
+  else launchDesign(F.design, F.craftName, F.revertCrew, F.revertCrewN || 1, F.site);
 }
 
 let modalOpen = false;
@@ -336,6 +336,7 @@ function onKeyDown(e) {
     case 'KeyT': setSas(F.sas === 'off' ? 'stab' : 'off'); break;
     case 'KeyR': toggleRcs(); break;
     case 'KeyK': toggleBrakes(); break;
+    case 'KeyG': toggleGear(); break;
     case 'KeyB': toggleScience(); break;
     case 'KeyU': undock(); break;
     case 'BracketLeft': case 'BracketRight': cycleNearby(e.code === 'BracketRight' ? 1 : -1); break;
@@ -393,6 +394,8 @@ function wireUi() {
   // later (science panel, part menu) are covered too.
   $('flight').addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
   $('bStage').addEventListener('click', doStage);
+  $('bGear').addEventListener('click', toggleGear);
+  $('bBrakes').addEventListener('click', toggleBrakes);
   $('bMap').addEventListener('click', toggleMap);
   $('bMenu').addEventListener('click', openMenu);
   $('bWarpUp').addEventListener('click', () => changeWarp(1));

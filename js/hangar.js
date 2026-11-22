@@ -4,7 +4,7 @@
 const $ = (id) => document.getElementById(id);
 const Hangar = {
   design: newDesign(), name: 'Orbiter I', sel: null, sym: true, showMarkers: true,
-  undo: [], redo: [], view: null, a: null, drag: null, hover: null, crewId: null, crewN: 1,
+  undo: [], redo: [], view: null, a: null, drag: null, hover: null, crewId: null, crewN: 1, site: null,
 };
 
 /* ---------------- palette ---------------- */
@@ -76,6 +76,8 @@ function hangarChanged() {
   if (Hangar.sel != null && !designPart(Hangar.design, Hangar.sel)) Hangar.sel = null;
   drawBuild();
   updateStats();
+  // craft on wheels start on the runway unless you pick otherwise
+  $('launchSite').value = Hangar.site || (Hangar.design.parts.some((p) => PART_DEFS[p.id].wheel) ? 'runway' : 'pad');
   $('btnUndo').disabled = !Hangar.undo.length;
   $('btnRedo').disabled = !Hangar.redo.length;
 }
@@ -576,6 +578,7 @@ function fillLoadSelect() {
 }
 
 function loadCraft(name, design, keepUndo) {
+  Hangar.site = null;
   if (keepUndo) snapshot();
   Hangar.name = name;
   Hangar.design = migrateDesign(design);
@@ -598,6 +601,7 @@ function wireHangar() {
   $('selDel').addEventListener('click', removeSel);
   $('crewSelect').addEventListener('change', (e) => { Hangar.crewId = +e.target.value; });
   $('crewCount').addEventListener('change', (e) => { Hangar.crewN = +e.target.value; });
+  $('launchSite').addEventListener('change', (e) => { Hangar.site = e.target.value; e.target.blur(); });
   $('btnUndo').addEventListener('click', undo);
   $('btnRedo').addEventListener('click', redo);
   $('btnSym').addEventListener('click', () => setSymmetry(!Hangar.sym));

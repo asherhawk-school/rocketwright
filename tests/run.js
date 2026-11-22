@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -82,6 +82,7 @@ test('every preset lays out, is valid and has delta-v', () => {
   for (const [name, mk] of Object.entries(G.PRESETS)) {
     const a = G.analyzeDesign(mk());
     assert(a.valid, name + ' invalid: ' + JSON.stringify(a.warnings));
+    if (name === 'Swallow Jet' || name === 'Dune Rover') continue; // a plane and a rover: no rocket Δv
     assert(a.total > 1500, `${name} total Δv only ${a.total.toFixed(0)}`);
     assert(a.rows[0].twr > 1, `${name} liftoff TWR ${a.rows[0].twr}`);
   }
@@ -933,6 +934,109 @@ test('the Heron and a crew cabin seat seven, and new part states survive a save'
   c.parts.find((p) => p.def.gas).gas = 0.123;
   const c2 = G.craftFromVessel(JSON.parse(JSON.stringify(G.vesselFromCraft(c, F.t, { id: 1, name: 'x' }))));
   assert(c2.parts.find((p) => p.def.inflate).inflated && !c2.shells.length && Math.abs(c2.propTotal('gas') - 0.123) < 1e-9, 'states');
+});
+
+console.log('\nPlanes and rovers');
+/* Fly a plane off the runway: full throttle, then hold the nose a little above the horizon. */
+function flyPlane(design, secs, pitch = 0.2) {
+  const { F } = G;
+  G.flightStart(design, 'Plane', { site: 'runway' });
+  const c = F.craft;
+  G.doStage(); c.throttle = 1; F.sas = 'off';
+  let maxAlt = 0, liftoffV = 0;
+  for (let i = 0; i < secs / G.PHYS_DT && !c.dead; i++) {
+    const up = Math.atan2(c.pos[1], c.pos[0]), horiz = up - Math.PI / 2;
+    const v = Math.hypot(...c.vel);
+    const err = G.wrapPi((v > 55 ? horiz + pitch : horiz) - c.angle);
+    c.ctrl = G.clamp(err * 3 - c.angVel * 2, -1, 1);
+    G.stepCraft(c, G.PHYS_DT, true);
+    F.t += G.PHYS_DT;
+    const alt = Math.hypot(...c.pos) - G.HOME.R;
+    if (!liftoffV && alt > 15) liftoffV = v;
+    maxAlt = Math.max(maxAlt, alt);
+  }
+  return { c, maxAlt, liftoffV };
+}
+test('the runway is flat and the Swallow Jet starts on it, wheels down, nose east', () => {
+  const { F } = G;
+  for (let d = G.RUNWAY_START; d <= G.RUNWAY_END; d += 0.0002) assert(Math.abs(G.terrainH(G.HOME, G.PAD_PHI - d) - 4) < 1e-6, 'bump at ' + d);
+  G.flightStart(G.PRESETS['Swallow Jet'](), 'Swallow', { site: 'runway' });
+  const c = F.craft, phi = Math.atan2(c.pos[1], c.pos[0]);
+  assert(c.landed && c.landed.wheels && phi < G.PAD_PHI - G.RUNWAY_START + 1e-4 && phi > G.PAD_PHI - G.RUNWAY_END, 'placement');
+  assert(Math.abs(G.wrapPi(c.angle - (phi - Math.PI / 2))) < 1e-9, 'nose along the runway');
+  for (const w of c.wheels) { const p = c.toWorld(...G.wheelPoint(w)); assert(Math.abs(Math.hypot(...p) - G.HOME.R - 4) < 0.05, 'wheel height ' + (Math.hypot(...p) - G.HOME.R)); }
+});
+test('wings lift: the Swallow Jet takes off from the runway and climbs', () => {
+  const r = flyPlane(G.PRESETS['Swallow Jet'](), 60);
+  assert(!r.c.dead && r.maxAlt > 1500, `dead ${r.c.dead}, max altitude ${r.maxAlt.toFixed(0)} m`);
+  assert(r.liftoffV > 50 && r.liftoffV < 250, 'liftoff speed ' + r.liftoffV.toFixed(0));
+  assert(G.liftCoef(0.1) > 0.6 && G.liftCoef(0.1) < 0.65 && G.liftCoef(-0.1) < 0 && G.liftCoef(0.6) < G.liftCoef(0.24), 'lift curve');
+});
+test('without wings the same plane cannot take off', () => {
+  const d = G.PRESETS['Swallow Jet']();
+  G.removePartTree(d, d.parts.find((p) => p.id === 'wingL').uid);
+  const r = flyPlane(d, 25);
+  assert(r.maxAlt < 30, 'max altitude ' + r.maxAlt.toFixed(0));
+});
+test('jets need oxygen-rich air and an intake', () => {
+  const { F } = G;
+  G.flightStart(G.PRESETS['Swallow Jet'](), 'Swallow', { site: 'runway' });
+  const c = F.craft, e = c.engines[0];
+  c.air = { rho: 1.2, v: 0, oxygen: true };
+  assert(G.jetFactor(c, e) > 0.99, 'at sea level ' + G.jetFactor(c, e));
+  c.air = { rho: 1.2, v: 0, oxygen: false };
+  assert(G.jetFactor(c, e) === 0, 'no oxygen');
+  c.air = { rho: 0, v: 0, oxygen: true };
+  assert(G.jetFactor(c, e) === 0, 'vacuum');
+  c.air = { rho: 1.2, v: 600, oxygen: true };
+  assert(G.jetFactor(c, e) === 0, 'too fast for a turbofan');
+  const d = G.PRESETS['Swallow Jet']();
+  for (const p of d.parts.filter((q) => q.id === 'intakeRad')) G.removePartTree(d, p.uid);
+  G.flightStart(d, 'NoIntake', { site: 'runway' });
+  F.craft.air = { rho: 1.2, v: 0, oxygen: true };
+  assert(G.jetFactor(F.craft, F.craft.engines[0]) === 0, 'no intake');
+});
+test('a rover drives along the runway, brakes to a stop and settles', () => {
+  const { F } = G;
+  G.flightStart(G.PRESETS['Dune Rover'](), 'Rover', { site: 'runway' });
+  const c = F.craft, p0 = c.pos.slice();
+  assert(c.landed && c.landed.wheels && c.motors.length === 2, 'on its wheels');
+  F.drive = 1; F.sas = 'off';
+  for (let i = 0; i < 20 / G.PHYS_DT && !c.dead; i++) { c.ctrl = 0; G.stepCraft(c, G.PHYS_DT, true); F.t += G.PHYS_DT; }
+  const moved = Math.hypot(c.pos[0] - p0[0], c.pos[1] - p0[1]), v = Math.hypot(...c.vel);
+  assert(!c.dead && moved > 100 && v > 8 && c.rolling, `moved ${moved.toFixed(0)} m, speed ${v.toFixed(1)}`);
+  assert(c.pos[0] > p0[0], 'drove east');
+  F.drive = 0; G.toggleBrakes();
+  for (let i = 0; i < 20 / G.PHYS_DT && !c.dead && !c.landed; i++) { c.ctrl = 0; G.stepCraft(c, G.PHYS_DT, true); F.t += G.PHYS_DT; }
+  assert(!c.dead && c.landed && c.landed.wheels, 'settled');
+  // reversing works too, and drives it back west
+  const p1 = c.pos.slice();
+  G.toggleBrakes(); F.drive = -1;
+  for (let i = 0; i < 5 / G.PHYS_DT && !c.dead; i++) { c.ctrl = 0; G.stepCraft(c, G.PHYS_DT, true); F.t += G.PHYS_DT; }
+  F.drive = 0;
+  assert(c.pos[0] < p1[0] - 5, 'reversed');
+});
+test('a gentle touchdown on the gear rolls on; a hard one breaks the gear off; gear up means a belly landing', () => {
+  const { F } = G;
+  const drop = (vy, gearUp) => {
+    G.flightStart(G.PRESETS['Swallow Jet'](), 'Lander', { site: 'runway' });
+    const c = F.craft;
+    if (gearUp) G.toggleGear();
+    c.landed = null;
+    const phi = Math.atan2(c.pos[1], c.pos[0]);
+    c.pos = c.pos.map((x) => x * (1 + 3 / Math.hypot(...c.pos)));
+    const east = [Math.sin(phi), -Math.cos(phi)], up = [Math.cos(phi), Math.sin(phi)];
+    c.vel = [east[0] * 70 - up[0] * vy, east[1] * 70 - up[1] * vy];
+    F.sas = 'off';
+    for (let i = 0; i < 6 / G.PHYS_DT && !c.dead; i++) { c.ctrl = 0; G.stepCraft(c, G.PHYS_DT, true); F.t += G.PHYS_DT; }
+    return c;
+  };
+  const soft = drop(3, false);
+  assert(!soft.dead && soft.wheels.length === 2, `soft: dead ${soft.dead}, wheels ${soft.wheels.length}`);
+  const hard = drop(14, false);
+  assert(hard.wheels.length < 2, 'hard landing kept its gear');
+  const belly = drop(3, true);
+  assert(belly.dead, 'belly landing at 70 m/s survived');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
