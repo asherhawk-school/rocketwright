@@ -358,9 +358,8 @@ function drawCraft(ctx, c, cam, zoom, pressure) {
 }
 
 /* Small icon of a single part for the parts palette. */
-function drawPartIcon(canvas, id) {
+function drawPartIcon(canvas, id, W = 46, H = 54) {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const W = 46, H = 54;
   canvas.width = W * dpr; canvas.height = H * dpr;
   canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
   const ctx = canvas.getContext('2d');

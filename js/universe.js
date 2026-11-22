@@ -14,7 +14,7 @@ function universe() {
 
 /* ---------------- serialisation ---------------- */
 
-const PART_KEYS = ['uid', 'id', 'x', 'top', 'bot', 'flip', 'inv', 'links', 'fuel', 'solid', 'mono', 'ec', 'ablator', 'ignited', 'result', 'spent', 'sym'];
+const PART_KEYS = ['uid', 'id', 'x', 'top', 'bot', 'flip', 'inv', 'links', 'fuel', 'solid', 'mono', 'ec', 'ablator', 'ignited', 'result', 'spent', 'sym', 'cfg'];
 
 function serialiseParts(parts) {
   return parts.map((p) => {

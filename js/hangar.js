@@ -364,10 +364,38 @@ function drawBuild() {
   if (sp) {
     tools.classList.remove('hidden');
     $('selName').textContent = sp.def.name + (sp.sym ? ' (×2)' : '');
+    if (Hangar.settingsFor !== sp.uid) buildPartSettings(sp);
     const sx = v.ox + (sp.x + maxWidth(sp.def) / 2) * v.s + 14, sy = v.oy - sp.top * v.s;
-    tools.style.left = clamp(sx, 4, W - 200) + 'px';
-    tools.style.top = clamp(sy, 4, H - 40) + 'px';
-  } else tools.classList.add('hidden');
+    tools.style.left = clamp(sx, 4, W - 260) + 'px';
+    tools.style.top = clamp(sy, 4, H - tools.offsetHeight - 6) + 'px';
+  } else { tools.classList.add('hidden'); Hangar.settingsFor = null; }
+}
+
+/* Sliders for the selected part's settings (parachute altitude, thrust limit, fuel load). */
+function buildPartSettings(p) {
+  Hangar.settingsFor = p.uid;
+  const box = $('selSettings');
+  box.innerHTML = '';
+  const rec = designPart(Hangar.design, p.uid);
+  for (const key of partSettingKeys(p.def)) {
+    const sd = SETTING_DEFS[key], val = cfgVal(rec || p, key);
+    const row = document.createElement('label');
+    row.className = 'set-row';
+    row.innerHTML = `<span>${sd.label}</span><input type="range" min="${sd.min}" max="${sd.max}" step="${sd.step}" value="${val}"><b>${sd.fmt(val)}</b>`;
+    const input = row.querySelector('input'), out = row.querySelector('b');
+    input.addEventListener('pointerdown', () => snapshot());
+    input.addEventListener('keydown', () => snapshot());
+    input.addEventListener('input', () => {
+      setPartCfg(Hangar.design, p.uid, key, +input.value);
+      out.textContent = sd.fmt(+input.value);
+      Store.set('current', { name: Hangar.name, design: Hangar.design });
+      Hangar.a = analyzeDesign(Hangar.design);
+      drawBuild();
+      updateStats();
+    });
+    box.appendChild(row);
+  }
+  box.classList.toggle('hidden', !box.children.length);
 }
 
 /* ---------------- stats & staging editor ---------------- */
@@ -380,14 +408,31 @@ function chipName(def) {
   return shortName(def);
 }
 
-function moveStage(uids, delta) {
+/* Put parts into stage `to` (a whole number), or between stages (x.5 makes a new stage there). */
+function setStage(uids, to) {
   const a = Hangar.a;
   snapshot();
   const m = {};
   a.stages.forEach((s, i) => { for (const u of s) m[u] = i; });
-  for (const u of uids) m[u] += delta;
+  for (const u of uids) m[u] = to;
   Hangar.design.stageOf = normalizeStages(m);
   hangarChanged();
+}
+function moveStage(uids, delta) {
+  const a = Hangar.a;
+  const cur = a.stages.findIndex((s) => s.includes(uids[0]));
+  setStage(uids, cur + delta);
+}
+
+/* A thin drop target between stage cards: dropping a part there makes a new stage. */
+function stageGap(where) {
+  const g = document.createElement('div');
+  g.className = 'stage-gap';
+  g.textContent = 'New stage here';
+  g.addEventListener('dragover', (e) => { e.preventDefault(); g.classList.add('over'); });
+  g.addEventListener('dragleave', () => g.classList.remove('over'));
+  g.addEventListener('drop', (e) => { e.preventDefault(); const u = JSON.parse(e.dataTransfer.getData('text/plain')); setStage(u, where); });
+  return g;
 }
 
 function updateStats() {
@@ -402,10 +447,14 @@ function updateStats() {
   const list = $('stageList');
   list.innerHTML = '';
   const byUid = new Map(a.parts.map((p) => [p.uid, p]));
+  if (a.stages.length) list.appendChild(stageGap(-0.5));
   a.stages.forEach((uids, i) => {
     const r = a.rows[i];
     const card = document.createElement('div');
     card.className = 'stage-row';
+    card.addEventListener('dragover', (e) => { e.preventDefault(); card.classList.add('over'); });
+    card.addEventListener('dragleave', () => card.classList.remove('over'));
+    card.addEventListener('drop', (e) => { e.preventDefault(); setStage(JSON.parse(e.dataTransfer.getData('text/plain')), i); });
     const head = document.createElement('div');
     head.className = 'stage-label';
     head.textContent = `Stage ${i + 1}`;
@@ -430,6 +479,10 @@ function updateStats() {
     for (const { p, uids: gu } of groups.values()) {
       const chip = document.createElement('div');
       chip.className = 'chip' + (gu.includes(Hangar.sel) ? ' sel' : '');
+      chip.draggable = true;
+      chip.title = 'Drag to another stage, or between stages to make a new one';
+      chip.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', JSON.stringify(gu)); list.classList.add('dragging-stage'); });
+      chip.addEventListener('dragend', () => list.classList.remove('dragging-stage'));
       const label = document.createElement('span');
       label.textContent = `${stageIcon(p.def)} ${chipName(p.def)}${gu.length > 1 ? ' ×' + gu.length : ''}`;
       label.title = p.def.name;
@@ -440,11 +493,16 @@ function updateStats() {
       const dn = document.createElement('button');
       dn.textContent = '▼'; dn.title = 'Fire later';
       dn.addEventListener('click', () => moveStage(gu, 1));
+      const split = document.createElement('button');
+      split.textContent = '✂'; split.title = 'Give it a stage of its own, right after this one';
+      split.addEventListener('click', () => setStage(gu, i + 0.5));
       chip.append(label, up, dn);
+      if (groups.size > 1) chip.append(split);
       chips.appendChild(chip);
     }
     card.appendChild(chips);
     list.appendChild(card);
+    list.appendChild(stageGap(i + 0.5));
   });
   if (!a.stages.length) list.innerHTML = '<div class="muted">No stages yet.</div>';
   $('btnAutoStage').classList.toggle('hidden', !Hangar.design.stageOf);

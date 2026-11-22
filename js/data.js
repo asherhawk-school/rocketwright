@@ -174,6 +174,25 @@ for (const id in PART_DEFS) PART_DEFS[id].cost = PART_COSTS[id] || 100;
 
 const CATEGORIES = ['Command', 'Fuel', 'Engines', 'Coupling', 'Structure', 'Utility', 'Science'];
 
+/* Adjustable settings, per kind of part. They're stored on each part as cfg[key]. */
+const SETTING_DEFS = {
+  deployAlt: { label: 'Opens fully below', min: 150, max: 3000, step: 50, def: 1500, unit: 'm',
+    fmt: (v) => `${fmtNum(v)} m (${fmtNum(Math.round(v * 3.281 / 10) * 10)} ft)` },
+  thrustLimit: { label: 'Thrust limit', min: 0, max: 100, step: 5, def: 100, unit: '%', fmt: (v) => `${v}%` },
+  srbLimit: { label: 'Thrust limit', min: 30, max: 100, step: 5, def: 100, unit: '%', fmt: (v) => `${v}% (burns longer when lower)` },
+  fill: { label: 'Load', min: 0, max: 100, step: 5, def: 100, unit: '%', fmt: (v) => `${v}%` },
+};
+function partSettingKeys(def) {
+  if (def.chute) return ['deployAlt'];
+  if (def.thrust && !def.rcs) return [def.solid ? 'srbLimit' : 'thrustLimit'];
+  if (def.fuel || def.mono) return ['fill'];
+  return [];
+}
+function cfgVal(p, key) {
+  const v = p.cfg && p.cfg[key];
+  return v === undefined || v === null ? SETTING_DEFS[key].def : v;
+}
+
 /* Verdan milestones; every other body gets its own (see bodyMilestones). */
 const MILESTONES = [
   { id: 'liftoff', name: 'Liftoff', desc: 'Leave the launch pad.' },

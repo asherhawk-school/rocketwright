@@ -16,9 +16,9 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 let src = '';
-for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
+for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -677,6 +677,58 @@ test('ending a flight normally or starting a new game leaves no stale checkpoint
   assert(!G.Store.get('flight', null), 'new game should clear it');
   F.running = false;
   G.Career.s = null;
+});
+
+console.log('Part settings, staging and part menu');
+test('career mode starts with landing legs', () => {
+  G.Career.s = G.newSave('career', 61);
+  assert(G.partUnlocked('legs'), 'legs locked');
+  G.Career.s = null;
+});
+test('tank load, thrust limits and parachute altitude change how the craft behaves', () => {
+  const d = G.PRESETS['Orbiter I']();
+  const full = G.analyzeDesign(d).total;
+  const tank = d.parts.find((p) => p.id === 'tankM');
+  G.setPartCfg(d, tank.uid, 'fill', 50);
+  const half = G.analyzeDesign(d);
+  assert(half.total < full - 300, `Δv ${full} -> ${half.total}`);
+  assert(Math.abs(half.parts.find((p) => p.uid === tank.uid).fuel - 1) < 1e-9, 'tank should hold 1 t');
+  const ox = d.parts.find((p) => p.id === 'ox');
+  G.setPartCfg(d, ox.uid, 'thrustLimit', 50);
+  const c = new G.Craft(G.layoutDesign(d));
+  const e = c.parts.find((p) => p.id === 'ox'); e.ignited = true; c.throttle = 1;
+  assert(Math.abs(c.engineStep(0.1, 0) - 140) < 0.5, 'thrust at 50% should be 140 kN, got ' + c.thrust);
+  const d2 = G.designFromStack(['chute', 'pod']);
+  G.setPartCfg(d2, d2.parts[0].uid, 'deployAlt', 150);
+  assert(new G.Craft(G.layoutDesign(d2)).chuteAlt === 150, 'chute altitude');
+  // solid booster at 50% burns about twice as long
+  const s1 = G.designFromStack(['pod', 'srb']), s2 = G.designFromStack(['pod', 'srb']);
+  G.setPartCfg(s2, s2.parts[1].uid, 'srbLimit', 50);
+  const b1 = G.analyzeDesign(s1).rows[0].burn, b2 = G.analyzeDesign(s2).rows[0].burn;
+  assert(Math.abs(b2 / b1 - 2) < 0.1, `burn ${b1} -> ${b2}`);
+});
+test('dropping a part between two stages makes a new stage there', () => {
+  const m = G.normalizeStages({ 1: 0, 2: 0, 3: 1, 4: 2 });
+  m[2] = 0.5;
+  const n = G.normalizeStages(m);
+  assert(n[1] === 0 && n[2] === 1 && n[3] === 2 && n[4] === 3, JSON.stringify(n));
+});
+test('clicking the screen finds the right part, and a single decoupler can be fired', () => {
+  const { F } = G;
+  G.flightStart(G.PRESETS['Orbiter I'](), 'Clicky');
+  const c = F.craft;
+  F.W = 1200; F.H = 800; F.zoom = 10; c.angle = 0.7; F.viewRot = 0.3;
+  const pod = c.parts.find((p) => p.def.pod);
+  // forward-project the pod's centre to the screen, as the renderer does
+  const w = c.toWorld(pod.x, (pod.top + pod.bot) / 2), dx = w[0] - c.pos[0], dy = w[1] - c.pos[1];
+  const rx = dx * Math.cos(0.3) - dy * Math.sin(0.3), ry = dx * Math.sin(0.3) + dy * Math.cos(0.3);
+  const sx = F.W / 2 + rx * F.zoom, sy = F.H / 2 - ry * F.zoom;
+  const [lx, ly] = G.screenToCraft(c, sx, sy);
+  assert(Math.abs(lx - pod.x) < 1e-6 && Math.abs(ly - (pod.top + pod.bot) / 2) < 1e-6, 'round trip');
+  assert(G.partAt(c, sx, sy) === pod, 'should hit the capsule');
+  const n = c.parts.length, dec = c.parts.find((p) => p.def.decoupler);
+  G.fireDecoupler(c, dec);
+  assert(c.parts.length < n && !c.parts.includes(dec) && F.debris.length === 1, 'decoupler should drop the lower stage');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

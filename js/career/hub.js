@@ -134,35 +134,52 @@ function showMissionControl() {
 
 /* ---------------- research ---------------- */
 
-function showResearch() {
+function showResearch(selId) {
   const s = Career.s;
-  const CW = 178, RH = 92, cols = Math.max(...TECH_NODES.map((n) => n.col)) + 1, rows = Math.max(...TECH_NODES.map((n) => n.row)) + 1;
+  const CW = 214, RH = 104, cols = Math.max(...TECH_NODES.map((n) => n.col)) + 1, rows = Math.max(...TECH_NODES.map((n) => n.row)) + 1;
   const W = cols * CW, H = rows * RH;
+  if (!selId) selId = (TECH_NODES.find((n) => techState(s, n) === 'open') || TECH_NODES[0]).id;
   const lines = [];
   for (const n of TECH_NODES) for (const r of n.req) {
     const a = TECH_BY_ID[r];
-    const x1 = a.col * CW + 150, y1 = a.row * RH + 38, x2 = n.col * CW + 4, y2 = n.row * RH + 38;
-    const done = s.tech.includes(r);
-    lines.push(`<path d="M${x1} ${y1} C${x1 + 20} ${y1} ${x2 - 20} ${y2} ${x2} ${y2}" class="${done ? 'done' : ''}"/>`);
+    const x1 = a.col * CW + 196, y1 = a.row * RH + 44, x2 = n.col * CW, y2 = n.row * RH + 44;
+    lines.push(`<path d="M${x1} ${y1} C${x1 + 14} ${y1} ${x2 - 14} ${y2} ${x2} ${y2}" class="${s.tech.includes(r) ? 'done' : ''}"/>`);
   }
   const nodes = TECH_NODES.map((n) => {
     const st = techState(s, n);
-    const names = n.parts.map((p) => PART_DEFS[p].name).join(', ');
-    const action = st === 'done' ? '<span class="t-done">✓ Researched</span>'
-      : st === 'open' ? `<button data-tech="${n.id}" ${s.science < n.cost ? 'disabled' : ''}>Research · ⚗ ${n.cost}</button>`
-        : `<span class="muted">⚗ ${n.cost} · locked</span>`;
-    return `<div class="tnode ${st}" style="left:${n.col * CW}px;top:${n.row * RH}px" title="${esc(names)}">
-      <b>${n.name}</b><div class="t-parts">${n.parts.length} part${n.parts.length > 1 ? 's' : ''}: ${esc(names)}</div>${action}</div>`;
+    const tag = st === 'done' ? '<span class="t-done">✓ Researched</span>' : st === 'open'
+      ? `<span class="${s.science >= n.cost ? 't-can' : 't-cost'}">⚗ ${n.cost}${s.science >= n.cost ? ' · ready' : ''}</span>` : `<span class="muted">⚗ ${n.cost} · locked</span>`;
+    const icons = n.parts.map((id) => `<canvas data-icon="${id}" title="${esc(PART_DEFS[id].name)}"></canvas>`).join('');
+    return `<button class="tnode ${st} ${n.id === selId ? 'sel' : ''}" data-node="${n.id}" style="left:${n.col * CW}px;top:${n.row * RH}px">
+      <b>${n.name}</b>${tag}<div class="t-icons">${icons}</div></button>`;
   }).join('');
-  showModal(`<h2>Research Lab <span class="muted small">⚗ ${fmtNum(s.science, 1)} science available</span></h2>
-    <div class="tech-scroll"><div class="tech-tree" style="width:${W}px;height:${H}px">
-    <svg width="${W}" height="${H}">${lines.join('')}</svg>${nodes}</div></div>`,
+  const n = TECH_BY_ID[selId], st = techState(s, n);
+  const missing = n.req.filter((r) => !s.tech.includes(r)).map((r) => TECH_BY_ID[r].name);
+  const action = st === 'done' ? '<span class="t-done">✓ Researched</span>'
+    : st === 'open' ? `<button class="primary" data-tech="${n.id}" ${s.science < n.cost ? 'disabled' : ''}>Research for ⚗ ${n.cost}</button>
+        ${s.science < n.cost ? `<span class="muted">You have ⚗ ${fmtNum(s.science, 1)}</span>` : ''}`
+      : `<span class="muted">Research ${missing.join(' and ')} first</span>`;
+  const parts = n.parts.map((id) => {
+    const d = PART_DEFS[id];
+    return `<div class="t-part"><canvas data-icon="${id}" data-big="1"></canvas><div><b>${esc(d.name)}</b> <span class="muted">· ${d.cat}</span>
+      <div class="t-stat">${esc(partStatsLine(d))} · ${fmtFunds(d.cost)}</div><div class="muted">${esc(d.desc)}</div></div></div>`;
+  }).join('');
+  showModal(`<h2>Research Lab <span class="muted small">⚗ ${fmtNum(s.science, 1)} science to spend</span></h2>
+    <div class="tech-scroll"><div class="tech-tree" style="width:${W}px;height:${H}px"><svg width="${W}" height="${H}">${lines.join('')}</svg>${nodes}</div></div>
+    <div class="tech-detail"><div class="td-head"><h3>${n.name}</h3>${action}</div>
+      <p class="muted">Unlocks ${n.parts.length} part${n.parts.length > 1 ? 's' : ''}:</p>${parts}</div>`,
   [{ label: 'Close', cls: 'primary', fn: () => { hideModal(); renderHub(); } }], 'wide');
-  $('modalCard').querySelectorAll('[data-tech]').forEach((b) => b.addEventListener('click', () => {
+  const card = $('modalCard');
+  card.querySelectorAll('canvas[data-icon]').forEach((cv) => cv.dataset.big ? drawPartIcon(cv, cv.dataset.icon) : drawPartIcon(cv, cv.dataset.icon, 24, 28));
+  const scroller = card.querySelector('.tech-scroll');
+  if (showResearch.scroll) scroller.scrollLeft = showResearch.scroll;
+  scroller.addEventListener('scroll', () => { showResearch.scroll = scroller.scrollLeft; });
+  card.querySelectorAll('[data-node]').forEach((b) => b.addEventListener('click', () => showResearch(b.dataset.node)));
+  card.querySelectorAll('[data-tech]').forEach((b) => b.addEventListener('click', () => {
     const err = research(s, b.dataset.tech);
     if (err) toast(err);
     else { persist(); toast(`Researched ${TECH_BY_ID[b.dataset.tech].name}`); buildPalette(); }
-    showResearch();
+    showResearch(b.dataset.tech);
   }));
 }
 

@@ -112,7 +112,11 @@ const HELP_HTML = `
 sides. With <b>symmetry</b> on, side parts are placed in mirrored pairs. <b>Decouplers</b> split the rocket into stages, and
 <b>radial decouplers</b> hold side boosters. Engines burn fuel from tanks they connect to without crossing a decoupler
 (a <b>crossfeed decoupler</b> lets boosters feed the core). The staging panel shows what each press of <kbd>Space</kbd> does, with
-its Δv (how much speed it can add) and TWR (thrust-to-weight; above 1 to lift off). Use ▲/▼ to change the order.</p>
+its Δv (how much speed it can add) and TWR (thrust-to-weight; above 1 to lift off). Drag a part onto another stage, or between two
+stages to make a new one (▲/▼ and ✂ do the same). Click a part on the rocket to adjust its settings: when a parachute opens fully,
+an engine's thrust limit, or how much fuel a tank carries.</p>
+<p>In flight, <b>hover over any part</b> to see what it's doing, and <b>click it</b> for actions: run science, open a parachute, start or
+stop an engine, fire a single decoupler, undock, or change its settings.</p>
 <div class="keys">
   <div><kbd>Space</kbd> Stage: ignite, separate, parachute</div>
   <div><kbd>A</kbd>/<kbd>D</kbd> or <kbd>←</kbd>/<kbd>→</kbd> Rotate</div>
@@ -328,7 +332,7 @@ function onKeyDown(e) {
     case 'KeyU': undock(); break;
     case 'BracketLeft': case 'BracketRight': cycleNearby(e.code === 'BracketRight' ? 1 : -1); break;
     case 'KeyF': cycleMapFocus(); break;
-    case 'Escape': openMenu(); break;
+    case 'Escape': if (PM.pinned) { PM.uid = null; PM.pinned = false; renderPartMenu(); } else openMenu(); break;
     case 'Equal': case 'NumpadAdd': zoomBy(1.25); break;
     case 'Minus': case 'NumpadSubtract': zoomBy(0.8); break;
     default:
@@ -369,6 +373,7 @@ function wireUi() {
   $('btnHelp').addEventListener('click', showHelp);
   wireHangar();
   wireHub();
+  wirePartMenu();
   $('bSci').addEventListener('click', toggleScience);
   $('sciList').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-sci]');

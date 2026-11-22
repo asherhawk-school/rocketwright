@@ -25,7 +25,11 @@ then visit http://localhost:8000.
 - **Hangar**: drag 51 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS.
-- **Staging editor**: automatic staging you can reorder, with simulated Δv, thrust-to-weight and burn time for every stage.
+- **Staging editor**: automatic staging you can reorder by dragging parts between stages (or between two stages to make a new one),
+  with simulated Δv, thrust-to-weight and burn time for every stage.
+- **Part settings**: when each parachute opens fully, engine and booster thrust limits, and how much fuel each tank carries.
+- **Part menu in flight**: hover a part for its details; click it to run science, open a parachute, start or stop an engine,
+  fire one decoupler, undock, or change its settings.
   Craft are saved in your browser.
 - **Flight physics**: thrust with altitude-dependent Isp, fuel flow through the part tree (boosters drain first through crossfeed),
   off-centre thrust torque, side-booster separation, RCS translation, atmospheric drag, fin stability,

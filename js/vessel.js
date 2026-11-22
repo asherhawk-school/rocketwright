@@ -62,6 +62,14 @@ function removePartTree(d, uid) {
   if (d.stageOf) for (const u of kill) delete d.stageOf[u];
 }
 
+/* Change a part's setting; mirrored twins follow. */
+function setPartCfg(d, uid, key, value) {
+  const p = designPart(d, uid);
+  if (!p) return;
+  const all = p.sym ? d.parts.filter((q) => q.sym === p.sym) : [p];
+  for (const q of all) { q.cfg = { ...(q.cfg || {}) }; q.cfg[key] = value; }
+}
+
 /* Detach a part's subtree as plain records (for moving it); counterparts are deleted. */
 function extractSubtree(d, uid) {
   const p = designPart(d, uid);
@@ -122,10 +130,12 @@ function partHalfWidthAt(g, y) {
 
 function makeGeo(rec, x, top, flip, parentUid) {
   const def = PART_DEFS[rec.id];
+  const fill = rec.cfg && rec.cfg.fill !== undefined ? rec.cfg.fill / 100 : 1;
   return {
+    cfg: rec.cfg ? { ...rec.cfg } : {},
     uid: rec.uid, id: rec.id, def, x, top, bot: top - def.h, flip, parent: parentUid, node: rec.node,
     side: rec.side || 0, sym: rec.sym || null, links: [], inv: false,
-    fuel: def.fuel || 0, solid: def.solid || 0, mono: def.mono || 0, ec: def.ec || 0, ablator: def.ablator || 0, temp: 290,
+    fuel: (def.fuel || 0) * fill, solid: def.solid || 0, mono: (def.mono || 0) * fill, ec: def.ec || 0, ablator: def.ablator || 0, temp: 290,
     ignited: false, burn: 0, m: 0,
   };
 }
@@ -343,6 +353,7 @@ class Craft {
     this.legs = this.parts.filter((p) => p.def.legs);
     this.hasLegs = this.legs.length > 0;
     this.hasChute = this.parts.some((p) => p.def.chute);
+    this.chuteAlt = Math.max(0, ...this.parts.filter((p) => p.def.chute).map((p) => cfgVal(p, 'deployAlt')));
     this.hasPod = this.parts.some((p) => p.def.pod);
     this.hasProbe = this.parts.some((p) => p.def.probe);
     this.solarParts = this.parts.filter((p) => p.def.solar);
@@ -466,7 +477,7 @@ class Craft {
       e.burn = 0;
       if (!e.ignited || e.def.solid || thr <= 0) continue;
       const g = this.groups.get(e.uid);
-      demand.set(g, (demand.get(g) || 0) + (e.def.thrust / (e.def.ispVac * G0)) * thr * dt);
+      demand.set(g, (demand.get(g) || 0) + (e.def.thrust / (e.def.ispVac * G0)) * thr * (cfgVal(e, 'thrustLimit') / 100) * dt);
     }
     const ratio = new Map();
     for (const [g, need] of demand) {
@@ -490,11 +501,11 @@ class Craft {
       let frac;
       if (d.solid) {
         if (e.solid <= 0) continue;
-        const flow = d.thrust / (d.ispVac * G0);
+        const flow = (d.thrust / (d.ispVac * G0)) * (cfgVal(e, 'srbLimit') / 100);
         const use = Math.min(e.solid, flow * dt);
         e.solid -= use;
-        frac = use / (flow * dt);
-      } else frac = thr * (ratio.get(this.groups.get(e.uid)) || 0);
+        frac = use / ((d.thrust / (d.ispVac * G0)) * dt);
+      } else frac = thr * (cfgVal(e, 'thrustLimit') / 100) * (ratio.get(this.groups.get(e.uid)) || 0);
       if (frac <= 0) continue;
       const f = ((d.thrust * isp) / d.ispVac) * frac * (e.inv ? -1 : 1); // upside-down engines push backwards
       e.burn = frac;
@@ -566,7 +577,10 @@ function burnSim(c) {
   c.recompute();
   const m0 = c.M;
   let tSL = 0, tVac = 0;
-  for (const e of c.engines) if (e.ignited && c.engineHasFuel(e)) { tSL += (e.def.thrust * e.def.ispSL) / e.def.ispVac; tVac += e.def.thrust; }
+  for (const e of c.engines) if (e.ignited && c.engineHasFuel(e)) {
+    const lim = cfgVal(e, e.def.solid ? 'srbLimit' : 'thrustLimit') / 100;
+    tSL += ((e.def.thrust * e.def.ispSL) / e.def.ispVac) * lim; tVac += e.def.thrust * lim;
+  }
   let watchE = [], watchT = [];
   const next = c.stages[c.stageIdx];
   if (next) {

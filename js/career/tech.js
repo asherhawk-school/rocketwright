@@ -3,14 +3,14 @@
    col/row place the node on the research screen. */
 
 const TECH_NODES = [
-  { id: 'start', name: 'Rocketry Basics', cost: 0, req: [], col: 0, row: 2, parts: ['pod', 'chute', 'srb', 'decoupler', 'fins', 'thermo'] },
+  { id: 'start', name: 'Rocketry Basics', cost: 0, req: [], col: 0, row: 2, parts: ['pod', 'chute', 'srb', 'decoupler', 'fins', 'legs', 'thermo'] },
   { id: 'general', name: 'General Rocketry', cost: 5, req: ['start'], col: 1, row: 1, parts: ['tankS', 'tankM', 'kestrel', 'popper'] },
   { id: 'stability', name: 'Stability', cost: 10, req: ['start'], col: 1, row: 3, parts: ['wheel', 'nose2', 'baro'] },
   { id: 'science', name: 'Basic Science', cost: 15, req: ['start'], col: 1, row: 4, parts: ['jar', 'antenna'] },
   { id: 'advanced', name: 'Advanced Rocketry', cost: 30, req: ['general'], col: 2, row: 0, parts: ['tankL', 'ox'] },
   { id: 'precision', name: 'Precision Engineering', cost: 30, req: ['general'], col: 2, row: 1,
     parts: ['gnat', 'tankS125', 'tankM125', 'adapt2to125', 'adapt125to2', 'nose125', 'decoupler125'] },
-  { id: 'landing', name: 'Landing', cost: 50, req: ['stability'], col: 2, row: 3, parts: ['legs', 'seismic'] },
+  { id: 'landing', name: 'Ground Science', cost: 40, req: ['stability'], col: 2, row: 3, parts: ['seismic'] },
   { id: 'control', name: 'Flight Control', cost: 70, req: ['stability'], col: 2, row: 4, parts: ['rcs', 'monoPod'] },
   { id: 'electrics', name: 'Basic Electrics', cost: 20, req: ['general'], col: 2, row: 2, parts: ['probe', 'battery', 'batteryRing'] },
   { id: 'solar', name: 'Solar Power', cost: 60, req: ['electrics'], col: 3, row: 2, parts: ['solar'] },

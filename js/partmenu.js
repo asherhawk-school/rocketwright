@@ -1,0 +1,169 @@
+'use strict';
+/* Rocketwright — part menu in flight. Hover a part to see what it's doing; click it to pin a menu with its
+   actions (science, parachute, engine, decoupler, docking port) and live settings. */
+
+const PM = { uid: null, pinned: false, x: 0, y: 0, sig: '' };
+
+/* Screen point -> the active craft's local coordinates (undoing the flight camera). */
+function screenToCraft(c, sx, sy) {
+  const z = F.zoom, rot = F.viewRot || 0;
+  const x1 = (sx - F.W / 2) / z, y1 = -(sy - F.H / 2) / z;
+  const cr = Math.cos(-rot), sr = Math.sin(-rot);
+  const wx = x1 * cr - y1 * sr, wy = x1 * sr + y1 * cr;
+  const ax = Math.cos(c.angle), ay = Math.sin(c.angle);
+  return [ay * wx - ax * wy + c.xc, ax * wx + ay * wy + c.yc];
+}
+
+function partAt(c, sx, sy) {
+  if (!c || c.dead) return null;
+  const [lx, ly] = screenToCraft(c, sx, sy);
+  const pad = Math.max(0.15, 5 / F.zoom);
+  for (let i = c.parts.length - 1; i >= 0; i--) {
+    const p = c.parts[i], hw = maxWidth(p.def) / 2 + pad;
+    if (lx >= p.x - hw && lx <= p.x + hw && ly >= p.bot - pad && ly <= p.top + pad) return p;
+  }
+  return null;
+}
+
+const pct = (a, b) => (b > 0 ? Math.round((100 * a) / b) : 0);
+
+/* What the part is doing, as a few short lines. */
+function partInfo(c, p) {
+  const d = p.def, out = [];
+  if (d.fuel) out.push(`Fuel ${fmtNum(p.fuel, 2)} / ${fmtNum(d.fuel, 2)} t (${pct(p.fuel, d.fuel)}%)`);
+  if (d.mono) out.push(`Monoprop ${fmtNum(p.mono, 2)} / ${fmtNum(d.mono, 2)} t`);
+  if (d.ec) out.push(`Charge ${fmtNum(p.ec, 1)} / ${fmtNum(d.ec)}`);
+  if (d.solid) out.push(`Solid fuel ${fmtNum(p.solid, 2)} / ${fmtNum(d.solid, 2)} t (${pct(p.solid, d.solid)}%)`);
+  if (isEngine(d)) {
+    const lim = cfgVal(p, d.solid ? 'srbLimit' : 'thrustLimit');
+    const state = !p.ignited ? 'Not started' : p.burn > 0 ? `Burning · ${fmtNum(d.thrust * p.burn)} kN` : d.solid && p.solid <= 0 ? 'Burnt out' : 'Idle (throttle or fuel)';
+    out.push(`${state} · limit ${lim}%`);
+    out.push(`Max ${d.thrust} kN · Isp ${d.ispSL}–${d.ispVac} s`);
+  }
+  if (d.chute) out.push(`${c.chuteOpen ? (c.chuteArea > 300 ? 'Fully open' : 'Partly open') : 'Packed'} · opens fully below ${SETTING_DEFS.deployAlt.fmt(cfgVal(p, 'deployAlt'))}`);
+  if (d.decoupler) out.push(d.crossfeed ? 'Decoupler (lets fuel through)' : 'Decoupler');
+  if (d.dock) out.push(p.links.some((u) => { const q = c.byUid.get(u); return q && q.def.dock; }) ? 'Docked' : freePorts(c).includes(p) ? 'Free port' : 'Port (blocked)');
+  if (d.solar) out.push('Solar panel');
+  if (d.antenna) out.push('Antenna: transmits science');
+  if (d.torque) out.push(`Reaction wheels ${d.torque} kN·m`);
+  if (d.exp && Career.s && isCareer()) {
+    out.push(p.result ? `Holding: ${p.result.label}` : p.spent ? 'Used. Recover it to reset.' : `${EXPERIMENTS[d.exp].name}: ready`);
+  }
+  const crew = F.crew.filter((x) => x.pod === p.uid);
+  if (crew.length) out.push(`👩‍🚀 ${crew.map((x) => x.name).join(', ')}`);
+  const mt = partMaxTemp(d);
+  if (p.temp > 400) out.push(`<span class="${p.temp / mt > 0.85 ? 'hot' : ''}">Temperature ${fmtNum(p.temp)} / ${fmtNum(mt)} K</span>`);
+  out.push(`<span class="muted">${fmtNum(p.m, 2)} t</span>`);
+  return out;
+}
+
+/* The buttons and sliders a pinned menu offers. */
+function partActions(c, p) {
+  const d = p.def, a = [];
+  if (d.exp && isCareer()) {
+    const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
+    const sit = situationOf(c, b, F.t);
+    if (p.result) {
+      if (c.parts.some((q) => q.def.antenna)) a.push(['tx', 'Transmit']);
+      a.push(['drop', 'Discard']);
+    } else if (canRun(p, b, sit)) a.push(['run', `Run (${subjectLeft(Career.s, subjectId(d.exp, b, sit), subjectCap(d.exp, b, sit)).toFixed(1)} ⚗)`]);
+  }
+  if (d.chute && !c.chuteOpen) a.push(['chute', 'Deploy parachute']);
+  if (isEngine(d)) {
+    if (!p.ignited) a.push(['engOn', 'Start engine']);
+    else if (!d.solid) a.push(['engOff', 'Shut down']);
+  }
+  if (d.decoupler) a.push(['decouple', 'Decouple now']);
+  if (d.dock && p.links.some((u) => { const q = c.byUid.get(u); return q && q.def.dock; })) a.push(['undock', 'Undock here']);
+  return a;
+}
+const liveSettings = (d) => partSettingKeys(d).filter((k) => k !== 'fill');
+
+function renderPartMenu() {
+  const el = document.getElementById('partMenu');
+  const c = F.craft, p = PM.uid != null && c ? c.byUid.get(PM.uid) : null;
+  if (!p || F.map || c.dead) { el.classList.add('hidden'); if (!p || c.dead) { PM.uid = null; PM.pinned = false; } return; }
+  el.classList.remove('hidden');
+  el.classList.toggle('pinned', PM.pinned);
+  document.getElementById('pmTitle').textContent = p.def.name;
+  document.getElementById('pmInfo').innerHTML = partInfo(c, p).map((l) => `<div>${l}</div>`).join('');
+  const box = document.getElementById('pmActions');
+  if (!PM.pinned) { box.innerHTML = '<div class="muted">Click for actions</div>'; PM.sig = ''; }
+  else {
+    const acts = partActions(c, p), keys = liveSettings(p.def);
+    const sig = p.uid + '|' + acts.map((x) => x[0]).join(',') + '|' + keys.join(',');
+    if (sig !== PM.sig) {
+      PM.sig = sig;
+      box.innerHTML = acts.map(([k, label]) => `<button data-pm="${k}">${label}</button>`).join('') +
+        keys.map((k) => { const sd = SETTING_DEFS[k], v = cfgVal(p, k);
+          return `<label class="set-row"><span>${sd.label}</span><input type="range" data-pmset="${k}" min="${sd.min}" max="${sd.max}" step="${sd.step}" value="${v}"><b>${sd.fmt(v)}</b></label>`; }).join('') ||
+        '<div class="muted">Nothing to do with this part.</div>';
+    }
+  }
+  const W = F.W, H = F.H, w = el.offsetWidth, h = el.offsetHeight;
+  el.style.left = clamp(PM.x + 16, 6, W - w - 6) + 'px';
+  el.style.top = clamp(PM.y + 12, 6, H - h - 6) + 'px';
+}
+
+function partMenuAction(kind) {
+  const c = F.craft, p = c.byUid.get(PM.uid);
+  if (!p) return;
+  if (kind === 'run' || kind === 'tx' || kind === 'drop') scienceAction(kind, p.uid);
+  else if (kind === 'chute') { c.chuteOpen = true; playSound('chute'); flash('Parachute deployed', 2); }
+  else if (kind === 'engOn') { p.ignited = true; flash(`${shortName(p.def)} started`, 2); }
+  else if (kind === 'engOff') { p.ignited = false; flash(`${shortName(p.def)} shut down`, 2); }
+  else if (kind === 'decouple') { fireDecoupler(c, p); PM.uid = null; PM.pinned = false; }
+  else if (kind === 'undock') { undock(p); PM.uid = null; PM.pinned = false; }
+  PM.sig = '';
+  F.dvTick = 0;
+  renderPartMenu();
+}
+
+/* Fire one decoupler on its own (not as part of a stage). */
+function fireDecoupler(c, p) {
+  const present = new Set(c.parts.map((q) => q.uid));
+  const det = new Set(c.detachedFrom(p.uid, present));
+  if (!det.size) return;
+  for (const comp of components(c.parts.filter((q) => det.has(q.uid)))) separatePiece(c, comp, p);
+  c.parts = c.parts.filter((q) => !det.has(q.uid));
+  c.recompute();
+  playSound('stage');
+  flash('Decoupled', 2);
+}
+
+function wirePartMenu() {
+  const game = document.getElementById('game'), el = document.getElementById('partMenu');
+  game.addEventListener('pointermove', (e) => {
+    if (!F.running || F.map || PM.pinned || F.handleDrag) return;
+    const p = partAt(F.craft, e.clientX, e.clientY);
+    PM.uid = p ? p.uid : null;
+    PM.x = e.clientX; PM.y = e.clientY;
+    renderPartMenu();
+  });
+  game.addEventListener('pointerleave', () => { if (!PM.pinned) { PM.uid = null; renderPartMenu(); } });
+  game.addEventListener('pointerdown', (e) => {
+    if (!F.running || F.map || F.paused) return;
+    const p = partAt(F.craft, e.clientX, e.clientY);
+    if (p) { PM.uid = p.uid; PM.pinned = true; PM.x = e.clientX; PM.y = e.clientY; PM.sig = ''; }
+    else { PM.uid = null; PM.pinned = false; }
+    renderPartMenu();
+  });
+  el.addEventListener('mousedown', (e) => { if (e.target.tagName === 'BUTTON') e.preventDefault(); });
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.pm) partMenuAction(b.dataset.pm);
+    else if (b.id === 'pmClose') { PM.uid = null; PM.pinned = false; renderPartMenu(); }
+    b.blur();
+  });
+  el.addEventListener('input', (e) => {
+    const k = e.target.dataset.pmset, c = F.craft, p = c && c.byUid.get(PM.uid);
+    if (!k || !p) return;
+    p.cfg = { ...(p.cfg || {}), [k]: +e.target.value };
+    if (p.sym) for (const q of c.parts) if (q.sym === p.sym) q.cfg = { ...(q.cfg || {}), [k]: +e.target.value };
+    e.target.nextElementSibling.textContent = SETTING_DEFS[k].fmt(+e.target.value);
+    if (k === 'deployAlt') c.chuteAlt = Math.max(0, ...c.parts.filter((q) => q.def.chute).map((q) => cfgVal(q, 'deployAlt')));
+    F.dvTick = 0;
+  });
+  el.addEventListener('change', (e) => e.target.blur());
+}

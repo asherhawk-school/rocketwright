@@ -196,11 +196,11 @@ function dockWith(o, dk) {
   playSound('dock');
   flash(`Docked with ${o.meta ? o.meta.name : 'vessel'}${crew.length ? ` · ${crewNames(crew).join(', ')} aboard` : ''}`, 4);
 }
-function undock() {
+function undock(at) {
   const c = F.craft;
   const pairs = dockedPairs(c);
   if (!pairs.length || c.dead) return;
-  const [p, q] = pairs[pairs.length - 1];
+  const [p, q] = (at && pairs.find((pr) => pr.includes(at))) || pairs[pairs.length - 1];
   const leaving = undockParts(c, p, q);
   if (!leaving.length) return;
   const port = leaving.includes(p) ? p : q;
@@ -436,7 +436,7 @@ function stepCraft(c, dt, player) {
   const v = Math.hypot(vrx, vry);
   c.q = (0.5 * at.rho * v * v) / 1000;
   if (c.chuteOpen && c.hasChute && at.rho > 0) {
-    const target = c.radar < 1500 ? 720 : 45;
+    const target = c.radar < (c.chuteAlt || 1500) ? 720 : 45;
     c.chuteArea += (target - c.chuteArea) * Math.min(1, dt * 0.8);
   }
   if (at.rho > 0 && v > 0.1) {
@@ -1024,6 +1024,7 @@ function renderWorld() {
   const bp = bodyPos(b, t);
   const up = Math.atan2(c.pos[1] - bp[1], c.pos[0] - bp[0]);
   const rot = Math.PI / 2 - up + F.rotOffset;
+  F.viewRot = rot;
   const alt = Math.hypot(c.pos[0] - bp[0], c.pos[1] - bp[1]) - b.R;
   const sky = b.sky || ['#000006', '#03040c'];
   const sk = b.atmo && b.sky ? Math.pow(Math.max(0, 1 - Math.max(0, alt) / (b.atmo.top * 0.9)), 1.6) * Math.min(1, 0.45 + b.atmo.rho0) : 0;
@@ -1503,6 +1504,7 @@ function updateHud() {
   h.fSol.style.width = (solMax ? (100 * sol) / solMax : 0) + '%';
   h.fMono.style.width = (monoMax ? (100 * mono) / monoMax : 0) + '%';
   if (F.frame % 15 === 0 || F.paused) { renderContractHud(); renderSciencePanel(); }
+  if (PM.uid != null && F.frame % 6 === 0) renderPartMenu();
   h.bSci.classList.toggle('hidden', !isCareer());
   updateSystemsHud(c, b, o, t);
   h.hNext.textContent = c.stageIdx < c.stages.length ? 'Next: ' + stageLabel(c.stages[c.stageIdx], (u) => c.byUid.get(u)) : 'No stages left';

@@ -6,7 +6,7 @@
 <title>Rocketwright</title>
 <meta name="description" content="Build rockets, fly them to orbit and land on the moon. A 2D spaceflight sandbox that runs in your browser.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2c5 5 6 12 4 20h-8c-2-8-1-15 4-20z' fill='%23eef1f5'/%3E%3Cpath d='M12 22h8l-1 4h-6z' fill='%23555'/%3E%3Cpath d='M14 26h4l-2 5z' fill='%23ff9a3c'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=12">
+<link rel="stylesheet" href="css/style.css?v=14">
 </head>
 <body>
 
@@ -82,6 +82,7 @@
       <div id="selTools" class="hidden">
         <span id="selName"></span>
         <button id="selDel" title="Remove this part and everything attached to it (Del)">✕ Remove</button>
+        <div id="selSettings" class="hidden"></div>
       </div>
     </main>
     <aside id="stats" class="panel">
@@ -90,7 +91,7 @@
       <div class="row"><button id="btnSave">Save</button><button id="btnClear">Clear</button></div>
       <div id="statSummary"></div>
       <label id="crewRow" class="field hidden">Crew<select id="crewSelect"></select></label>
-      <h3 class="stage-head">Staging <span class="muted small">(Space fires each stage)</span>
+      <h3 class="stage-head">Staging <span class="muted small">(Space fires each stage · drag parts between stages)</span>
         <button id="btnAutoStage" class="hidden small-btn" title="Go back to automatic staging">Auto</button></h3>
       <div id="stageList"></div>
       <div id="warnings"></div>
@@ -201,6 +202,11 @@
     <div id="sciList"></div>
   </div>
   <div id="tutCard" class="hud card hidden"></div>
+  <div id="partMenu" class="hud card hidden">
+    <div class="pm-head"><b id="pmTitle"></b><button id="pmClose" title="Close (Esc)">✕</button></div>
+    <div id="pmInfo"></div>
+    <div id="pmActions"></div>
+  </div>
   <div id="mapHint" class="hidden"></div>
   <div id="mapTools" class="hud hidden">
     <button id="bNodeAp" title="Add a manoeuvre node at apoapsis">+ Node at Ap</button>
@@ -225,22 +231,23 @@
 <div id="toast"></div>
 <div id="modal" class="hidden"><div class="modal-card" id="modalCard"></div></div>
 
-<script src="js/data.js?v=12"></script>
-<script src="js/vessel.js?v=12"></script>
-<script src="js/render.js?v=12"></script>
-<script src="js/systems.js?v=12"></script>
-<script src="js/navigation.js?v=12"></script>
-<script src="js/docking.js?v=12"></script>
-<script src="js/sound.js?v=12"></script>
-<script src="js/career/career.js?v=12"></script>
-<script src="js/career/science.js?v=12"></script>
-<script src="js/career/tech.js?v=12"></script>
-<script src="js/career/contracts.js?v=12"></script>
-<script src="js/universe.js?v=12"></script>
-<script src="js/flight.js?v=12"></script>
-<script src="js/hangar.js?v=12"></script>
-<script src="js/career/hub.js?v=12"></script>
-<script src="js/tutorials.js?v=12"></script>
-<script src="js/main.js?v=12"></script>
+<script src="js/data.js?v=14"></script>
+<script src="js/vessel.js?v=14"></script>
+<script src="js/render.js?v=14"></script>
+<script src="js/systems.js?v=14"></script>
+<script src="js/navigation.js?v=14"></script>
+<script src="js/docking.js?v=14"></script>
+<script src="js/sound.js?v=14"></script>
+<script src="js/career/career.js?v=14"></script>
+<script src="js/career/science.js?v=14"></script>
+<script src="js/career/tech.js?v=14"></script>
+<script src="js/career/contracts.js?v=14"></script>
+<script src="js/universe.js?v=14"></script>
+<script src="js/flight.js?v=14"></script>
+<script src="js/partmenu.js?v=14"></script>
+<script src="js/hangar.js?v=14"></script>
+<script src="js/career/hub.js?v=14"></script>
+<script src="js/tutorials.js?v=14"></script>
+<script src="js/main.js?v=14"></script>
 </body>
 </html>
