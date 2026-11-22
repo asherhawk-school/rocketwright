@@ -731,5 +731,40 @@ test('clicking the screen finds the right part, and a single decoupler can be fi
   assert(c.parts.length < n && !c.parts.includes(dec) && F.debris.length === 1, 'decoupler should drop the lower stage');
 });
 
+console.log('Engine clusters');
+test('a twin mount holds two engines side by side; symmetry fills the second slot', () => {
+  const d = G.designFromStack(['pod', 'tankXL', 'twinMountL']);
+  const mount = d.parts.find((p) => p.id === 'twinMountL').uid;
+  const uids = G.attachPart(d, 'ox', mount, 'slot:0', 0, 0, true);
+  assert(uids.length === 2, 'symmetry should add two engines');
+  const geo = G.layoutDesign(d), m = geo.find((g) => g.id === 'twinMountL');
+  const ox = geo.filter((g) => g.id === 'ox').sort((a, b) => a.x - b.x);
+  assert(Math.abs(ox[0].x + 1) < 1e-9 && Math.abs(ox[1].x - 1) < 1e-9, 'engines at ±1 m: ' + ox.map((e) => e.x));
+  assert(ox.every((e) => Math.abs(e.top - m.bot) < 1e-9), 'engines hang under the mount');
+  const a = G.analyzeDesign(d);
+  assert(a.valid && !a.warnings.some((w) => /off-centre/.test(w.text)), JSON.stringify(a.warnings));
+  const first = a.stages[0].map((u) => geo.find((g) => g.uid === u).id);
+  assert(first.filter((x) => x === 'ox').length === 2, 'both engines light together');
+  const c = new G.Craft(G.layoutDesign(d));
+  for (const e of c.engines) e.ignited = true;
+  c.throttle = 1;
+  assert(Math.abs(c.engineStep(0.1, 0) - 560) < 0.5 && Math.abs(c.thrustTorque) < 1e-6, `thrust ${c.thrust}, torque ${c.thrustTorque}`);
+});
+test('one engine on a twin mount pushes off-centre and gets a warning', () => {
+  const d = G.designFromStack(['pod', 'tankXL', 'twinMountL']);
+  G.attachPart(d, 'ox', d.parts.find((p) => p.id === 'twinMountL').uid, 'slot:1', 0, 0, false);
+  assert(G.analyzeDesign(d).warnings.some((w) => /off-centre/.test(w.text)), 'expected a warning');
+});
+test('a quad mount takes four engines, and the Cluster Lifter reaches orbit', () => {
+  const d = G.designFromStack(['pod', 'tankT12', 'quadMount']);
+  const m = d.parts.find((p) => p.id === 'quadMount').uid;
+  G.attachPart(d, 'gnat', m, 'slot:0', 0, 0, true);
+  G.attachPart(d, 'gnat', m, 'slot:1', 0, 0, true);
+  const xs = G.layoutDesign(d).filter((g) => g.id === 'gnat').map((g) => g.x).sort((a, b) => a - b);
+  assert(xs.length === 4 && Math.abs(xs[0] + 1.875) < 1e-9 && Math.abs(xs[3] - 1.875) < 1e-9, xs.join());
+  const r = flyToOrbit(G.PRESETS['Cluster Lifter'](), 'Cluster Lifter');
+  assert(!r.dead && r.phase === 'done' && r.pe > 70000 && r.maxSpin < 0.6, `phase ${r.phase}, Pe ${r.pe.toFixed(0)}, spin ${r.maxSpin.toFixed(2)}`);
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

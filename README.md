@@ -22,9 +22,10 @@ then visit http://localhost:8000.
   money, and recovering your craft refunds most of it. Run experiments with six science instruments (each worth more on new worlds and in new
   situations), transmit or recover the results, and research a 14-node tech tree. Astronauts gain experience and can be lost.
   Reverting a flight undoes it; saves can be exported and imported. **Sandbox mode** unlocks everything with no money.
-- **Hangar**: drag 51 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
+- **Hangar**: drag 55 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
-  nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS.
+  nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS, plus engine mounts
+  (twin, tri and quad) for clusters of engines side by side.
 - **Staging editor**: automatic staging you can reorder by dragging parts between stages (or between two stages to make a new one),
   with simulated Δv, thrust-to-weight and burn time for every stage.
 - **Part settings**: when each parachute opens fully, engine and booster thrust limits, and how much fuel each tank carries.

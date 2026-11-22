@@ -113,7 +113,8 @@ sides. With <b>symmetry</b> on, side parts are placed in mirrored pairs. <b>Deco
 <b>radial decouplers</b> hold side boosters. Engines burn fuel from tanks they connect to without crossing a decoupler
 (a <b>crossfeed decoupler</b> lets boosters feed the core). The staging panel shows what each press of <kbd>Space</kbd> does, with
 its Δv (how much speed it can add) and TWR (thrust-to-weight; above 1 to lift off). Drag a part onto another stage, or between two
-stages to make a new one (▲/▼ and ✂ do the same). Click a part on the rocket to adjust its settings: when a parachute opens fully,
+stages to make a new one (▲/▼ and ✂ do the same). To put engines side by side, add an <b>engine mount</b> (Coupling) under a tank,
+then drop engines onto its slots; with symmetry on, the matching slot fills too. Click a part on the rocket to adjust its settings: when a parachute opens fully,
 an engine's thrust limit, or how much fuel a tank carries.</p>
 <p>In flight, <b>hover over any part</b> to see what it's doing, and <b>click it</b> for actions: run science, open a parachute, start or
 stop an engine, fire a single decoupler, undock, or change its settings.</p>

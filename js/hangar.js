@@ -124,9 +124,10 @@ function quickAdd(id) {
     const host = sel && ok(sel) ? sel : geo.filter((g) => onCentre(g) && ok(g)).sort((a, b) => b.top - a.top)[0];
     if (host) snap = { parent: host.uid, node: 'top' };
   } else {
-    const ok = (g) => !g.def.radial && !g.def.noBottom && !nodeTaken(d, g.uid, 'bottom');
+    const freeSlot = (g) => (g.def.slots ? g.def.slots.findIndex((_, i) => !nodeTaken(d, g.uid, 'slot:' + i)) : -1);
+    const ok = (g) => !g.def.radial && ((!g.def.noBottom && !nodeTaken(d, g.uid, 'bottom')) || freeSlot(g) >= 0);
     const host = sel && ok(sel) ? sel : geo.filter((g) => onCentre(g) && ok(g)).sort((a, b) => a.bot - b.bot)[0];
-    if (host) snap = { parent: host.uid, node: 'bottom' };
+    if (host) snap = host.def.slots && freeSlot(host) >= 0 ? { parent: host.uid, node: 'slot:' + freeSlot(host) } : { parent: host.uid, node: 'bottom' };
   }
   if (!snap) { hint('No free spot for that part. Drag it onto the rocket instead.'); return; }
   snapshot();
@@ -153,6 +154,10 @@ function findSnap(id, lx, ly) {
           consider({ parent: g.uid, node: 'bottom' }, Math.hypot(lx - g.x, ly + def.h / 2 - g.bot));
         if (!gd.noTop && !nodeTaken(d, g.uid, 'top'))
           consider({ parent: g.uid, node: 'top' }, Math.hypot(lx - g.x, ly - def.h / 2 - g.top));
+        // engine mounts: one node per slot
+        if (gd.slots && !def.noTop) gd.slots.forEach((sx, i) => {
+          if (!nodeTaken(d, g.uid, 'slot:' + i)) consider({ parent: g.uid, node: 'slot:' + i }, Math.hypot(lx - (g.x + sx), ly + def.h / 2 - g.bot));
+        });
       }
       if (gd.radialOut) {
         const s = g.flip ? -1 : 1;

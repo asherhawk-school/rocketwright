@@ -4,7 +4,7 @@
 
 const TECH_NODES = [
   { id: 'start', name: 'Rocketry Basics', cost: 0, req: [], col: 0, row: 2, parts: ['pod', 'chute', 'srb', 'decoupler', 'fins', 'legs', 'thermo'] },
-  { id: 'general', name: 'General Rocketry', cost: 5, req: ['start'], col: 1, row: 1, parts: ['tankS', 'tankM', 'kestrel', 'popper'] },
+  { id: 'general', name: 'General Rocketry', cost: 5, req: ['start'], col: 1, row: 1, parts: ['tankS', 'tankM', 'kestrel', 'popper', 'twinMount', 'twinMountL'] },
   { id: 'stability', name: 'Stability', cost: 10, req: ['start'], col: 1, row: 3, parts: ['wheel', 'nose2', 'baro'] },
   { id: 'science', name: 'Basic Science', cost: 15, req: ['start'], col: 1, row: 4, parts: ['jar', 'antenna'] },
   { id: 'advanced', name: 'Advanced Rocketry', cost: 30, req: ['general'], col: 2, row: 0, parts: ['tankL', 'ox'] },
@@ -16,7 +16,7 @@ const TECH_NODES = [
   { id: 'solar', name: 'Solar Power', cost: 60, req: ['electrics'], col: 3, row: 2, parts: ['solar'] },
   { id: 'survival', name: 'Survivability', cost: 25, req: ['stability'], col: 3, row: 3, parts: ['shield2', 'shield125', 'chuteRadial'] },
   { id: 'docking', name: 'Docking', cost: 90, req: ['control'], col: 3, row: 4, parts: ['dockPort'] },
-  { id: 'fuelsys', name: 'Fuel Systems', cost: 50, req: ['advanced'], col: 3, row: 0, parts: ['tankXL', 'radDec', 'saddle'] },
+  { id: 'fuelsys', name: 'Fuel Systems', cost: 50, req: ['advanced'], col: 3, row: 0, parts: ['tankXL', 'radDec', 'saddle', 'triMount', 'quadMount'] },
   { id: 'propulsion', name: 'Propulsion Systems', cost: 70, req: ['advanced'], col: 3, row: 1, parts: ['wren', 'sparrow'] },
   { id: 'heavy', name: 'Heavy Rocketry', cost: 120, req: ['fuelsys'], col: 4, row: 0, parts: ['bison', 'radDecX', 'pylon'] },
   { id: 'exploration', name: 'Space Exploration', cost: 120, req: ['propulsion', 'science'], col: 4, row: 2, parts: ['sniffer'] },

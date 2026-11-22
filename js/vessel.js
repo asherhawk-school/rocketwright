@@ -23,16 +23,25 @@ function nodeTaken(d, uid, node) { return d.parts.some((p) => p.parent === uid &
    centreline get a mirrored twin when `symmetry` is on. Returns the new uids. */
 function attachPart(d, id, parentUid, node, side, ay, symmetry) {
   const parent = parentUid == null ? null : designPart(d, parentUid);
-  const mk = (host, s) => {
+  const mk = (host, s, nd = node) => {
     const uid = d.nextUid++;
-    d.parts.push({ uid, id, parent: host ? host.uid : null, node: host ? node : null, side: s, ay: ay || 0, sym: null });
+    d.parts.push({ uid, id, parent: host ? host.uid : null, node: host ? nd : null, side: s, ay: ay || 0, sym: null });
     return uid;
   };
   if (!parent) return [mk(null, 0)];
   const hosts = parent.sym ? d.parts.filter((p) => p.sym === parent.sym) : [parent];
   const uids = [];
+  // the slot on the other side of a mount, if there is one
+  const slot = node && node.startsWith('slot:') ? +node.slice(5) : -1;
+  const slots = PART_DEFS[parent.id].slots || [];
+  const mirrorSlot = slot < 0 ? -1 : slots.findIndex((x, i) => i !== slot && Math.abs(x + slots[slot]) < 1e-6);
   if (hosts.length > 1) {
-    for (const h of hosts) uids.push(mk(h, node === 'side' ? (h === parent ? side : -side) : 0));
+    for (const h of hosts) {
+      const nd = slot >= 0 && h !== parent && mirrorSlot >= 0 ? 'slot:' + mirrorSlot : node;
+      uids.push(mk(h, node === 'side' ? (h === parent ? side : -side) : 0, nd));
+    }
+  } else if (slot >= 0 && symmetry && mirrorSlot >= 0 && !nodeTaken(d, parent.uid, 'slot:' + mirrorSlot)) {
+    uids.push(mk(parent, 0), mk(parent, 0, 'slot:' + mirrorSlot));
   } else if (node === 'side' && symmetry) {
     uids.push(mk(parent, side), mk(parent, -side));
   } else {
@@ -143,6 +152,7 @@ function makeGeo(rec, x, top, flip, parentUid) {
 function placeChild(k, pg) {
   const def = PART_DEFS[k.id];
   if (k.node === 'bottom') return makeGeo(k, pg.x, pg.bot, false, pg.uid);
+  if (k.node && k.node.startsWith('slot:')) return makeGeo(k, pg.x + ((pg.def.slots || [])[+k.node.slice(5)] || 0), pg.bot, false, pg.uid);
   if (k.node === 'top') return makeGeo(k, pg.x, pg.top + def.h, false, pg.uid);
   const s = k.side || 1, top = pg.top - (k.ay || 0), cy = top - def.h / 2;
   if (def.radial) return makeGeo(k, pg.x + s * (partHalfWidthAt(pg, cy) + def.w / 2), top, s < 0, pg.uid);
@@ -682,6 +692,13 @@ const PRESETS = {
     attachPart(d, 'chuteRadial', pod, 'side', 1, 0.5, true);
     attachPart(d, 'rcs', tank, 'side', 1, 0.1, true);
     attachPart(d, 'monoPod', tank, 'side', 1, 0.7, true);
+    return d;
+  },
+  'Cluster Lifter': () => {
+    const d = designFromStack(['chute', 'pod', 'tankM', 'wren', 'decoupler', 'tankXL', 'twinMountL']);
+    const mount = d.parts.find((p) => p.id === 'twinMountL').uid;
+    attachPart(d, 'ox', mount, 'slot:0', 0, 0, true); // its twin fills the other slot
+    attachPart(d, 'fins', d.parts.find((p) => p.id === 'tankXL').uid, 'side', 1, 7.2 - 2.2 * 0.75, true);
     return d;
   },
   'Pallid Lander': () => {

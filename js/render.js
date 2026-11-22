@@ -99,6 +99,14 @@ function drawPart(ctx, p, lw) {
       ctx.fillStyle = d.crossfeed ? '#4fd1ff' : '#e8b923'; ctx.fillRect(-hw * 0.3, bot + 0.1, hw * 0.6, h - 0.2);
       break;
     }
+    case 'mount': {
+      ctx.fillStyle = cylGrad(ctx, -hb, hb, '#4a505a', '#a9b0ba', '#3e434b');
+      poly(ctx, [[-hb, bot], [hb, bot], [hw, top], [-hw, top]]); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#e0b030'; ctx.fillRect(-hw, top - 0.08, 2 * hw, 0.08);
+      ctx.fillStyle = '#23272e';
+      for (const sx of d.slots) ctx.fillRect(sx - 0.38, bot, 0.76, 0.12);
+      break;
+    }
     case 'adapter': {
       ctx.fillStyle = cylGrad(ctx, -Math.max(hw, hb), Math.max(hw, hb), ...METAL);
       poly(ctx, [[-hb, bot], [hb, bot], [hw, top], [-hw, top]]); ctx.fill(); ctx.stroke();
