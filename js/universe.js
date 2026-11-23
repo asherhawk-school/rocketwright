@@ -238,7 +238,7 @@ function quickSaveInfo() {
   if (!q || !Career.s || q.created !== Career.s.created || q.vid !== F.vid) return null;
   return q;
 }
-function canQuickSave() { return F.running && !F.tutorial && !Career.noPersist && Career.s && F.craft && !F.craft.dead && !F.endShown; }
+function canQuickSave() { return F.running && diff('revert') && !F.tutorial && !Career.noPersist && Career.s && F.craft && !F.craft.dead && !F.endShown; }
 
 function quickSave() {
   if (!canQuickSave()) { if (F.craft && F.craft.dead) flash('Can\'t save: the vessel was destroyed', 2); return false; }

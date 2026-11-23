@@ -222,6 +222,19 @@ function buildPart(p, owner) {
     case 'antenna': add(box(2 * hw, 0.3, 2 * hw, 0, bot + 0.15, 0, M('grey')), cyl(0.025, 0.025, h - 0.3, bot + 0.3 + (h - 0.3) / 2, M('metal'), 6), sphere(0.08, 0, top, 0, M('red'))); break;
     case 'dock': add(cyl(hw, hw, h * 0.6, bot + h * 0.3, M('dark')), lathe([[0, bot + h * 0.6], [hw * 0.8, bot + h * 0.6], [hw * 0.55, top], [0, top]], M('metal')), band(hw * 0.5, top - 0.03, 0.06, M('yellow'))); break;
     case 'probe': add(lathe([[0, bot], [hw, bot], [hw * 0.8, top], [0, top]], M('grey')), band(hw * 0.92, bot + h * 0.47, h * 0.25, M('gold'))); break;
+    case 'asteroid': {
+      // a lumpy rock: an icosphere pushed in and out by a smooth function of direction (so shared corners match)
+      const geo = new THREE.IcosahedronGeometry(hw, 2), pos = geo.attributes.position, v = new THREE.Vector3();
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).normalize();
+        const k = 0.78 + 0.12 * Math.sin(v.x * 3.1 + d.h) * Math.cos(v.y * 2.7) + 0.1 * Math.sin(v.z * 4.3 + v.x * 1.7);
+        pos.setXYZ(i, v.x * hw * k, v.y * hw * k, v.z * hw * k);
+      }
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, M('grey', { color: new THREE.Color('#7a746a'), roughness: 0.95, metalness: 0.05, flatShading: true }));
+      m.position.y = cy; add(m);
+      break;
+    }
     case 'clamp': add(box(2 * hw, h, 2 * hw, 0, cy, 0, M('red')), box(0.2, 0.35, 2 * hw * 0.8, -hw - 0.05, top - 0.28, 0, M('dark'))); break;
     case 'light': {
       add(box(2 * hw, h, 2 * hw, 0, cy, 0, M('dark')), box(0.06, h * 0.75, 2 * hw * 0.75, hw, cy, 0, M(p.lit ? 'lamp' : 'grey', p.lit ? { emissive: new THREE.Color('#fff0c0'), color: new THREE.Color('#fff6dd') } : undefined)));

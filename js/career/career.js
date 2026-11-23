@@ -21,6 +21,7 @@ function newSave(mode, seed) {
   };
   s.levels = Object.fromEntries(Object.keys(FACILITIES).map((k) => [k, mode === 'career' ? 1 : 3]));
   s.commnet = mode === 'career'; // probes need a signal (can be changed in Settings)
+  s.diff = { ...DIFF_DEFAULTS };
   if (mode === 'career') for (const r of ROLE_ORDER) hireCrew(s, true, r);
   return s;
 }
@@ -28,9 +29,16 @@ function newSave(mode, seed) {
 function migrateSave(s) {
   for (const c of s.crew || []) if (!c.role) c.role = ROLE_ORDER[(c.id - 1) % 3];
   if (s.commnet === undefined) s.commnet = false; // older games keep flying as before
+  s.diff = { ...DIFF_DEFAULTS, ...(s.diff || {}) };
   if (!s.levels) s.levels = Object.fromEntries(Object.keys(FACILITIES).map((k) => [k, s.mode === 'career' ? 2 : 3]));
   return s;
 }
+
+/* ---------- difficulty ----------
+   heat: how strongly reentry heats parts; crash: how hard a landing parts can take; funds and science: reward
+   multipliers; revert: whether flights can be reverted and quick-saved. Changed in Settings. */
+const DIFF_DEFAULTS = { heat: 1, crash: 1, funds: 1, science: 1, revert: true };
+function diff(k) { const d = Career.s && Career.s.diff; return d && d[k] !== undefined ? d[k] : DIFF_DEFAULTS[k]; }
 
 /* ---------- Space Centre buildings ----------
    Each has three levels. Upgrading costs money and lifts a limit. Sandbox games have everything at level 3. */
@@ -167,6 +175,6 @@ function milestoneReward(id) {
   const [k, bid] = id.split('_');
   const f = bid ? (BODY_SCI[bid] || 1) : 1;
   const base = { liftoff: 1000, alt10k: 2000, space: 5000, orbit: 10000, splash: 4000 }[id];
-  if (base) return { funds: base, rep: 2 };
-  return { funds: { soi: 4000, orbit: 8000, land: 12000, return: 15000, flag: 6000 }[k] * f, rep: 3 + f };
+  if (base) return { funds: base * diff('funds'), rep: 2 };
+  return { funds: { soi: 4000, orbit: 8000, land: 12000, return: 15000, flag: 6000 }[k] * f * diff('funds'), rep: 3 + f };
 }

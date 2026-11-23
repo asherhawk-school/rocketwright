@@ -117,15 +117,19 @@ function oreBelow(c, t) {
 function miningStep(c, dt, t, skill = 1) {
   if (!(c.drills && c.drills.length) && !(c.converters && c.converters.length)) return;
   let changed = false;
+  // a craft holding an asteroid digs from the rock (rich in ore) instead of the ground
+  const rock = typeof heldRock === 'function' ? heldRock(c) : null;
   for (const d of c.drills) {
     d.drillRate = 0;
-    if (!d.drilling || !drillOnGround(c, d, t)) continue;
-    const conc = oreBelow(c, t);
-    let want = Math.min((d.def.drill * conc / ORE_NOMINAL) * skill * dt, propRoom(c, 'ore', 'oreCap'));
+    if (!d.drilling || (!rock && !drillOnGround(c, d, t))) continue;
+    const conc = rock ? 0.08 : oreBelow(c, t);
+    let want = Math.min((d.def.drill * conc / ORE_NOMINAL) * skill * dt, propRoom(c, 'ore', 'oreCap'), rock ? rock.ore : Infinity);
     if (want <= 1e-12) continue;
     want *= ecDrain(c, d.def.drillEC * dt);
-    d.drillRate = propFill(c, 'ore', 'oreCap', want) / dt;
-    changed = changed || want > 0;
+    const got = propFill(c, 'ore', 'oreCap', want);
+    if (rock) rock.ore = Math.max(0, rock.ore - got);
+    d.drillRate = got / dt;
+    changed = changed || got > 0;
   }
   for (const v of c.converters) {
     v.convRate = 0;
@@ -191,7 +195,7 @@ function heatFlux(rho, v) { return rho > 0 ? 1.8e-4 * Math.sqrt(rho) * v * v * v
    Returns the parts that went over their limit. */
 function heatStep(c, dt, rho, vx, vy) {
   const v = Math.hypot(vx, vy);
-  const F = heatFlux(rho, v);
+  const F = heatFlux(rho, v) * (typeof diff === 'function' ? diff('heat') : 1);
   const hot = [];
   let smin = Infinity, smax = -Infinity;
   let lx = 0, ly = 0;

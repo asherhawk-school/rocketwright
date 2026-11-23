@@ -64,6 +64,8 @@ function showHub() {
   hideModal();
   showScreen('hub');
   if (Career.restoreNote) { toast(Career.restoreNote); Career.restoreNote = null; }
+  asteroidTick(universe());
+  persist();
   if (isCareer()) {
     const failed = refreshContracts(Career.s);
     persist();
@@ -244,6 +246,7 @@ function trackingLost(lost) {
 
 function showTracking() {
   const s = universe();
+  asteroidTick(s);
   trackingLost(advanceAll(s.ut));
   persist();
   const rows = s.vessels.map((v) => {
@@ -251,10 +254,11 @@ function showTracking() {
     const home = v.landed && b === HOME;
     const crew = crewNames(v.crew);
     return `<div class="trk-row ${v.kind}">
-      <div><b>${esc(v.name)}</b>${v.kind === 'stranded' ? ' <span class="pill rep">needs rescue</span>' : v.kind === 'eva' ? ' <span class="pill">on a spacewalk</span>' : v.kind === 'flag' ? ' <span class="pill">flag</span>' : ''}
+      <div><b>${esc(v.name)}</b>${v.kind === 'stranded' ? ' <span class="pill rep">needs rescue</span>' : v.kind === 'eva' ? ' <span class="pill">on a spacewalk</span>' : v.kind === 'flag' ? ' <span class="pill">flag</span>' : v.kind === 'asteroid' ? ` <span class="pill">asteroid${v.rockClass ? ` · class ${v.rockClass}` : ''}${v.expires ? ` · leaves in ${fmtDur(v.expires - s.ut)}` : ''}</span>` : ''}
         <div class="muted">${esc(vesselSituation(v))} · ${fmtDur(s.ut - v.launchT)} since launch${crew.length ? ' · 👩‍🚀 ' + esc(crew.join(', ')) : ''}</div></div>
-      <div class="trk-btns">${v.kind === 'stranded' || v.kind === 'flag' ? '' : `<button class="primary" data-fly="${v.id}">Fly</button>`}
+      <div class="trk-btns">${v.kind === 'stranded' || v.kind === 'flag' || v.kind === 'asteroid' ? '' : `<button class="primary" data-fly="${v.id}">Fly</button>`}
         ${home ? `<button data-rec="${v.id}">Recover</button>` : ''}
+        ${v.flags && v.flags.log && v.flags.log.length ? `<button data-log="${v.id}">Log</button>` : ''}
         ${v.kind === 'stranded' ? '' : `<button data-del="${v.id}">Terminate</button>`}</div></div>`;
   }).join('');
   showModal(`<h2>Tracking Station <span class="muted small">${fmtDate(s.ut)}</span></h2>
@@ -274,6 +278,12 @@ function showTracking() {
     resizeFlight();
     flightLoadVessel(v, s.ut);
     fillTargetSelect();
+  }));
+  card.querySelectorAll('[data-log]').forEach((b) => b.addEventListener('click', () => {
+    const v = s.vessels.find((x) => x.id === +b.dataset.log);
+    if (!v) return;
+    showModal(`<h2>${esc(v.name)} · flight log</h2><ul class="plain flog-list">${logHtml(v.flags.log, v.launchT)}</ul>`,
+      [{ label: 'Back', cls: 'primary', fn: showTracking }]);
   }));
   card.querySelectorAll('[data-rec]').forEach((b) => b.addEventListener('click', () => {
     const v = find(b.dataset.rec);
@@ -372,7 +382,13 @@ function showSettings() {
       <option value="3d" ${gfx3d() ? 'selected' : ''}>3D (round parts, lighting, a camera you can turn)</option>
       <option value="2d" ${gfx3d() ? '' : 'selected'}>Classic 2D${R3.ok ? '' : ' (3D needs WebGL)'}</option></select></label>
     ${Career.s ? `<h3>This game</h3>
-    <label class="check"><input type="checkbox" id="optComm" ${Career.s.commnet ? 'checked' : ''}> Comms network: probes need a signal from a ground station or relay to be controlled, and science needs one to be transmitted</label>` : ''}
+    <label class="check"><input type="checkbox" id="optComm" ${Career.s.commnet ? 'checked' : ''}> Comms network: probes need a signal from a ground station or relay to be controlled, and science needs one to be transmitted</label>
+    <label class="check"><input type="checkbox" id="optRevert" ${diff('revert') ? 'checked' : ''}> Allow reverting flights and quick saves</label>
+    <div class="diff-grid">
+      ${[['heat', 'Reentry heating', [[0.5, 'Gentle'], [1, 'Normal'], [1.5, 'Fierce']]], ['crash', 'Crash tolerance', [[0.7, 'Fragile'], [1, 'Normal'], [1.5, 'Sturdy']]],
+        ['funds', 'Money rewards', [[0.5, 'Half'], [1, 'Normal'], [1.5, 'Generous']]], ['science', 'Science rewards', [[0.5, 'Half'], [1, 'Normal'], [1.5, 'Generous']]]]
+        .map(([k, label, opts]) => `<label class="field">${label}<select data-diff="${k}">${opts.map(([v, n]) => `<option value="${v}" ${diff(k) === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`).join('')}
+    </div>` : ''}
     <p>Your game saves automatically in this browser. Export it to keep a copy or move it to another device.</p>
     <input type="file" id="importFile" accept=".json,application/json" class="hidden">`, [
     { label: 'Export save', cls: 'primary', fn: exportSave },
@@ -385,6 +401,8 @@ function showSettings() {
   $('volSlider').addEventListener('change', () => playSound('stage'));
   $('gfxSelect').addEventListener('change', (e) => { setGfx(e.target.value); buildPalette(); });
   if ($('optComm')) $('optComm').addEventListener('change', (e) => { Career.s.commnet = e.target.checked; persist(); });
+  if ($('optRevert')) $('optRevert').addEventListener('change', (e) => { Career.s.diff.revert = e.target.checked; persist(); });
+  $('modalCard').querySelectorAll('[data-diff]').forEach((sel) => sel.addEventListener('change', () => { Career.s.diff[sel.dataset.diff] = +sel.value; persist(); }));
 }
 
 function exportSave() {

@@ -47,6 +47,7 @@ function launchDesign(design, name, crewId, crewN = 1, site = 'pad') {
   flightStart(design, name, { t0: s.ut, keepTarget: true, site });
   fillTargetSelect();
   F.snapshot = snapshot;
+  if (!diff('revert')) F.canRevert = false;
   saveCheckpoint();
   if (crew.length) {
     // capsules fill first, then cabins
@@ -289,6 +290,7 @@ function recover() {
     <div class="kv"><span>Mission time</span><b>${fmtClock(F.t - F.launchT).slice(3)}</b></div>
     <div class="kv"><span>Highest altitude</span><b>${fmtDist(F.flags.maxAlt)}</b></div>
     <div class="kv"><span>Worlds visited</span><b>${visited || 'None yet'}</b></div>
+    ${F.flags.log && F.flags.log.length ? `<details class="flog"><summary>Flight log (${F.flags.log.length})</summary><ul class="plain">${logHtml(F.flags.log, F.launchT)}</ul></details>` : ''}
     ${homeCrew.length ? `<div class="kv"><span>Crew home safe</span><b>${esc(homeCrew.join(', '))}</b></div>` : ''}
     ${isCareer() ? `<div class="kv"><span>Recovery (${Math.round(factor * 100)}% of value)</span><b>+${fmtFunds(refund)}</b></div>` : ''}
     ${isCareer() && sci ? `<div class="kv"><span>Science recovered</span><b>+${sci.toFixed(1)} ⚗</b></div><ul class="plain">${sciLines.join('')}</ul>` : ''}
@@ -309,7 +311,7 @@ function toggleRcs() {
 
 /* [ and ] switch between vessels close enough to see. */
 function cycleNearby(dir) {
-  const near = F.others.filter((o) => !o.dead && !(o.meta && o.meta.kind === 'flag'));
+  const near = F.others.filter((o) => !o.dead && !(o.meta && (o.meta.kind === 'flag' || o.meta.kind === 'asteroid')));
   if (!near.length) { flash('No other vessels nearby', 2); return; }
   const o = near[dir > 0 ? 0 : near.length - 1];
   switchToVessel(o.vid);

@@ -174,6 +174,11 @@ Object.assign(PART_DEFS, {
     rcs: true, rcsThrust: 0.25, isp: 80, maxTemp: 900, exps: ['evaReport', 'sample'], desc: 'An astronaut in a spacesuit with a small jetpack.' },
   flag: { kind: 'flag', name: 'Flag', hidden: true, mass: 0.01, h: 2.2, w: 0.15, maxTemp: 1200, desc: 'Planted to mark a visit.' },
 });
+/* Asteroids, by size class. Their ore (rockOre tonnes at most) can be drilled out once a claw holds them. */
+for (const [cls, mass, size] of [['A', 8, 3], ['B', 25, 4.5], ['C', 70, 6.5], ['D', 180, 9], ['E', 450, 13]]) {
+  PART_DEFS['rock' + cls] = { kind: 'asteroid', name: `Asteroid (class ${cls})`, hidden: true, asteroid: true, mass, h: size, w: size,
+    rockOre: mass * 0.5, maxTemp: 3500, desc: 'A lump of rock and ice.' };
+}
 Object.assign(PART_DEFS.chute, { chuteFull: 720, chuteSemi: 45 });
 Object.assign(PART_DEFS.chuteRadial, { chuteFull: 400, chuteSemi: 25 });
 Object.assign(PART_DEFS, {

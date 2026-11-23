@@ -53,6 +53,14 @@ then visit http://localhost:8000.
   payload and split open, an atomic engine, an ion drive that burns argon and electricity, an aerospike that works well at any
   altitude, a small monopropellant engine, big batteries and fuel cells, struts, a 3 m heat shield, an inflatable heat shield,
   drogue parachutes and air brakes.
+- **Asteroids**: every few days the Tracking Station spots a rock (class A to E, from 8 to 450 t) on a long loop round
+  Verdan. It stays a few weeks, then drifts away, unless you grab it with the claw. Drills dig ore straight out of a rock
+  you're holding, and contracts pay to bring one into a low orbit.
+- **Crew portraits and flight logs**: the astronauts aboard appear in the flight HUD and react to what's happening (calm,
+  thrilled when you stage, straining under high g, scared when things get dangerous). Every vessel keeps a log of its
+  launch, orbits, landings, dockings and spacewalks, shown when you recover it and in the Tracking Station.
+- **Difficulty**: in Settings, choose how fierce reentry heating is, how hard a landing craft can take, how generous money
+  and science rewards are, and whether reverting and quick saves are allowed.
 - **Comms network**: three ground stations on Verdan listen for your craft. Every antenna has a range (the whip reaches
   Pallid, the long-range dish the inner planets, the deep space dish everywhere, if the Tracking Station is upgraded enough to
   hear it), and worlds block the line. Relay antennas and relay dishes pass signals on, so a few relay satellites can cover a
@@ -158,7 +166,8 @@ node tests/run.js
 
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
-career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, mining, refining and fuel transfer, the comms network (ground stations, range, line of sight, relays), launch clamps, action groups, floodlights and the claw, power and shadows, reentry heating with and
+career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, mining, refining and fuel transfer, the comms network (ground stations, range, line of sight, relays), launch clamps, action groups, floodlights and the claw, asteroids (spotting, drifting away, capture and mining),
+difficulty settings, crew moods and the flight log, power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers
@@ -177,6 +186,8 @@ hangar (building onto them, putting them back, and keeping them out of launches)
 - `js/docking.js`: docking ports, merging and undocking craft
 - `js/eva.js`: spacewalks, flags and boarding
 - `js/comms.js`: the comms network: ground stations, antenna ranges and relays
+- `js/asteroids.js`: asteroids passing Verdan
+- `js/crew.js`: crew portraits and the flight log
 - `js/sound.js`: synthesised audio
 - `js/tutorials.js`: guided missions
 - `js/flight.js`: simulation loop, time warp, camera, map view, HUD

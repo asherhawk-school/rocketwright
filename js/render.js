@@ -210,6 +210,16 @@ function drawPart(ctx, p, lw) {
       ctx.fillStyle = '#7dffa8'; ctx.beginPath(); ctx.arc(hw * 0.35, bot + h * 0.47, 0.06, 0, TAU); ctx.fill();
       break;
     }
+    case 'asteroid': { // a lumpy grey rock, the same shape every time for a given class
+      let seed = d.h * 1000;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const pts = [], cyc = (top + bot) / 2;
+      for (let i = 0; i < 14; i++) { const a = (i / 14) * TAU, r = (h / 2) * (0.72 + 0.28 * rnd()); pts.push([Math.cos(a) * r, cyc + Math.sin(a) * r]); }
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#4a4640', '#8a8478', '#3a3630'); poly(ctx, pts); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(30,28,24,0.45)';
+      for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.arc((rnd() - 0.5) * hw, cyc + (rnd() - 0.5) * hw, h * (0.05 + rnd() * 0.07), 0, TAU); ctx.fill(); }
+      break;
+    }
     case 'clamp': { // a lattice arm reaching in from a tower
       ctx.fillStyle = '#8a3a2a'; ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
       ctx.strokeStyle = '#d07a4a';

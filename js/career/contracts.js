@@ -116,6 +116,9 @@ function contractBuilders(s) {
       desc: `Put a craft with an antenna into orbit around ${b.name} with periapsis above ${fmtNum(lo)} km and apoapsis below ${fmtNum(hi)} km.`,
       p: { body: b.id, lo: lo * 1000, hi: hi * 1000 }, reward: r100(10000 * (1 + f(b))), sci: 5, rep: 4 + f(b), days: 40 + 60 * f(b) };
   }]);
+  if (m.orbit && s.tech.includes('grappling')) B.push([0.8, () => ({ type: 'asteroid', title: 'Capture an asteroid',
+    desc: 'Grab one of the asteroids passing Verdan with a claw and put it in a stable orbit with apoapsis below 2,000 km.',
+    p: { body: HOME.id, maxAp: 2e6 }, reward: r100(60000), sci: 25, rep: 15, days: 120 })]);
   if (m.orbit && s.tech.includes('comms')) B.push([1, () => {
     const b = pick(s, bodies);
     return { type: 'relay', title: `Relay satellite at ${b.name}`, desc: `Put a craft with a relay antenna into a stable orbit around ${b.name}.`,
@@ -180,8 +183,8 @@ function declineContract(s, id) {
 function completeContract(s, c) {
   c.state = 'done';
   c.doneAt = s.ut;
-  s.funds += c.reward;
-  s.science = Math.round((s.science + c.sci) * 10) / 10;
+  s.funds += Math.round(c.reward * ((s.diff && s.diff.funds) || 1));
+  s.science = Math.round((s.science + c.sci * ((s.diff && s.diff.science) || 1)) * 10) / 10;
   s.rep = clamp(s.rep + c.rep, -100, 1000);
 }
 function failContract(s, c) {
@@ -207,6 +210,7 @@ function checkContracts(s, ev) {
       case 'orbit': ok = ev.kind === 'tick' && b.id === p.body && stableOrbit(ev, b); break;
       case 'land': ok = ev.kind === 'land' && b.id === p.body && (!p.biome || ev.biome === p.biome); break;
       case 'science': ok = ev.kind === 'science' && b.id === p.body && ev.sit === p.sit && (!p.biome || ev.biome === p.biome); break;
+      case 'asteroid': ok = ev.kind === 'tick' && b === HOME && ev.hasAsteroid && stableOrbit(ev, b) && ev.orbit.ra - b.R < p.maxAp; break;
       case 'relay': ok = ev.kind === 'tick' && b.id === p.body && ev.hasRelay && stableOrbit(ev, b); break;
       case 'flag': ok = ev.kind === 'flag' && b.id === p.body; break;
       case 'rescue': ok = ev.kind === 'recover' && (ev.crew || []).includes(p.crewName); break;

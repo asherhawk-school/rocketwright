@@ -79,6 +79,7 @@ function goEva() {
   if (b.gas || b.star) { flash(`Not here: ${b.name} would swallow them`, 2); return; }
   if (!c.landed && (c.q || 0) > HATCH_MAX_Q) { flash('Too much air rushing past to open the hatch', 2.5); return; }
   const x = F.crew.find((y) => c.byUid.has(y.pod));
+  logEvent(`${x.name} went outside`);
   const e = spawnEva(c, x, F.t);
   F.crew = F.crew.filter((y) => y !== x);
   e.vid = newVesselId();
@@ -131,6 +132,7 @@ function boardNearby() {
   e.dead = true; // the astronaut isn't a vessel any more
   takeOver(o);
   playSound('dock');
+  if (me) logEvent(`${me.name} climbed back aboard`);
   flash(`${me ? me.name : 'The astronaut'} climbed aboard ${o.meta.name}${held.length ? ` with ${held.length} result${held.length > 1 ? 's' : ''}` : ''}`, 3);
 }
 
@@ -173,6 +175,7 @@ function plantFlag() {
     flags: { space: false, maxAlt: 0, visited: [], landedOn: [] } };
   F.others.push(f);
   if (b !== HOME) award('flag_' + b.id);
+  logEvent(`Planted a flag on ${b.name}${bio ? ` in the ${bio}` : ''}`);
   flightEvent({ kind: 'flag', body: b, biome: bio });
   playSound('dock');
   flash(`Flag planted on ${b.name}${bio ? ` in the ${bio}` : ''}`, 3);

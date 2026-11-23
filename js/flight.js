@@ -27,7 +27,7 @@ function initFlightView() {
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hBiome', 'hBiomeRow', 'hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
     'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bGear', 'bBrakes', 'bQSave', 'bQLoad', 'bRcs', 'hNext', 'hPitch',
-    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag', 'fOre', 'fOreRow', 'hSig', 'hSigRow']) F.hud[id] = document.getElementById(id);
+    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag', 'fOre', 'fOreRow', 'hSig', 'hSigRow', 'crewPanel']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
 }
@@ -68,6 +68,7 @@ function flightStart(design, name, opts = {}) {
   F.zoom = clamp((F.H * 0.42) / (c.length + 8), 2, 30);
   for (const k in F.keys) F.keys[k] = false;
   updateSasButtons();
+  logEvent(`Launched from the ${F.site === 'runway' ? 'runway' : 'launch pad'}`);
   flash(F.site === 'runway' ? `${F.craftName} is on the runway. SPACE starts the engines, Z for full throttle, A/D to pull up.`
     : `${F.craftName} is on the pad. Press SPACE to launch!`, 5);
 }
@@ -189,6 +190,7 @@ function doStage() {
   const stageIds = (c.stages[c.stageIdx] || []).map((u) => c.byUid.get(u)).filter(Boolean).map((p) => p.id);
   const res = c.activateNext((comp, dec) => separatePiece(c, comp, dec));
   if (res) {
+    F.lastStageT = F.t;
     const b = soiBody(c.pos[0], c.pos[1], F.t), bp = bodyPos(b, F.t), bv = bodyVel(b, F.t);
     flightEvent({ kind: 'stage', body: b, alt: Math.hypot(c.pos[0] - bp[0], c.pos[1] - bp[1]) - b.R,
       speed: Math.hypot(c.vel[0] - bv[0], c.vel[1] - bv[1]), partIds: stageIds });
@@ -235,6 +237,7 @@ function dockWith(o, dk) {
   const c = F.craft;
   const off = dockCrafts(c, dk.pa, o, dk.pb);
   if (dk.claw) dk.pa.grabbed = dk.pb.uid + off;
+  logEvent(`${dk.claw ? 'Grabbed' : 'Docked with'} ${o.meta ? o.meta.name : 'a vessel'}`);
   if (o.meta) F.dockedMeta[dk.pb.uid + off] = { id: o.meta.id, name: o.meta.name, kind: o.meta.kind, launchT: o.meta.launchT };
   const crew = ((o.meta && o.meta.crew) || []).map((x) => ({ ...x, pod: x.pod + off }));
   F.crew = F.crew.concat(crew);
@@ -288,11 +291,11 @@ function separatePiece(c, comp, dec) {
   d.angVel = c.angVel + (side ? -(Math.sign(dx) || 1) * 0.25 : (Math.random() - 0.5) * 0.06);
   d.throttle = 0;
   d.landed = null;
-  if (comp.some((p) => p.def.pod || p.def.probe)) {
+  if (comp.some((p) => p.def.pod || p.def.probe || p.def.asteroid)) {
     const uids = new Set(comp.map((p) => p.uid));
     const crew = F.crew.filter((x) => uids.has(x.pod));
     F.crew = F.crew.filter((x) => !uids.has(x.pod));
-    const named = comp.some((p) => p.def.pod) ? 'Capsule' : 'Probe', was = F.sepMeta;
+    const named = comp.some((p) => p.def.pod) ? 'Capsule' : comp.some((p) => p.def.probe) ? 'Probe' : 'Asteroid', was = F.sepMeta;
     d.vid = was ? was.id : newVesselId();
     d.meta = { id: d.vid, name: was ? was.name : `${F.craftName} ${named}`, crew, launchT: was ? was.launchT : F.launchT,
       flags: JSON.parse(JSON.stringify(F.flags)), kind: was && was.kind !== 'stranded' ? was.kind : 'ship' };
@@ -416,6 +419,7 @@ function flightUpdate(dt) {
     const newUp = Math.atan2(c.pos[1] - pn[1], c.pos[0] - pn[0]);
     F.rotOffset = wrapPi(F.rotOffset + newUp - oldUp);
     flash(b.parent === F.lastBody ? `Entered ${b.name}'s sphere of influence` : `Left ${F.lastBody.name}. Now orbiting ${b.name}`, 4);
+    logEvent(b.parent === F.lastBody ? `Entered ${b.name}'s sphere of influence` : `Left ${F.lastBody.name} for ${b.name}`);
   }
   F.lastBody = b;
   F.rotOffset *= Math.exp(-dt * 1.5);
@@ -770,6 +774,7 @@ function contact(c, b, t, player) {
   const upright = Math.cos(c.angle) * ux + Math.sin(c.angle) * uy;
   let limit = c.hasLegs ? 12 : c.isEva ? 9 : 6;
   if (pen.water) limit = Math.max(limit, 10);
+  limit *= diff('crash');
   if (speed > limit || (upright < 0.75 && speed > 3 && !c.isEva)) { explode(c, player, speed); return; }
   c.pos[0] += ux * pen.maxPen; c.pos[1] += uy * pen.maxPen;
   if (upright > 0.75 || c.isEva) { // astronauts land on their feet
@@ -1298,7 +1303,7 @@ function checkMilestones(b) {
   if (c.dead) return;
   const bp = bodyPos(b, F.t);
   const alt = Math.hypot(c.pos[0] - bp[0], c.pos[1] - bp[1]) - b.R;
-  flightEvent({ kind: 'tick', body: b, alt, orbit: F.orbit, landed: !!c.landed, hasAntenna: c.parts.some((p) => p.def.antenna), hasRelay: c.parts.some((p) => p.def.relay) });
+  flightEvent({ kind: 'tick', body: b, alt, orbit: F.orbit, landed: !!c.landed, hasAntenna: c.parts.some((p) => p.def.antenna), hasRelay: c.parts.some((p) => p.def.relay), hasAsteroid: c.parts.some((p) => p.def.asteroid) });
   if (b === HOME) {
     F.flags.maxAlt = Math.max(F.flags.maxAlt, alt);
     if (!c.landed && alt > 40) award('liftoff');
@@ -1312,7 +1317,11 @@ function checkMilestones(b) {
   const o = F.orbit;
   if (o && !c.landed && o.e < 1 && !b.star) {
     const pe = o.rp - b.R;
-    if (pe > (b.atmo ? b.atmo.top : 3000)) award(b === HOME ? 'orbit' : 'orbit_' + b.id);
+    if (pe > (b.atmo ? b.atmo.top : 3000)) {
+      award(b === HOME ? 'orbit' : 'orbit_' + b.id);
+      const orbited = F.flags.orbited || (F.flags.orbited = []);
+      if (!orbited.includes(b.id)) { orbited.push(b.id); logEvent(`Reached orbit around ${b.name}`); }
+    }
   }
 }
 
@@ -1320,6 +1329,7 @@ function onTouchdown(b, water, speed) {
   if (F.kind === 'eva') return; // an astronaut's hops don't count as landings
   const c0 = F.craft, bp0 = bodyPos(b, F.t), bio = biomeAt(b, Math.atan2(c0.pos[1] - bp0[1], c0.pos[0] - bp0[0]));
   flash(`${water ? 'Splashdown' : 'Touchdown'} on ${b.name}${bio ? ` (${bio})` : ''} at ${speed.toFixed(1)} m/s`, 4);
+  logEvent(`${water ? 'Splashed down' : 'Landed'} on ${b.name}${bio ? ` in the ${bio}` : ''} at ${speed.toFixed(1)} m/s`);
   flightEvent({ kind: 'land', body: b, biome: bio });
   if (b !== HOME) {
     award('land_' + b.id);
@@ -1839,7 +1849,8 @@ function updateHud() {
   h.hRadar.textContent = fmtDist(radar);
   const o = F.orbit;
   h.hBody.textContent = (c.landed ? 'Landed on ' : 'Orbiting ') + b.name;
-  h.hSigRow.classList.toggle('hidden', !F.comm);
+  if (F.frame % 6 === 0) updateCrewPanel(c, (vx * rx + vy * ry) / r);
+  h.hSigRow.classList.toggle('hidden', !F.comm || !!F.comm.none);
   if (F.comm) { const st = signalText(); if (h.hSig.textContent !== st) h.hSig.textContent = st; h.hSig.classList.toggle('bad', !F.comm.ok); }
   // the biome below, while close enough to the ground for it to matter
   const bio = alt < spaceHighAlt(b) ? biomeAt(b, Math.atan2(ry, rx)) : null;

@@ -97,7 +97,7 @@ function runExperiment(s, p, b, sit, bio) {
 /* Credit a result. fraction 1 = recovered, TRANSMIT_FRACTION = transmitted. Returns science gained. */
 function creditResult(s, r, fraction, bonus = 1) {
   const done = s.sci[r.id] || 0;
-  const gain = r.cap * (1 - done) * fraction * bonus;
+  const gain = r.cap * (1 - done) * fraction * bonus * ((s.diff && s.diff.science) || 1);
   s.sci[r.id] = done + (1 - done) * fraction;
   if (s.mode === 'career') s.science = Math.round((s.science + gain) * 10) / 10;
   return gain;

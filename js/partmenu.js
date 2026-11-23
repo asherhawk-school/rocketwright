@@ -74,6 +74,7 @@ function partInfo(c, p) {
   if (d.light) out.push(p.lit ? 'On' : 'Off');
   if (d.claw) out.push(p.grabbed != null ? 'Holding on' : p.disarmed ? 'Disarmed' : 'Armed: touch something slowly to grab it');
   if (d.clamp) out.push('Holds the craft down until its stage fires');
+  if (d.asteroid) out.push(`About ${fmtNum(p.ore || 0, 1)} t of ore inside · ${fmtNum(p.m, 0)} t in all`);
   if (d.antenna) out.push(`${d.relay ? 'Relay antenna' : 'Antenna'} · reaches ${fmtDist(d.range)}${F.comm ? ` · ${F.comm.ok ? 'signal home' : 'no signal'}` : ''}`);
   if (d.torque) out.push(`Reaction wheels ${d.torque} kN·m`);
   if (d.exp && Career.s && isCareer()) {

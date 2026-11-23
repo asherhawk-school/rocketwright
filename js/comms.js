@@ -54,7 +54,7 @@ function lineClear(a, b, bodies) {
 /* Find a path from craft c to a ground station (fewest hops). */
 function linkToHome(c, t) {
   const me = partsRange(c.parts);
-  if (!me.r) return { ok: false, why: 'No antenna or probe core' };
+  if (!me.r) return { ok: false, none: true, why: 'No antenna or probe core' };
   const nodes = [{ name: 'you', pos: c.pos, range: me.r }];
   for (const o of (typeof F !== 'undefined' && F.others) || []) {
     if (o.dead || o === c) continue;
