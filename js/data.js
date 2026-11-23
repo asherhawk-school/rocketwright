@@ -375,6 +375,7 @@ function loadMilestones() {
 function milestoneName(id) {
   const m = MILESTONES.find((x) => x.id === id);
   if (m) return m.name;
+  if (id.startsWith('anomaly_') && typeof ANOMALY_BY_ID !== 'undefined' && ANOMALY_BY_ID[id.slice(8)]) return `Found ${ANOMALY_BY_ID[id.slice(8)].name}`;
   const [k, bid] = id.split('_');
   const kind = MILESTONE_KINDS.find((x) => x.k === k), b = BODY_BY_ID[bid];
   return kind && b ? `${kind.label} ${b.name}` : id;

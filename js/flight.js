@@ -1166,10 +1166,12 @@ function nearestSite() {
 function surfaceMarkers() {
   const c = F.craft;
   if (!c) return [];
+  const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
+  const near = b.star || b.gas ? [] : anomaliesNear(c, b, ANOMALY_SHOW).map((n) => ({ key: 'an-' + n.a.id, body: b, phi: n.a.phi, kind: 'anomaly', a: n.a }));
   return surveySites().filter((st) => {
     const bp = bodyPos(st.body, F.t);
     return Math.abs(wrapPi(st.phi - Math.atan2(c.pos[1] - bp[1], c.pos[0] - bp[0]))) * st.body.R < 60000;
-  });
+  }).concat(near);
 }
 
 function renderContractHud() {
@@ -1369,6 +1371,7 @@ function award(id) {
 function checkMilestones(b) {
   const c = F.craft;
   if (c.dead) return;
+  if (!F.tutorial) anomalyTick(c, b);
   const bp = bodyPos(b, F.t);
   const alt = Math.hypot(c.pos[0] - bp[0], c.pos[1] - bp[1]) - b.R;
   flightEvent({ kind: 'tick', body: b, alt, phi: Math.atan2(c.pos[1] - bp[1], c.pos[0] - bp[0]), radar: c.radar, orbit: F.orbit, landed: !!c.landed, hasAntenna: c.parts.some((p) => p.def.antenna), hasRelay: c.parts.some((p) => p.def.relay), hasAsteroid: c.parts.some((p) => p.def.asteroid),
@@ -1477,6 +1480,7 @@ function renderWorld() {
     const r = b.R + groundAlt(b, m.phi), x = bp[0] + r * Math.cos(m.phi) - cam[0], y = bp[1] + r * Math.sin(m.phi) - cam[1];
     if (Math.hypot(x, y) > viewR + 2000) continue;
     ctx.save(); ctx.translate(x, y); ctx.rotate(m.phi - Math.PI / 2);
+    if (m.kind === 'anomaly') { drawAnomaly2D(ctx, m.a, 1 / z); ctx.restore(); continue; }
     const hgt = m.air ? m.hi : 400, wid = Math.max(4, 3 / z);
     const gr = ctx.createLinearGradient(0, 0, 0, hgt);
     gr.addColorStop(0, 'rgba(125,255,168,0.7)'); gr.addColorStop(1, 'rgba(125,255,168,0)');
@@ -1787,6 +1791,15 @@ function renderMap() {
       circle(gx, gy, Math.max((F.target.R || 0) * z, 5)); ctx.stroke();
       ctx.fillText(`Closest ${fmtDist(ca.d - (F.target.R || 0))}`, cx2, cy2 - 12);
     }
+  }
+  // anomalies already found
+  for (const a of ANOMALIES) {
+    if (!anomalyFound(a.id)) continue;
+    const ab = BODY_BY_ID[a.body];
+    if (ab.R * z < 20) continue;
+    const abp = bodyPos(ab, t), r = ab.R + groundAlt(ab, a.phi), [ax, ay] = S(abp[0] + r * Math.cos(a.phi), abp[1] + r * Math.sin(a.phi));
+    ctx.fillStyle = '#ffd34d'; ctx.fillText('✦', ax, ay + 4);
+    if (ab.R * z > 200) ctx.fillText(a.name, ax, ay - 9);
   }
   // survey sites
   for (const st of surveySites()) {

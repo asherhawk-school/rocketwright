@@ -932,7 +932,52 @@ function buildRunwayModel() {
   return (R3.flight.world.add(g), g);
 }
 
-/* Things standing on the ground near the craft (survey beacons, and more later), kept in step each frame. */
+/* An anomaly's 3D model (metres, +y up from the ground). */
+function buildAnomaly(m) {
+  const g = new THREE.Group(), a = m.a, add = (...o) => o.forEach((x) => g.add(x));
+  const stone = (col) => new THREE.MeshStandardMaterial({ color: new THREE.Color(col), roughness: 0.9, metalness: 0.05, flatShading: true });
+  switch (a.kind) {
+    case 'beacon': {
+      for (const s of [-1, 1]) { const l = box(0.25, 14.5, 0.25, s * 1, 7, 0, mat('rust', { color: new THREE.Color('#8a4a2a') })); l.rotation.z = s * 0.07; add(l); }
+      add(sphere(0.5, 0, 14.3, 0, new THREE.MeshBasicMaterial({ color: 0xff3a2a })));
+      break;
+    }
+    case 'pillar': add(box(4, 18, 1.2, 0, 9, 0, new THREE.MeshStandardMaterial({ color: 0x0c0c10, roughness: 0.15, metalness: 0.8 }))); break;
+    case 'arch': {
+      const shape = new THREE.Shape();
+      shape.moveTo(-16, 0); shape.lineTo(-11, 0); shape.lineTo(-11, 11); shape.absarc(0, 11, 11, Math.PI, 0, true); shape.lineTo(11, 0); shape.lineTo(16, 0);
+      shape.lineTo(16, 13); shape.absarc(0, 13, 16, 0, Math.PI, false); shape.closePath();
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: 6, bevelEnabled: false });
+      const me = new THREE.Mesh(geo, stone('#b0623a')); me.position.z = -3; add(me);
+      break;
+    }
+    case 'wreck': {
+      const w = new THREE.Group();
+      w.add(box(2.4, 1.6, 2.4, 0, 0.8, 0, mat('grey')), box(2.2, 0.06, 1.2, 2.3, 0.75, 0, mat('solar')), cyl(0.04, 0.04, 2, 2.3, mat('metal'), 6));
+      w.rotation.z = 0.35; add(w);
+      break;
+    }
+    case 'statue': {
+      const m2 = stone('#6e7a6a');
+      add(box(1.6, 7, 1.6, -1.2, 3.5, 0, m2), box(1.6, 7, 1.6, 1.2, 3.5, 0, m2), box(4.4, 7, 2.4, 0, 10.5, 0, m2), sphere(1.9, 0, 15.8, 0, m2));
+      const arm1 = box(1.1, 6, 1.1, -3, 11, 0, m2); arm1.rotation.z = -0.35; const arm2 = box(1.1, 6, 1.1, 3, 11, 0, m2); arm2.rotation.z = 0.35; add(arm1, arm2);
+      break;
+    }
+    case 'egg': add(sphere(2.2, 0, 3.2, 0, new THREE.MeshStandardMaterial({ color: 0x3a3530, metalness: 0.9, roughness: 0.3, emissive: new THREE.Color('#401808') }), 1, 1.45, 1)); break;
+    case 'spire': add(new THREE.Mesh(new THREE.ConeGeometry(2.5, 26, 6), new THREE.MeshStandardMaterial({ color: 0xbee6ff, transparent: true, opacity: 0.75, roughness: 0.05, metalness: 0.2 })));
+      g.children[0].position.y = 13; break;
+    case 'head': {
+      const m2 = stone('#4a3d5c');
+      add(sphere(7, 0, 0, 0, m2, 1, 1.3, 0.8));
+      const dark = new THREE.MeshBasicMaterial({ color: 0x1a1424 });
+      add(box(2.4, 1.2, 1, -2.8, 7.6, 5.3, dark), box(2.4, 1.2, 1, 2.8, 7.6, 5.3, dark), box(5, 0.8, 1, 0, 2.9, 5.5, dark));
+      break;
+    }
+  }
+  return g;
+}
+
+/* Things standing on the ground near the craft (survey beacons, anomalies), kept in step each frame. */
 function buildMarker(m) {
   const g = new THREE.Group();
   if (m.kind === 'beacon') {

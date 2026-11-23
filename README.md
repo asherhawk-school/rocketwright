@@ -119,6 +119,10 @@ then visit http://localhost:8000.
 - **Manoeuvre nodes**: click your path (or use “Node at Ap/Pe”) to plan a burn, drag its handles or use the editor, see the
   resulting orbit and encounters, the burn time and when to start; time warp stops before the burn, SAS points along it and the
   throttle cuts when it's done.
+- **Anomalies**: eight strange things are hidden on eight worlds, from an old beacon on Verdan to a black pillar on Pallid
+  and a carved face on Umbra. Land (or fly low) within 150 m of one to discover it: a milestone, money and science. A ground
+  scanner picks up their signal from 50 km away, they appear in the world view once you're close, and the Milestones
+  screen keeps a list of discoveries.
 - **Science labs and surface stations**: the two-seat Research Module analyses your results into data, and a scientist
   aboard slowly turns that data into extra science (about doubling what the results were worth), using power; transmit it
   or bring it home. A Surface Science Kit goes outside with an astronaut, who can set up a science station on the ground
@@ -183,7 +187,7 @@ node tests/run.js
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
 career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, mining, refining and fuel transfer, the comms network (ground stations, range, line of sight, relays), launch clamps, action groups, floodlights and the claw, asteroids (spotting, drifting away, capture and mining),
-difficulty settings, crew moods and the flight log, alarms stopping time warp, survey sites, tourists, stations and bases, labs and surface science stations, power and shadows, reentry heating with and
+difficulty settings, crew moods and the flight log, alarms stopping time warp, survey sites, tourists, stations and bases, labs and surface science stations, anomalies, power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers
@@ -205,6 +209,7 @@ hangar (building onto them, putting them back, and keeping them out of launches)
 - `js/asteroids.js`: asteroids passing Verdan
 - `js/crew.js`: crew portraits and the flight log
 - `js/alarms.js`: the alarm clock
+- `js/anomalies.js`: hidden anomalies to discover
 - `js/sound.js`: synthesised audio
 - `js/tutorials.js`: guided missions
 - `js/flight.js`: simulation loop, time warp, camera, map view, HUD

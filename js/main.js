@@ -211,7 +211,13 @@ function showMilestones() {
     const depth = b.parent === SUN ? '' : ' class="moon"';
     return `<tr><th${depth} title="${b.desc}"><span class="dot" style="background:${b.colMap}"></span>${b.name}</th>${cells}</tr>`;
   }).join('');
+  const found = ANOMALIES.filter((a) => got['anomaly_' + a.id]);
+  total += ANOMALIES.length; n += found.length;
+  const disc = ANOMALIES.map((a) => got['anomaly_' + a.id]
+    ? `<li class="done"><span class="chk">✦</span><div><b>${a.name}</b> <span class="muted">· ${BODY_BY_ID[a.body].name}</span><div class="muted">${a.desc}</div></div></li>`
+    : `<li><span class="chk">?</span><div><b>Something on ${BODY_BY_ID[a.body].name}</b><div class="muted">Not found yet. A ground scanner picks up odd signals within ${fmtDist(ANOMALY_HINT)}.</div></div></li>`).join('');
   showModal(`<h2>Milestones · ${n}/${total}</h2><ul class="milestones">${items}</ul>
+    <h3>Discoveries · ${found.length}/${ANOMALIES.length}</h3><ul class="milestones">${disc}</ul>
     <h3>Worlds</h3><table class="mtable"><tr><th></th>${MILESTONE_KINDS.map((k) => `<th>${k.label}</th>`).join('')}</tr>${rows}</table>`,
     [{ label: 'Close', cls: 'primary', fn: hideModal }]);
 }

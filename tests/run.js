@@ -16,9 +16,9 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 let src = '';
-for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'alarms.js', 'crew.js', 'asteroids.js', 'comms.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
+for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'alarms.js', 'crew.js', 'asteroids.js', 'anomalies.js', 'comms.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange, fireGroup, toggleLights, findGrab, undock, autoStages, asteroidTick, spawnAsteroid, heldRock, diff, completeContract, logEvent, crewMood, separatePiece, addAlarm, alarmList, alarmClip, nextAlarm, alarmPresets, removeAlarm, surveySites, nearestSite, touristGoalMet, availableCrew, waitingTourists, rosterSize, canEva, labStep, labAnalyse, labSkill, deployStation, stationTick, STATION_DAYS, BODY_SCI };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange, fireGroup, toggleLights, findGrab, undock, autoStages, asteroidTick, spawnAsteroid, heldRock, diff, completeContract, logEvent, crewMood, separatePiece, addAlarm, alarmList, alarmClip, nextAlarm, alarmPresets, removeAlarm, surveySites, nearestSite, touristGoalMet, availableCrew, waitingTourists, rosterSize, canEva, labStep, labAnalyse, labSkill, deployStation, stationTick, STATION_DAYS, BODY_SCI, ANOMALIES, ANOMALY_BY_ID, anomalyTick, anomalyFound, milestoneName, surfaceMarkers };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -1884,6 +1884,35 @@ test('an astronaut carries a kit outside and sets up a science station that send
   s.ut = F.t + 200 * G.DAY;
   G.stationTick(s);
   assert(near(s.science - sci0, cap, 0.2), 'all of it in the end, and no more');
+});
+
+console.log('\nAnomalies');
+test('anomalies sit on dry land, one per world on eight worlds', () => {
+  assert(G.ANOMALIES.length === 8 && new Set(G.ANOMALIES.map((a) => a.body)).size === 8, 'eight worlds');
+  for (const a of G.ANOMALIES) { const b = G.BODY_BY_ID[a.body]; assert(!b.ocean || G.terrainH(b, a.phi) >= 8, `${a.name} is on land`); }
+});
+test('landing next to an anomaly discovers it once: milestone, money and science; far away it only shows up', () => {
+  const { F, s, ship } = evaSetup('pallid');
+  const a = G.ANOMALY_BY_ID.pillar, b = G.MOON, bp = G.bodyPos(b, F.t);
+  const put = (dist) => {
+    const phi = a.phi + dist / b.R, lowest = Math.min(...ship.contacts.map((q) => q[1]));
+    const r = b.R + G.terrainH(b, phi) + (ship.yc - lowest) + 0.02;
+    ship.pos = [bp[0] + r * Math.cos(phi), bp[1] + r * Math.sin(phi)];
+    ship.landed = { body: b, rx: ship.pos[0] - bp[0], ry: ship.pos[1] - bp[1] };
+  };
+  put(5000);
+  G.anomalyTick(ship, b);
+  assert(!G.anomalyFound('pillar'), 'not found from 5 km');
+  assert(G.surfaceMarkers().some((m) => m.kind === 'anomaly' && m.a === a), 'but it shows in the world view');
+  put(80);
+  const sci = s.science, funds = s.funds;
+  G.anomalyTick(ship, b);
+  assert(G.anomalyFound('pillar') && s.science > sci && s.funds > funds, 'discovered and rewarded');
+  const sci2 = s.science;
+  G.anomalyTick(ship, b);
+  assert(s.science === sci2, 'only once');
+  assert(G.milestoneName('anomaly_pillar') === 'Found The Black Pillar', 'named');
+  assert(F.flags.log.some((e) => /Discovered The Black Pillar/.test(e.text)), 'logged');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

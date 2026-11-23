@@ -180,6 +180,7 @@ function crewRank(c) { return Math.min(5, Math.floor(c.flights / 2) + c.worlds.l
 /* ---------- milestones pay in career ---------- */
 
 function milestoneReward(id) {
+  if (id.startsWith('anomaly_')) { const a = ANOMALY_BY_ID[id.slice(8)]; return { funds: 10000 * (BODY_SCI[a ? a.body : ''] || 1) * diff('funds'), rep: 8 }; }
   const [k, bid] = id.split('_');
   const f = bid ? (BODY_SCI[bid] || 1) : 1;
   const base = { liftoff: 1000, alt10k: 2000, space: 5000, orbit: 10000, splash: 4000 }[id];
