@@ -16,9 +16,9 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 let src = '';
-for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'crew.js', 'asteroids.js', 'comms.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
+for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'alarms.js', 'crew.js', 'asteroids.js', 'comms.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange, fireGroup, toggleLights, findGrab, undock, autoStages, asteroidTick, spawnAsteroid, heldRock, diff, completeContract, logEvent, crewMood, separatePiece };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange, fireGroup, toggleLights, findGrab, undock, autoStages, asteroidTick, spawnAsteroid, heldRock, diff, completeContract, logEvent, crewMood, separatePiece, addAlarm, alarmList, alarmClip, nextAlarm, alarmPresets, removeAlarm };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -1729,6 +1729,27 @@ test('the flight log records the launch, orbits, landings and spacewalks, and is
   assert(G.crewMood(ship, 0) === 'strain', 'straining at 5 g');
   ship.gforce = 1; ship.landed = null; ship.radar = 100;
   assert(G.crewMood(ship, -50) === 'scared', 'scared falling fast near the ground');
+});
+
+console.log('\nAlarm clock');
+test('time warp stops exactly when an alarm goes off, and the alarm is cleared', () => {
+  G.Career.s = G.newSave('sandbox', 1);
+  const s = G.Career.s; s.vessels = []; s.vesselSeq = 1;
+  G.flightStart(G.PRESETS['Comms Probe'](), 'Sat', { t0: 0 });
+  const F = G.F, c = F.craft; F.others = []; F.tutorial = null;
+  const r = G.HOME.R + 300000, v = Math.sqrt(G.HOME.mu / r);
+  c.landed = null; c.pos = [r, 0]; c.vel = [0, v]; c.throttle = 0;
+  for (const e of c.engines) e.ignited = false;
+  const a2 = G.addAlarm(F.t + 5000, 'Later');
+  const a1 = G.addAlarm(F.t + 1234.5, 'Soon');
+  assert(G.alarmList()[0] === a1 && G.nextAlarm(F.t) === a1, 'sorted by time');
+  F.warp = 7;
+  for (let i = 0; i < 200 && F.warp; i++) G.flightUpdate(0.05);
+  assert(F.warp === 0 && near(F.t, a1.t, 1e-6), `stopped at ${F.t}, alarm at ${a1.t}`);
+  assert(G.alarmList().length === 1 && G.alarmList()[0] === a2, 'rang alarm removed, the other kept');
+  const pre = G.alarmPresets().map((p) => p[0]);
+  assert(pre.includes('Apoapsis') && pre.includes('Periapsis') && pre.includes('+1 day'), 'presets offered');
+  assert(G.alarmClip(0, 100).a === null, 'nothing to clip');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

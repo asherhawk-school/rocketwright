@@ -119,6 +119,9 @@ then visit http://localhost:8000.
 - **Manoeuvre nodes**: click your path (or use “Node at Ap/Pe”) to plan a burn, drag its handles or use the editor, see the
   resulting orbit and encounters, the burn time and when to start; time warp stops before the burn, SAS points along it and the
   throttle cuts when it's done.
+- **Alarm clock**: press C to set alarms before a manoeuvre burn, at apoapsis or periapsis, before the next sphere of
+  influence change, or after an hour, six hours or a day. Time warp stops exactly when one goes off, in flight and while
+  waiting at the Tracking Station, and the HUD counts down to the next one.
 - **Targets**: pick any world to see the closest approach on your path, the phase angle, the ideal transfer angle and how long until
   the next transfer window. The **Δv map** lists what every trip costs.
 - **Spacecraft systems**: electricity (capsule and probe batteries, battery packs, solar panels that work by sun angle and distance
@@ -146,6 +149,7 @@ then visit http://localhost:8000.
 | A / D, Space, L (on a spacewalk) | Walk, hop, plant a flag |
 | L | Lights on / off (plant a flag on a spacewalk) |
 | Alt+1–5, Backspace | Fire an action group; Abort |
+| C | Alarm clock |
 | B | Science panel (career) |
 | M | Map view (F changes focus) |
 | Drag on the map | Pan around (a click without dragging adds a node, targets a vessel or focuses a planet) |
@@ -167,7 +171,7 @@ node tests/run.js
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
 career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, mining, refining and fuel transfer, the comms network (ground stations, range, line of sight, relays), launch clamps, action groups, floodlights and the claw, asteroids (spotting, drifting away, capture and mining),
-difficulty settings, crew moods and the flight log, power and shadows, reentry heating with and
+difficulty settings, crew moods and the flight log, alarms stopping time warp, power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers
@@ -188,6 +192,7 @@ hangar (building onto them, putting them back, and keeping them out of launches)
 - `js/comms.js`: the comms network: ground stations, antenna ranges and relays
 - `js/asteroids.js`: asteroids passing Verdan
 - `js/crew.js`: crew portraits and the flight log
+- `js/alarms.js`: the alarm clock
 - `js/sound.js`: synthesised audio
 - `js/tutorials.js`: guided missions
 - `js/flight.js`: simulation loop, time warp, camera, map view, HUD

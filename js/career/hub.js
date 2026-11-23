@@ -265,6 +265,7 @@ function showTracking() {
     <canvas id="trkMap" class="trk-map"></canvas>
     <div class="trk-time"><span class="muted">Wait at the Space Centre:</span>
       <button data-wait="3600">1 hour</button><button data-wait="21600">6 hours</button><button data-wait="86400">1 day</button><button data-wait="864000">10 days</button></div>
+    ${alarmList().length ? `<div class="trk-alarms"><b>Alarms</b>${alarmList().map((a) => `<div class="alarm-row"><span>${esc(a.text)}</span><b>in ${fmtDur(Math.max(0, a.t - s.ut))}</b><button data-alx="${a.id}" title="Delete">✕</button></div>`).join('')}</div>` : ''}
     ${rows || '<p class="muted">Nothing in flight. Vessels you leave in space (Menu → Space Centre) show up here.</p>'}`,
   [{ label: 'Close', cls: 'primary', fn: () => { hideModal(); renderHub(); } }], 'wide');
   drawTrackingMap(s);
@@ -303,8 +304,12 @@ function showTracking() {
       { label: 'Cancel', fn: showTracking },
     ]);
   }));
+  card.querySelectorAll('[data-alx]').forEach((b) => b.addEventListener('click', () => { removeAlarm(+b.dataset.alx); persist(); showTracking(); }));
   card.querySelectorAll('[data-wait]').forEach((b) => b.addEventListener('click', () => {
-    s.ut += +b.dataset.wait;
+    // waiting stops at the next alarm
+    const a = nextAlarm(s.ut);
+    if (a && a.t <= s.ut + +b.dataset.wait) { s.ut = a.t; removeAlarm(a.id); toast(`⏰ ${a.text}`); }
+    else s.ut += +b.dataset.wait;
     trackingLost(advanceAll(s.ut));
     if (isCareer()) for (const c of refreshContracts(s)) toast(`Contract failed: ${c.title}`);
     persist();

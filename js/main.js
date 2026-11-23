@@ -355,6 +355,7 @@ function onKeyDown(e) {
   switch (e.code) {
     case 'Space': if (F.kind === 'eva') evaHop(); else doStage(); break;
     case 'KeyJ': evaKey(); break;
+    case 'KeyC': toggleAlarms(); break;
     case 'KeyL': if (F.kind === 'eva') plantFlag(); else toggleLights(); break;
     case 'KeyM': toggleMap(); break;
     case 'Comma': changeWarp(-1); break;
@@ -430,6 +431,8 @@ function wireUi() {
   $('bStage').addEventListener('click', doStage);
   $('bGear').addEventListener('click', toggleGear);
   $('bEva').addEventListener('click', evaKey);
+  $('bAlarm').addEventListener('click', toggleAlarms);
+  $('alarmList').addEventListener('click', alarmClick);
   $('bFlag').addEventListener('click', plantFlag);
   $('bBrakes').addEventListener('click', toggleBrakes);
   $('bMap').addEventListener('click', toggleMap);

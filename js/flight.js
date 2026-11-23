@@ -27,7 +27,7 @@ function initFlightView() {
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hBiome', 'hBiomeRow', 'hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
     'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bGear', 'bBrakes', 'bQSave', 'bQLoad', 'bRcs', 'hNext', 'hPitch',
-    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag', 'fOre', 'fOreRow', 'hSig', 'hSigRow', 'crewPanel']) F.hud[id] = document.getElementById(id);
+    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag', 'fOre', 'fOreRow', 'hSig', 'hSigRow', 'crewPanel', 'alarmPanel', 'alarmList', 'bAlarm']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
 }
@@ -408,8 +408,12 @@ function flightUpdate(dt) {
     let n = 0;
     while (F.acc >= PHYS_DT && n < 24) { physStep(PHYS_DT); F.acc -= PHYS_DT; n++; }
     if (n >= 24) F.acc = 0;
+    checkAlarms();
   } else {
-    railsStep(dt * w);
+    // stop exactly on an alarm
+    const cl = alarmClip(F.t, dt * w);
+    railsStep(cl.dt);
+    if (cl.a) ringAlarm(cl.a);
   }
 
   const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
@@ -1942,6 +1946,11 @@ function updateHud() {
   h.hPitch.textContent = `${side}PITCH ${pitch.toFixed(0)}°`;
   h.bRecover.classList.toggle('hidden', !(c.landed && c.landed.body === HOME && !c.dead && (F.flags.maxAlt > 100)));
   h.bQSave.parentElement.classList.toggle('hidden', !!F.tutorial);
+  h.bAlarm.classList.toggle('hidden', !!F.tutorial || !Career.s);
+  const na = nextAlarm(F.t);
+  const al = na ? `⏰ ${fmtDur(na.t - F.t)}` : '⏰ Alarms (C)';
+  if (h.bAlarm.textContent !== al) h.bAlarm.textContent = al;
+  if (F.alarmOpen && F.frame % 6 === 0) renderAlarmPanel();
   h.bQSave.disabled = !canQuickSave();
   h.bQLoad.disabled = !quickSaveInfo();
   h.bMap.classList.toggle('on', F.map);
