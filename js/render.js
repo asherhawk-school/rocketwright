@@ -210,6 +210,31 @@ function drawPart(ctx, p, lw) {
       ctx.fillStyle = '#7dffa8'; ctx.beginPath(); ctx.arc(hw * 0.35, bot + h * 0.47, 0.06, 0, TAU); ctx.fill();
       break;
     }
+    case 'clamp': { // a lattice arm reaching in from a tower
+      ctx.fillStyle = '#8a3a2a'; ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.strokeStyle = '#d07a4a';
+      for (let y = bot; y < top - 0.3; y += 0.4) { ctx.beginPath(); ctx.moveTo(-hw, y); ctx.lineTo(hw, y + 0.4); ctx.moveTo(hw, y); ctx.lineTo(-hw, y + 0.4); ctx.stroke(); }
+      ctx.fillStyle = '#3a3f47'; ctx.fillRect(-hw - 0.08, top - 0.45, 0.2, 0.35);
+      break;
+    }
+    case 'light': { // a lamp housing, and its beam when it's on
+      if (p.lit) {
+        const g = ctx.createLinearGradient(hw, 0, hw + 14, 0);
+        g.addColorStop(0, 'rgba(255,240,190,0.45)'); g.addColorStop(1, 'rgba(255,240,190,0)');
+        ctx.fillStyle = g; poly(ctx, [[hw, bot + h * 0.3], [hw, top - h * 0.3], [hw + 14, top + 4], [hw + 14, bot - 4]]); ctx.fill();
+      }
+      ctx.fillStyle = '#3a3f47'; ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = p.lit ? '#fff6cc' : '#8a8f96'; ctx.fillRect(hw - 0.06, bot + 0.05, 0.08, h - 0.1);
+      break;
+    }
+    case 'claw': { // a ring with four grabbing fingers at its open end
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#5a6068', '#b8bec6', '#4e545c');
+      ctx.fillRect(-hw * 0.7, top - h * 0.45, hw * 1.4, h * 0.45); ctx.strokeRect(-hw * 0.7, top - h * 0.45, hw * 1.4, h * 0.45);
+      ctx.fillStyle = '#e0b030'; ctx.fillRect(-hw * 0.7, top - h * 0.3, hw * 1.4, 0.08);
+      ctx.fillStyle = '#4a4f57';
+      for (const s of [-1, -0.35, 0.35, 1]) { poly(ctx, [[s * hw * 0.6 - 0.05, top - h * 0.45], [s * hw * 0.6 + 0.05, top - h * 0.45], [s * hw * (p.grabbed != null ? 0.72 : 0.97) + 0.05, bot], [s * hw * (p.grabbed != null ? 0.72 : 0.97) - 0.05, bot]]); ctx.fill(); ctx.stroke(); }
+      break;
+    }
     case 'dish': { // a parabolic dish on a short arm, facing outward
       ctx.fillStyle = '#8a9099'; ctx.fillRect(-hw, bot + h * 0.42, hw * 0.7, h * 0.16); ctx.strokeRect(-hw, bot + h * 0.42, hw * 0.7, h * 0.16);
       ctx.fillStyle = d.relayCol ? '#e0b030' : '#eef1f4';

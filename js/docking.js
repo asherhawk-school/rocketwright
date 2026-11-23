@@ -79,10 +79,28 @@ function dockCrafts(a, pa, b, pb) {
   return offset;
 }
 
-/* Docked pairs: two linked docking ports. */
+/* A free, armed claw on craft a touching any part of craft b, slowly enough to latch on. */
+const CLAW_REACH = 0.5, CLAW_SPEED = 1.5;
+function findGrab(a, b) {
+  const rel = Math.hypot(a.vel[0] - b.vel[0], a.vel[1] - b.vel[1]);
+  if (rel > CLAW_SPEED) return null;
+  const o = b.toWorld(0, 0), ex = b.rotLocal(1, 0), ey = b.rotLocal(0, 1);
+  for (const pa of a.parts) {
+    if (!pa.def.claw || pa.disarmed || pa.grabbed != null || pa.links.filter((u) => a.byUid.has(u)).length > 1) continue;
+    const w = a.toWorld(...portTip(a, pa).local);
+    const lx = (w[0] - o[0]) * ex[0] + (w[1] - o[1]) * ex[1], ly = (w[0] - o[0]) * ey[0] + (w[1] - o[1]) * ey[1];
+    for (const pb of b.parts) {
+      if (Math.abs(lx - pb.x) <= partWidth(pb) / 2 + CLAW_REACH && ly >= pb.bot - CLAW_REACH && ly <= pb.top + CLAW_REACH) return { pa, pb, rel, claw: true };
+    }
+  }
+  return null;
+}
+
+/* Docked pairs: two linked docking ports, or a claw and what it holds. */
 function dockedPairs(c) {
   const out = [];
   for (const p of c.parts) {
+    if (p.def.claw && p.grabbed != null) { const q = c.byUid.get(p.grabbed); if (q) out.push([p, q]); continue; }
     if (!p.def.dock) continue;
     for (const u of p.links) { const q = c.byUid.get(u); if (q && q.def.dock && p.uid < q.uid) out.push([p, q]); }
   }

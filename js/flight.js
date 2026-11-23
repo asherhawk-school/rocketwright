@@ -46,6 +46,7 @@ function flightStart(design, name, opts = {}) {
   F.craftName = name || 'Untitled';
   const parts = layoutDesign(F.design);
   const c = new Craft(parts, { stages: stageListFrom(resolveStages(F.design, parts)) });
+  c.actionGroups = F.design.groups ? JSON.parse(JSON.stringify(F.design.groups)) : {};
   c.recompute();
   const lowest = Math.min(...c.contacts.map((p) => p[1]));
   const padTop = HOME.R + terrainH(HOME, PAD_PHI);
@@ -233,6 +234,7 @@ function jettisonFairing(c, f) {
 function dockWith(o, dk) {
   const c = F.craft;
   const off = dockCrafts(c, dk.pa, o, dk.pb);
+  if (dk.claw) dk.pa.grabbed = dk.pb.uid + off;
   if (o.meta) F.dockedMeta[dk.pb.uid + off] = { id: o.meta.id, name: o.meta.name, kind: o.meta.kind, launchT: o.meta.launchT };
   const crew = ((o.meta && o.meta.crew) || []).map((x) => ({ ...x, pod: x.pod + off }));
   F.crew = F.crew.concat(crew);
@@ -242,7 +244,7 @@ function dockWith(o, dk) {
   F.predTick = 0;
   F.dvTick = 0;
   playSound('dock');
-  flash(`Docked with ${o.meta ? o.meta.name : 'vessel'}${crew.length ? ` · ${crewNames(crew).join(', ')} aboard` : ''}`, 4);
+  flash(`${dk.claw ? 'Grabbed' : 'Docked with'} ${o.meta ? o.meta.name : 'vessel'}${crew.length ? ` · ${crewNames(crew).join(', ')} aboard` : ''}`, 4);
 }
 function undock(at) {
   const c = F.craft;
@@ -252,6 +254,7 @@ function undock(at) {
   const leaving = undockParts(c, p, q);
   if (!leaving.length) return;
   const port = leaving.includes(p) ? p : q;
+  for (const x of [p, q]) if (x.def.claw) x.grabbed = null;
   F.sepMeta = F.dockedMeta[port.uid] || null;
   delete F.dockedMeta[port.uid];
   separatePiece(c, leaving, port);
@@ -451,7 +454,7 @@ function physStep(dt) {
   for (const k of [c, ...F.debris, ...F.others]) syncLanded(k);
   if (!c.dead) for (const o of F.others) {
     if (o.dead) continue;
-    const dk = findDock(c, o);
+    const dk = findDock(c, o) || findGrab(c, o);
     if (dk) { dockWith(o, dk); break; }
   }
 }
@@ -489,10 +492,11 @@ function stepCraft(c, dt, player) {
     rx = c.landed.rx; ry = c.landed.ry;
     const nx = g[0] + (ax * T) / c.M, ny = g[1] + (ay * T) / c.M;
     const drive = player ? F.drive || 0 : 0;
-    if ((nx * rx + ny * ry) / r > 0.02) {
+    // launch clamps hold the craft down until they let go
+    if (!c.clamped && (nx * rx + ny * ry) / r > 0.02) {
       c.landed = null;
       if (player) flash('Liftoff!', 2);
-    } else if (c.landed.wheels && (Math.abs(T) > 0 || drive)) {
+    } else if (!c.clamped && c.landed.wheels && (Math.abs(T) > 0 || drive)) {
       // on wheels: start rolling
       c.landed = null;
       c.rolling = b;

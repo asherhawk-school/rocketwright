@@ -22,6 +22,34 @@ function partStatsLine(d) {
 function buildPalette() {
   const pal = $('palette');
   pal.innerHTML = '';
+  const secs = savedSections();
+  if (secs.length) {
+    const h = document.createElement('div');
+    h.className = 'cat-title';
+    h.textContent = 'Sections';
+    pal.appendChild(h);
+    secs.forEach((sec, i) => {
+      const root = sec.parts.find((p) => p.parent == null);
+      if (!root || !PART_DEFS[root.id]) return;
+      const b = document.createElement('button');
+      b.className = 'part-btn';
+      b.title = 'Drag onto the rocket, or onto the floor';
+      const cv = document.createElement('canvas');
+      if (gfx3d()) partIcon3d(cv, root.id, 46, 54); else drawPartIcon(cv, root.id);
+      const txt = document.createElement('div');
+      const cost = sec.parts.reduce((a, p) => a + ((PART_DEFS[p.id] && PART_DEFS[p.id].cost) || 0), 0);
+      txt.innerHTML = '<div class="pname"></div><div class="pstat"></div>';
+      txt.querySelector('.pname').textContent = sec.name;
+      txt.querySelector('.pstat').textContent = `${sec.parts.length} parts` + (isCareer() ? ` · ${fmtFunds(cost)}` : '');
+      const del = document.createElement('span');
+      del.className = 'sec-del'; del.textContent = '✕'; del.title = 'Forget this section';
+      del.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); });
+      del.addEventListener('click', (e) => { e.stopPropagation(); const l = savedSections(); l.splice(i, 1); Store.set('sections', l); buildPalette(); });
+      b.append(cv, txt, del);
+      b.addEventListener('pointerdown', (e) => beginPress(e, { kind: 'section', i, id: root.id }));
+      pal.appendChild(b);
+    });
+  }
   for (const cat of CATEGORIES) {
     if (cat === 'Science' && !isCareer()) continue;
     if (!Object.keys(PART_DEFS).some((id) => PART_DEFS[id].cat === cat && partUnlocked(id))) continue;
@@ -226,6 +254,10 @@ function startDrag(press) {
     Hangar.drag = { kind: 'move', id: rec.id, sub, snap: null, lx: 0, ly: 0, grab, saved: Hangar.undo[Hangar.undo.length - 1] };
     Hangar.sel = null;
     reanalyze();
+  } else if (press.kind === 'section') {
+    const sec = savedSections()[press.i];
+    if (!sec) return false;
+    Hangar.drag = { kind: 'new', id: press.id, sub: sectionSub(Hangar.design, sec), snap: null, lx: 0, ly: 0, grab: [0, 0] };
   } else {
     Hangar.drag = { kind: 'new', id: press.id, sub: null, snap: null, lx: 0, ly: 0, grab: [0, 0] };
   }
@@ -276,6 +308,15 @@ function onPointerUp() {
   }
   if (!p) return;
   if (p.kind === 'new') quickAdd(p.id);
+  else if (p.kind === 'section') {
+    // a click (no drag) leaves the section on the floor beside the rocket
+    const sec = savedSections()[p.i];
+    if (!sec) return;
+    snapshot();
+    const b = Hangar.a && Hangar.a.parts.length ? new Craft(cloneParts(Hangar.a.parts)).bounds : { maxX: 0, maxY: 0 };
+    Hangar.sel = setAside(Hangar.design, sectionSub(Hangar.design, sec), b.maxX + 3, b.maxY);
+    hangarChanged();
+  }
   else if (p.kind === 'move') { Hangar.sel = p.uid; drawBuild(); }
 }
 
@@ -439,7 +480,9 @@ function drawBuild() {
   const sp = Hangar.sel != null && !drag ? partOf(Hangar.sel) : null;
   if (sp) {
     tools.classList.remove('hidden');
-    $('selName').textContent = sp.def.name + (sp.sym ? ' (×2)' : '') + (pieceIndexOf(Hangar.design, sp.uid) >= 0 ? ' · set aside' : '');
+    const aside = pieceIndexOf(Hangar.design, sp.uid) >= 0;
+    $('selName').textContent = sp.def.name + (sp.sym ? ' (×2)' : '') + (aside ? ' · set aside' : '');
+    $('selSaveSec').classList.toggle('hidden', !(aside && anyPart(Hangar.design, sp.uid).parent == null));
     if (Hangar.settingsFor !== sp.uid) buildPartSettings(sp);
     const sx = v.ox + (sp.x + maxWidth(sp.def) / 2) * v.s + 14, sy = v.oy - sp.top * v.s;
     tools.style.left = clamp(sx, 4, W - 260) + 'px';
@@ -471,7 +514,60 @@ function buildPartSettings(p) {
     });
     box.appendChild(row);
   }
+  // action groups this part (and its mirror twin) belongs to
+  if (pieceIndexOf(Hangar.design, p.uid) < 0) {
+    const row = document.createElement('div');
+    row.className = 'grp-row';
+    row.innerHTML = '<span title="Alt+1–5 fires a group in flight; Backspace fires Abort">Groups</span>';
+    const groups = Hangar.design.groups || {};
+    for (const k of GROUP_KEYS) {
+      const b = document.createElement('button');
+      b.textContent = k === 'abort' ? 'Abort' : k;
+      b.className = (groups[k] || []).includes(p.uid) ? 'on' : '';
+      b.title = k === 'abort' ? 'Abort group (Backspace in flight)' : `Action group ${k} (Alt+${k} in flight)`;
+      b.addEventListener('click', () => { snapshot(); toggleGroup(p.uid, k); Hangar.settingsFor = null; hangarChanged(); });
+      row.appendChild(b);
+    }
+    box.appendChild(row);
+  }
   box.classList.toggle('hidden', !box.children.length);
+}
+
+/* Put a part (and its mirror twin) in an action group, or take it out. */
+function toggleGroup(uid, key) {
+  const d = Hangar.design, rec = designPart(d, uid);
+  if (!rec) return;
+  const uids = rec.sym ? d.parts.filter((q) => q.sym === rec.sym).map((q) => q.uid) : [uid];
+  d.groups = d.groups || {};
+  const g = new Set(d.groups[key] || []);
+  const on = !g.has(uid);
+  for (const u of uids) if (on) g.add(u); else g.delete(u);
+  d.groups[key] = [...g].filter((u) => designPart(d, u));
+}
+
+/* ---------------- saved sections ----------------
+   A piece set aside on the floor can be saved as a section, then dropped into any craft from the palette. */
+function savedSections() { return Store.get('sections', []); }
+function saveSection(uid) {
+  const D = Hangar.design, i = pieceIndexOf(D, uid);
+  if (i == null || i < 0) return;
+  const parts = D.loose[i].parts, root = parts.find((p) => p.parent == null);
+  const list = savedSections();
+  let name = `${PART_DEFS[root.id].name} section`, n = 2;
+  while (list.some((x) => x.name === name)) name = `${PART_DEFS[root.id].name} section ${n++}`;
+  list.push({ name, parts: JSON.parse(JSON.stringify(parts)) });
+  Store.set('sections', list);
+  buildPalette();
+  hint(`Saved "${name}". Find it at the top of the parts list.`);
+}
+/* A saved section as a fresh subtree with uids from this design. */
+function sectionSub(d, sec) {
+  const map = new Map(), symMap = new Map();
+  for (const r of sec.parts) map.set(r.uid, d.nextUid++);
+  const recs = sec.parts.map((r) => ({ ...JSON.parse(JSON.stringify(r)), uid: map.get(r.uid), parent: r.parent == null ? null : map.get(r.parent),
+    sym: r.sym == null ? null : symMap.get(r.sym) || (symMap.set(r.sym, d.nextUid++), symMap.get(r.sym)) }));
+  const root = recs.find((r) => r.parent == null);
+  return { recs, rootUid: root.uid, rootSide: root.side || 0 };
 }
 
 /* ---------------- stats & staging editor ---------------- */
@@ -696,6 +792,7 @@ function wireHangar() {
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);
   $('selDel').addEventListener('click', removeSel);
+  $('selSaveSec').addEventListener('click', () => { if (Hangar.sel != null) saveSection(Hangar.sel); });
   $('crewSelect').addEventListener('change', (e) => { Hangar.crewId = +e.target.value; });
   $('crewCount').addEventListener('change', (e) => { Hangar.crewN = +e.target.value; });
   $('launchSite').addEventListener('change', (e) => { Hangar.site = e.target.value; e.target.blur(); });

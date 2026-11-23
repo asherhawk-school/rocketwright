@@ -219,6 +219,13 @@ Object.assign(PART_DEFS, {
     desc: 'Turns rocket fuel from its own stage into power (1.5 per second) whenever the batteries aren\'t full. Can be switched off.' },
   fuelCellL: { kind: 'fuelcellL', name: 'Fuel Cell Array', cat: 'Utility', mass: 0.25, h: 0.6, w: 1.25, cellEC: 12,
     desc: 'A 1.25 m stack of fuel cells: 12 power per second from rocket fuel.' },
+  // launch, lights and grabbing
+  clamp: { kind: 'clamp', name: 'Launch Clamp', cat: 'Structure', radial: true, mass: 0.1, h: 2.4, w: 0.5, decoupler: true, clamp: true,
+    desc: 'Holds the rocket on the pad while the engines spool up, and lets go when its stage fires (it goes with the first stage).' },
+  light: { kind: 'light', name: 'Floodlight', cat: 'Utility', radial: true, mass: 0.02, h: 0.3, w: 0.3, light: true, lightEC: 0.05,
+    desc: 'Lights up the ground at night. L (or its part menu) switches lights on and off. Uses a little charge.' },
+  claw: { kind: 'claw', name: 'Grabbing Claw', cat: 'Coupling', mass: 0.4, h: 1.0, w: 1.25, claw: true,
+    desc: 'Latches onto any part of another vessel (or an asteroid) it touches slowly. Release it from its part menu.' },
   // communications
   dishM: { kind: 'dish', name: 'Long-Range Dish', cat: 'Science', radial: true, mass: 0.1, h: 0.9, w: 0.9, antenna: true, range: 5e10,
     desc: 'A folding dish that reaches 50 million km: the inner planets from Verdan.' },
@@ -291,7 +298,7 @@ const PART_COSTS = {
   probe: 700, battery: 150, batteryRing: 600, solar: 500, shield2: 600, shield125: 300, dockPort: 800, chuteRadial: 450,
   shield3: 1100, bloom: 2200, chuteDrogue: 400, chuteBig: 900, airbrake: 450, hearth: 9000, whisper: 7000, spindle: 3800, puff: 500,
   gasTank: 400, gasDrum: 1500, heron: 3800, cabin: 2500, fairing2: 600, fairing3: 1100, strut: 40, batteryDisc: 400, batteryBank: 1800,
-  fuelCell: 700, fuelCellL: 3000, dishM: 2500, dishL: 9000, relayS: 4000, relayL: 14000, oreScanner: 1500, drill: 3000, oreTank: 1000, oreTankL: 2500, converter: 8000,
+  fuelCell: 700, fuelCellL: 3000, clamp: 200, light: 100, claw: 3500, dishM: 2500, dishL: 9000, relayS: 4000, relayL: 14000, oreScanner: 1500, drill: 3000, oreTank: 1000, oreTankL: 2500, converter: 8000,
   cockpit: 1400, fuselage: 500, tailCone: 200, intake: 400, intakeRad: 300, wingS: 300, wingL: 700, strake: 150, elevon: 400, canard: 350,
   jetFan: 3500, jetTurbo: 4500, gear: 500, skid: 150, roverWheel: 700,
 };

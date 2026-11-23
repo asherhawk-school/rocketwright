@@ -222,6 +222,21 @@ function buildPart(p, owner) {
     case 'antenna': add(box(2 * hw, 0.3, 2 * hw, 0, bot + 0.15, 0, M('grey')), cyl(0.025, 0.025, h - 0.3, bot + 0.3 + (h - 0.3) / 2, M('metal'), 6), sphere(0.08, 0, top, 0, M('red'))); break;
     case 'dock': add(cyl(hw, hw, h * 0.6, bot + h * 0.3, M('dark')), lathe([[0, bot + h * 0.6], [hw * 0.8, bot + h * 0.6], [hw * 0.55, top], [0, top]], M('metal')), band(hw * 0.5, top - 0.03, 0.06, M('yellow'))); break;
     case 'probe': add(lathe([[0, bot], [hw, bot], [hw * 0.8, top], [0, top]], M('grey')), band(hw * 0.92, bot + h * 0.47, h * 0.25, M('gold'))); break;
+    case 'clamp': add(box(2 * hw, h, 2 * hw, 0, cy, 0, M('red')), box(0.2, 0.35, 2 * hw * 0.8, -hw - 0.05, top - 0.28, 0, M('dark'))); break;
+    case 'light': {
+      add(box(2 * hw, h, 2 * hw, 0, cy, 0, M('dark')), box(0.06, h * 0.75, 2 * hw * 0.75, hw, cy, 0, M(p.lit ? 'lamp' : 'grey', p.lit ? { emissive: new THREE.Color('#fff0c0'), color: new THREE.Color('#fff6dd') } : undefined)));
+      if (p.lit) { const L = new THREE.PointLight(0xfff0c8, 1.6, 45, 1.5); L.position.set(hw + 2, cy, 0); add(L); }
+      break;
+    }
+    case 'claw': {
+      add(cyl(hw * 0.7, hw * 0.7, h * 0.45, top - h * 0.225, M('grey')), band(hw * 0.7, top - h * 0.3, 0.08, M('yellow')));
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * TAU + Math.PI / 4, spread = p.grabbed != null ? 0.75 : 0.97;
+        const f = box(0.1, h * 0.6, 0.1, Math.cos(a) * hw * (0.6 + spread) / 2, bot + h * 0.28, Math.sin(a) * hw * (0.6 + spread) / 2, M('dark'));
+        f.rotation.z = -Math.cos(a) * 0.35; f.rotation.x = Math.sin(a) * 0.35; add(f);
+      }
+      break;
+    }
     case 'dish': {
       add(cyl(0.04, 0.04, hw * 0.9, cy, M('metal'), 6));
       const dsh = new THREE.Mesh(new THREE.SphereGeometry(hw, 20, 10, 0, TAU, 0, 0.9), M(d.relayCol ? 'yellow' : 'white', { side: THREE.DoubleSide }));
@@ -411,7 +426,7 @@ function buildShell(f, alpha) {
 function partSig(p, owner) {
   const host = p.def.wing && owner && owner.byUid ? owner.byUid.get(p.parent) : null;
   const extra = p.def.legs ? `${p.footX}|${p.footY}` : host ? `${host.x}|${host.id}|${host.top}` : '';
-  return `${extra}|${p.id}|${p.x.toFixed(3)}|${p.top.toFixed(3)}|${p.flip ? 1 : 0}${p.inv ? 1 : 0}|${p.gearUp ? 1 : 0}${p.inflated ? 1 : 0}${p.shell ? 1 : 0}${p.brake ? 1 : 0}|${p.shell ? shellH(p) : ''}|${p.def.ablator ? Math.round(p.ablator / p.def.ablator * 10) : ''}`;
+  return `${extra}|${p.id}|${p.x.toFixed(3)}|${p.top.toFixed(3)}|${p.flip ? 1 : 0}${p.inv ? 1 : 0}|${p.gearUp ? 1 : 0}${p.lit ? 1 : 0}${p.grabbed != null ? 1 : 0}${p.inflated ? 1 : 0}${p.shell ? 1 : 0}${p.brake ? 1 : 0}|${p.shell ? shellH(p) : ''}|${p.def.ablator ? Math.round(p.ablator / p.def.ablator * 10) : ''}`;
 }
 
 /* Keep a 3D model of a craft in step with its parts. */

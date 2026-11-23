@@ -71,6 +71,9 @@ function partInfo(c, p) {
   if (d.decoupler) out.push(d.crossfeed ? 'Decoupler (lets fuel through)' : 'Decoupler');
   if (d.dock) out.push(p.links.some((u) => { const q = c.byUid.get(u); return q && q.def.dock; }) ? 'Docked' : freePorts(c).includes(p) ? 'Free port' : 'Port (blocked)');
   if (d.solar) out.push('Solar panel');
+  if (d.light) out.push(p.lit ? 'On' : 'Off');
+  if (d.claw) out.push(p.grabbed != null ? 'Holding on' : p.disarmed ? 'Disarmed' : 'Armed: touch something slowly to grab it');
+  if (d.clamp) out.push('Holds the craft down until its stage fires');
   if (d.antenna) out.push(`${d.relay ? 'Relay antenna' : 'Antenna'} · reaches ${fmtDist(d.range)}${F.comm ? ` · ${F.comm.ok ? 'signal home' : 'no signal'}` : ''}`);
   if (d.torque) out.push(`Reaction wheels ${d.torque} kN·m`);
   if (d.exp && Career.s && isCareer()) {
@@ -103,6 +106,8 @@ function partActions(c, p) {
   if (d.retract) a.push(['gear', p.gearUp ? 'Lower gear' : 'Raise gear']);
   if (d.wheel) a.push(['brake', c.wheelBrake ? 'Release brakes' : 'Brakes on']);
   if (d.cellEC) a.push(['cell', p.cellOff ? 'Switch on' : 'Switch off']);
+  if (d.light) a.push(['light', p.lit ? 'Light off' : 'Light on']);
+  if (d.claw) a.push(p.grabbed != null ? ['undock', 'Release'] : ['claw', p.disarmed ? 'Arm claw' : 'Disarm claw']);
   if (d.drill) a.push(['drill', p.drilling ? 'Stop drilling' : 'Start drilling']);
   if (d.convert) {
     if (p.converting) a.push(['conv:off', 'Stop refining']);
@@ -153,6 +158,8 @@ function partMenuAction(kind) {
   const c = F.craft, p = c.byUid.get(PM.uid);
   if (!p) return;
   if (kind === 'run' || kind === 'tx' || kind === 'drop') scienceAction(kind, p.uid);
+  else if (kind === 'light') { const on = !p.lit; for (const q of c.lights) if (q === p || (p.sym && q.sym === p.sym)) q.lit = on; }
+  else if (kind === 'claw') p.disarmed = !p.disarmed;
   else if (kind === 'drill') { const on = !p.drilling; for (const q of c.drills) if (q === p || (p.sym && q.sym === p.sym)) q.drilling = on; }
   else if (kind.startsWith('conv:')) { const m = kind.slice(5); p.converting = m === 'off' ? null : m; }
   else if (kind.startsWith('pull:') || kind.startsWith('push:')) {
@@ -174,6 +181,51 @@ function partMenuAction(kind) {
   PM.sig = '';
   F.dvTick = 0;
   renderPartMenu();
+}
+
+/* L: every light on or off. */
+function toggleLights() {
+  const c = F.craft;
+  if (!c || c.dead) return;
+  if (!c.lights.length) { flash('No lights on this craft', 2); return; }
+  const on = !c.lights.some((p) => p.lit);
+  for (const p of c.lights) p.lit = on;
+  flash(on ? 'Lights on' : 'Lights off', 1.5);
+}
+
+/* ---------------- action groups ----------------
+   Parts can be put in groups 1–5 and an Abort group in the hangar. Alt+1–5 fires a group, Backspace aborts:
+   each part does its main thing (engines start or stop, decouplers fire, parachutes open, lights and gear
+   toggle, and so on). Abort also cuts the throttle. */
+const GROUP_KEYS = ['1', '2', '3', '4', '5', 'abort'];
+function groupAct(c, p) {
+  const d = p.def;
+  if (d.decoupler) fireDecoupler(c, p);
+  else if (isEngine(d)) { if (!d.solid || !p.ignited) p.ignited = !p.ignited; }
+  else if (d.chute) { if (!p.open && !p.torn) { p.open = true; c.chuteOpen = true; } }
+  else if (d.fairing) { if (p.shell) { p.shell = false; jettisonFairing(c, p); } }
+  else if (d.inflate) p.inflated = true;
+  else if (d.brakeArea) p.brake = !p.brake;
+  else if (d.retract) p.gearUp = !p.gearUp;
+  else if (d.light) p.lit = !p.lit;
+  else if (d.drill) p.drilling = !p.drilling;
+  else if (d.convert) p.converting = p.converting ? null : 'fuel';
+  else if (d.cellEC) p.cellOff = !p.cellOff;
+  else if (d.claw) p.disarmed = !p.disarmed;
+  else if (d.exp && isCareer()) scienceAction('run', p.uid);
+}
+function fireGroup(key) {
+  const c = F.craft;
+  if (!c || c.dead) return;
+  if (!hasControl(c)) { flash('No control', 2); return; }
+  if (key === 'abort') c.throttle = 0;
+  const parts = ((c.actionGroups && c.actionGroups[key]) || []).map((u) => c.byUid.get(u)).filter(Boolean);
+  if (!parts.length) { flash(key === 'abort' ? 'ABORT: throttle cut (put parts in the Abort group in the hangar)' : `Action group ${key} is empty. Add parts to it in the hangar.`, 2.5); return; }
+  for (const p of parts) if (c.byUid.get(p.uid) === p) groupAct(c, p);
+  c.recompute();
+  F.dvTick = 0;
+  playSound(key === 'abort' ? 'stage' : 'chute');
+  flash(key === 'abort' ? 'ABORT!' : `Action group ${key}`, 2);
 }
 
 /* Fire one decoupler on its own (not as part of a stage). */

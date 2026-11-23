@@ -36,12 +36,19 @@ then visit http://localhost:8000.
 - **Space Centre upgrades**: every building starts at level 1 in career and can be upgraded twice: the Hangar (part count),
   Launch Pad and Runway (mass), Mission Control (active contracts), Tracking Station (manoeuvre nodes and faster time warp),
   Astronaut Office (crew size) and Research Lab (pricier research). Older careers start at level 2; sandbox is fully upgraded.
-- **Hangar**: drag 99 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
+- **Hangar**: drag 102 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS, plus engine mounts
   (twin, tri and quad) for clusters of engines side by side. Drop a part or a whole section on empty floor to **set it aside**
   for later: it waits beside the rocket (you can keep building onto it), isn't launched or paid for, saves with the craft, and
-  goes back on when you drag it onto the rocket.
+  goes back on when you drag it onto the rocket. A set-aside piece can be saved as a **section**, which then sits at the top
+  of the parts list, ready to drop into any craft.
+- **Action groups**: select a part in the hangar and put it in groups 1–5 or Abort. In flight, Alt+1–5 fires a group and
+  Backspace fires Abort (which also cuts the throttle): engines start or stop, decouplers fire, parachutes open, lights, gear,
+  brakes, drills and the claw toggle.
+- **Launch clamps, floodlights and the grabbing claw**: clamps hold a rocket on the pad until the first stage fires;
+  floodlights light the ground at night (L); the claw latches onto any part of another vessel it touches slowly and lets go
+  from its part menu.
 - **Advanced parts**: a 3-seat Heron capsule and a 4-seat crew cabin (fly several astronauts at once), shell fairings that cover a
   payload and split open, an atomic engine, an ion drive that burns argon and electricity, an aerospike that works well at any
   altitude, a small monopropellant engine, big batteries and fuel cells, struts, a 3 m heat shield, an inflatable heat shield,
@@ -129,6 +136,8 @@ then visit http://localhost:8000.
 | ↑ / ↓ (rover on the ground) | Drive forward / back |
 | J | Spacewalk: climb out, or climb back in near a hatch |
 | A / D, Space, L (on a spacewalk) | Walk, hop, plant a flag |
+| L | Lights on / off (plant a flag on a spacewalk) |
+| Alt+1–5, Backspace | Fire an action group; Abort |
 | B | Science panel (career) |
 | M | Map view (F changes focus) |
 | Drag on the map | Pan around (a click without dragging adds a node, targets a vessel or focuses a planet) |
@@ -149,7 +158,7 @@ node tests/run.js
 
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
-career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, mining, refining and fuel transfer, the comms network (ground stations, range, line of sight, relays), power and shadows, reentry heating with and
+career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, mining, refining and fuel transfer, the comms network (ground stations, range, line of sight, relays), launch clamps, action groups, floodlights and the claw, power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers

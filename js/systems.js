@@ -74,7 +74,9 @@ function electricStep(c, dt, t, wheelUse) {
   c.ecRate = gain;
   ecAdd(c, gain * dt);
   const probes = c.parts.filter((p) => p.def.probe).length;
-  const demand = (probes * EC_PROBE_DRAIN + wheelUse * EC_WHEEL_DRAIN) * dt;
+  let lights = 0;
+  for (const p of c.lights || []) if (p.lit) lights += p.def.lightEC;
+  const demand = (probes * EC_PROBE_DRAIN + wheelUse * EC_WHEEL_DRAIN + lights) * dt;
   c.ecRate -= demand / Math.max(dt, 1e-9);
   ecDrain(c, demand);
   c.powered = ecTotal(c) > 0.01;

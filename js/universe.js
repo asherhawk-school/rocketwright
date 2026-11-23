@@ -15,7 +15,7 @@ function universe() {
 /* ---------------- serialisation ---------------- */
 
 const PART_KEYS = ['uid', 'id', 'x', 'top', 'bot', 'flip', 'inv', 'links', 'fuel', 'solid', 'mono', 'gas', 'ec', 'ablator', 'ignited', 'result', 'spent', 'sym', 'cfg',
-  'shell', 'open', 'area', 'torn', 'inflated', 'brake', 'cellOff', 'gearUp', 'held', 'ore', 'drilling', 'converting'];
+  'shell', 'open', 'area', 'torn', 'inflated', 'brake', 'cellOff', 'gearUp', 'held', 'ore', 'drilling', 'converting', 'lit', 'disarmed', 'grabbed'];
 
 function serialiseParts(parts) {
   return parts.map((p) => {
@@ -40,7 +40,7 @@ function vesselFromCraft(c, t, meta) {
     parts: serialiseParts(c.parts), stages: c.stages.map((s) => s.slice()), stageIdx: c.stageIdx,
     t, s: [c.pos[0], c.pos[1], c.vel[0], c.vel[1]], angle: c.angle, angVel: c.landed ? 0 : c.angVel,
     landed: c.landed ? { body: c.landed.body.id, rx: c.landed.rx, ry: c.landed.ry, wheels: !!c.landed.wheels } : null,
-    chuteOpen: c.chuteOpen, chuteArea: c.chuteArea, rcsOn: c.rcsOn, docked: meta.docked || {},
+    chuteOpen: c.chuteOpen, chuteArea: c.chuteArea, rcsOn: c.rcsOn, docked: meta.docked || {}, actionGroups: c.actionGroups || {},
   };
 }
 
@@ -59,6 +59,7 @@ function craftFromVessel(v) {
   if (v.chuteOpen && !c.chutes.some((p) => p.open)) for (const p of c.chutes) { p.open = true; p.area = (v.chuteArea || 0) / c.chutes.length; }
   c.recompute();
   c.rcsOn = !!v.rcsOn;
+  c.actionGroups = v.actionGroups || {};
   c.vid = v.id;
   return c;
 }

@@ -400,3 +400,11 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 #hSig.bad { color: #ff6b6b; }
 label.check { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; font-size: 13px; line-height: 1.4; }
 label.check input { margin-top: 2px; flex: none; }
+/* action groups on a selected part, and saved sections in the palette */
+.grp-row { display: flex; align-items: center; gap: 3px; margin-top: 6px; font-size: 12px; flex-wrap: wrap; }
+.grp-row span { margin-right: 4px; color: var(--muted, #9aa); }
+.grp-row button { padding: 2px 7px; font-size: 12px; min-width: 24px; }
+.grp-row button.on { background: #2b6c8f; border-color: #4fd1ff; color: #fff; }
+.part-btn { position: relative; }
+.sec-del { position: absolute; top: 2px; right: 4px; font-size: 11px; opacity: 0.55; cursor: pointer; padding: 2px; }
+.sec-del:hover { opacity: 1; color: #ff6b6b; }

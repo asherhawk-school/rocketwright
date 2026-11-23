@@ -343,14 +343,17 @@ function onKeyDown(e) {
     if (!$('hangar').classList.contains('hidden')) hangarKey(e);
     return;
   }
-  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code)) e.preventDefault();
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Backspace'].includes(e.code)) e.preventDefault();
+  // action groups: Alt+1–5, Backspace aborts
+  if (e.altKey && /^Digit[1-5]$/.test(e.code)) { e.preventDefault(); if (!e.repeat) fireGroup(e.code.slice(5)); return; }
+  if (e.code === 'Backspace') { if (!e.repeat) fireGroup('abort'); return; }
   F.keys[e.code] = true;
   if (e.repeat) return;
   const c = F.craft;
   switch (e.code) {
     case 'Space': if (F.kind === 'eva') evaHop(); else doStage(); break;
     case 'KeyJ': evaKey(); break;
-    case 'KeyL': plantFlag(); break;
+    case 'KeyL': if (F.kind === 'eva') plantFlag(); else toggleLights(); break;
     case 'KeyM': toggleMap(); break;
     case 'Comma': changeWarp(-1); break;
     case 'Period': changeWarp(1); break;

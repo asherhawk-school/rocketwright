@@ -4,7 +4,7 @@
 
 const TECH_NODES = [
   { id: 'start', name: 'Rocketry Basics', cost: 0, req: [], col: 0, row: 2, parts: ['pod', 'chute', 'srb', 'decoupler', 'fins', 'legs', 'thermo'] },
-  { id: 'general', name: 'General Rocketry', cost: 5, req: ['start'], col: 1, row: 1, parts: ['tankS', 'tankM', 'kestrel', 'popper', 'twinMount', 'twinMountL'] },
+  { id: 'general', name: 'General Rocketry', cost: 5, req: ['start'], col: 1, row: 1, parts: ['tankS', 'tankM', 'kestrel', 'popper', 'twinMount', 'twinMountL', 'clamp'] },
   { id: 'stability', name: 'Stability', cost: 10, req: ['start'], col: 1, row: 3, parts: ['wheel', 'nose2', 'baro'] },
   { id: 'science', name: 'Basic Science', cost: 15, req: ['start'], col: 1, row: 4, parts: ['jar', 'antenna'] },
   { id: 'advanced', name: 'Advanced Rocketry', cost: 30, req: ['general'], col: 2, row: 0, parts: ['tankL', 'ox'] },
@@ -12,7 +12,7 @@ const TECH_NODES = [
     parts: ['gnat', 'tankS125', 'tankM125', 'adapt2to125', 'adapt125to2', 'nose125', 'decoupler125'] },
   { id: 'landing', name: 'Ground Science', cost: 40, req: ['stability'], col: 2, row: 3, parts: ['seismic'] },
   { id: 'control', name: 'Flight Control', cost: 70, req: ['stability'], col: 2, row: 4, parts: ['rcs', 'monoPod', 'puff'] },
-  { id: 'electrics', name: 'Basic Electrics', cost: 20, req: ['general'], col: 2, row: 2, parts: ['probe', 'battery', 'batteryRing'] },
+  { id: 'electrics', name: 'Basic Electrics', cost: 20, req: ['general'], col: 2, row: 2, parts: ['probe', 'battery', 'batteryRing', 'light'] },
   { id: 'solar', name: 'Solar Power', cost: 60, req: ['electrics'], col: 3, row: 2, parts: ['solar'] },
   { id: 'survival', name: 'Survivability', cost: 25, req: ['stability'], col: 3, row: 3, parts: ['shield2', 'shield125', 'chuteRadial'] },
   { id: 'docking', name: 'Docking', cost: 90, req: ['control'], col: 3, row: 4, parts: ['dockPort'] },
@@ -34,6 +34,7 @@ const TECH_NODES = [
   { id: 'aerodynamics', name: 'Aerodynamics', cost: 90, req: ['aviation'], col: 2, row: 6, parts: ['wingL', 'strake', 'canard', 'gear', 'intakeRad'] },
   { id: 'supersonic', name: 'Supersonic Flight', cost: 220, req: ['aerodynamics'], col: 3, row: 6, parts: ['jetTurbo'] },
   { id: 'rovers', name: 'Rovers', cost: 80, req: ['landing'], col: 3, row: 5, parts: ['roverWheel'] },
+  { id: 'grappling', name: 'Grappling', cost: 200, req: ['command'], col: 5, row: 4, parts: ['claw'] },
   { id: 'comms', name: 'Communications', cost: 140, req: ['exploration'], col: 5, row: 2, parts: ['dishM', 'relayS'] },
   { id: 'deepcomms', name: 'Deep Space Networks', cost: 300, req: ['comms'], col: 6, row: 2, parts: ['dishL', 'relayL'] },
   { id: 'mining', name: 'Mining and Refining', cost: 150, req: ['rovers'], col: 4, row: 6, parts: ['oreScanner', 'drill', 'oreTank', 'oreTankL', 'converter'] },

@@ -316,22 +316,23 @@ function autoStages(parts) {
   const depth = new Map();
   for (const u of order) {
     const pu = parent.get(u);
-    depth.set(u, (pu == null ? 0 : depth.get(pu)) + (by.get(u).def.decoupler ? 1 : 0));
+    depth.set(u, (pu == null ? 0 : depth.get(pu)) + (by.get(u).def.decoupler && !by.get(u).def.clamp ? 1 : 0));
   }
   const minBelow = new Map();
   for (let i = order.length - 1; i >= 0; i--) {
     const u = order[i], pu = parent.get(u);
-    const own = by.get(u).def.decoupler ? depth.get(u) : Infinity;
+    const own = by.get(u).def.decoupler && !by.get(u).def.clamp ? depth.get(u) : Infinity;
     const val = Math.min(minBelow.has(u) ? minBelow.get(u) : Infinity, own);
     if (pu != null) minBelow.set(pu, Math.min(minBelow.has(pu) ? minBelow.get(pu) : Infinity, val));
   }
   const below = (u) => (minBelow.has(u) ? minBelow.get(u) : Infinity);
-  const decDepths = [...new Set(parts.filter((p) => p.def.decoupler && depth.has(p.uid)).map((p) => depth.get(p.uid)))].sort((a, b) => b - a);
+  const decDepths = [...new Set(parts.filter((p) => p.def.decoupler && !p.def.clamp && depth.has(p.uid)).map((p) => depth.get(p.uid)))].sort((a, b) => b - a);
   const base = parts.some((p) => isEngine(p.def) && !isFinite(below(p.uid))) ? 1 : 0;
   const stageOfDepth = new Map(decDepths.map((dd, i) => [dd, base + i]));
   const out = {};
   for (const p of parts) {
-    if (p.def.decoupler && depth.has(p.uid)) out[p.uid] = stageOfDepth.get(depth.get(p.uid));
+    if (p.def.clamp) out[p.uid] = 0;
+    else if (p.def.decoupler && depth.has(p.uid)) out[p.uid] = stageOfDepth.get(depth.get(p.uid));
     else if (isEngine(p.def)) out[p.uid] = isFinite(below(p.uid)) ? stageOfDepth.get(below(p.uid)) : 0;
   }
   for (const p of parts) if (p.def.chute) out[p.uid] = base + decDepths.length;
@@ -480,6 +481,8 @@ class Craft {
     this.chuteAlt = Math.max(0, ...this.parts.filter((p) => p.def.chute).map((p) => cfgVal(p, 'deployAlt')));
     this.hasPod = this.parts.some((p) => p.def.pod);
     this.isEva = this.parts.length === 1 && this.parts[0].def.kind === 'eva';
+    this.clamped = this.parts.some((p) => p.def.clamp);
+    this.lights = this.parts.filter((p) => p.def.light);
     this.hasProbe = this.parts.some((p) => p.def.probe);
     this.solarParts = this.parts.filter((p) => p.def.solar);
     this.ecMax = this.parts.reduce((a, p) => a + (p.def.ec || 0), 0);
