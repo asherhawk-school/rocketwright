@@ -27,7 +27,7 @@ function initFlightView() {
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hBiome', 'hBiomeRow', 'hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
     'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bGear', 'bBrakes', 'bQSave', 'bQLoad', 'bRcs', 'hNext', 'hPitch',
-    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag']) F.hud[id] = document.getElementById(id);
+    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag', 'fOre', 'fOreRow']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
 }
@@ -498,7 +498,7 @@ function stepCraft(c, dt, player) {
       c.settle = 0;
     } else {
       if (T > 0) emitExhaust(c, dt, at.p, bv);
-      if (player) { electricStep(c, dt, t, 0); c.gforce = Math.hypot(g[0], g[1]) / G0; }
+      if (player) { electricStep(c, dt, t, 0); miningStep(c, dt, t, miningSkill()); c.gforce = Math.hypot(g[0], g[1]) / G0; }
       heatStep(c, dt, 0, 0, 0);
       return;
     }
@@ -522,7 +522,7 @@ function stepCraft(c, dt, player) {
   // reaction wheels need power
   const wheels = player && !(ecTotal(c) > 0.01) ? 0 : c.torque;
   let tq = c.ctrl * (wheels + c.gimbalCap + c.rcsTorqueCap * rcs.k) + c.thrustTorque;
-  if (player) electricStep(c, dt, t, Math.abs(c.ctrl) * wheels);
+  if (player) { electricStep(c, dt, t, Math.abs(c.ctrl) * wheels); miningStep(c, dt, t, miningSkill()); }
   let kSpring = 0;
   const vrx = c.vel[0] - bv[0], vry = c.vel[1] - bv[1];
   const v = Math.hypot(vrx, vry);
@@ -811,6 +811,7 @@ function railsStep(simDt) {
   c.angVel = 0;
   for (const p of c.parts) p.burn = 0;
   electricStep(c, simDt, F.t, 0);
+  miningStep(c, simDt, F.t, miningSkill());
   for (const p of c.parts) p.temp = T_AMBIENT + (p.temp - T_AMBIENT) * Math.exp(-0.025 * simDt);
   if (c.landed) {
     F.t += simDt;
@@ -954,6 +955,8 @@ function describeEvent(e, now) {
 
 /* Let active contracts look at what just happened. */
 /* Is someone with this role aboard the craft being flown (career only; sandbox crews can do everything)? */
+/* Engineers make drills and refineries half as fast again (career). */
+function miningSkill() { return isCareer() && crewHasRole('engineer') ? 1.5 : 1; }
 function crewHasRole(role) {
   if (!isCareer()) return true;
   return (F.crew || []).some((x) => { const cm = x.id && Career.s.crew.find((k) => k.id === x.id); return cm && roleOf(cm) === role; });
@@ -1818,7 +1821,8 @@ function updateHud() {
   // the biome below, while close enough to the ground for it to matter
   const bio = alt < spaceHighAlt(b) ? biomeAt(b, Math.atan2(ry, rx)) : null;
   h.hBiomeRow.classList.toggle('hidden', !bio);
-  if (bio && h.hBiome.textContent !== bio) h.hBiome.textContent = bio;
+  const bioText = bio && c.parts.some((p) => p.def.scanner) ? `${bio} · ore ${fmtNum(oreBelow(c, t) * 100, 1)}%` : bio;
+  if (bio && h.hBiome.textContent !== bioText) h.hBiome.textContent = bioText;
   if (o) {
     h.hAp.textContent = isFinite(o.ra) ? fmtDist(o.ra - b.R) : 'Escaping';
     const sub = o.rp < b.R;
@@ -1870,6 +1874,10 @@ function updateHud() {
   let gas = 0, gasMax = 0;
   for (const p of c.parts) if (p.def.gas) { gas += p.gas; gasMax += p.def.gas; }
   h.fGasRow.style.display = gasMax > 0 ? '' : 'none';
+  let ore = 0, oreMax = 0;
+  for (const p of c.parts) if (p.def.oreCap) { ore += p.ore || 0; oreMax += p.def.oreCap; }
+  h.fOreRow.style.display = oreMax > 0 ? '' : 'none';
+  h.fOre.style.width = (oreMax ? (100 * ore) / oreMax : 0) + '%';
   h.fGas.style.width = (gasMax ? (100 * gas) / gasMax : 0) + '%';
   h.fLiq.style.width = (liqMax ? (100 * liq) / liqMax : 0) + '%';
   h.fSol.style.width = (solMax ? (100 * sol) / solMax : 0) + '%';

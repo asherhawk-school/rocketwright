@@ -80,6 +80,88 @@ function electricStep(c, dt, t, wheelUse) {
   c.powered = ecTotal(c) > 0.01;
 }
 
+/* ---------------- mining and refining ---------------- */
+
+const ORE_YIELD = 0.9;        // tonnes of fuel or monopropellant from a tonne of ore
+const ORE_NOMINAL = 0.05;     // drills dig at their rated speed in ground that is 5% ore
+
+/* Room left for a resource (part key k, capacity in def[cap]) across the craft. */
+function propRoom(c, k, cap) { let r = 0; for (const p of c.parts) if (p.def[cap]) r += Math.max(0, p.def[cap] - (p[k] || 0)); return r; }
+/* Pour a resource into the parts that hold it, in proportion to the room each has left. */
+function propFill(c, k, cap, amount) {
+  const room = propRoom(c, k, cap);
+  if (room <= 1e-12 || amount <= 0) return 0;
+  const put = Math.min(room, amount);
+  for (const p of c.parts) if (p.def[cap]) p[k] = (p[k] || 0) + (Math.max(0, p.def[cap] - (p[k] || 0)) / room) * put;
+  return put;
+}
+/* Where a drill's tip is, and whether it touches the ground. */
+function drillOnGround(c, d, t) {
+  if (!c.landed) return false;
+  const b = c.landed.body, bp = bodyPos(b, t);
+  const tip = c.toWorld(d.x, d.bot);
+  const dx = tip[0] - bp[0], dy = tip[1] - bp[1];
+  return Math.hypot(dx, dy) - b.R - groundAlt(b, Math.atan2(dy, dx)) < 1.5;
+}
+/* Ore share in the ground below a craft. */
+function oreBelow(c, t) {
+  const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], t);
+  if (b.star || b.gas) return 0;
+  const bp = bodyPos(b, t);
+  return oreAt(b, Math.atan2(c.pos[1] - bp[1], c.pos[0] - bp[0]));
+}
+
+/* One step of digging and refining. `skill` speeds both up (an engineer aboard). */
+function miningStep(c, dt, t, skill = 1) {
+  if (!(c.drills && c.drills.length) && !(c.converters && c.converters.length)) return;
+  let changed = false;
+  for (const d of c.drills) {
+    d.drillRate = 0;
+    if (!d.drilling || !drillOnGround(c, d, t)) continue;
+    const conc = oreBelow(c, t);
+    let want = Math.min((d.def.drill * conc / ORE_NOMINAL) * skill * dt, propRoom(c, 'ore', 'oreCap'));
+    if (want <= 1e-12) continue;
+    want *= ecDrain(c, d.def.drillEC * dt);
+    d.drillRate = propFill(c, 'ore', 'oreCap', want) / dt;
+    changed = changed || want > 0;
+  }
+  for (const v of c.converters) {
+    v.convRate = 0;
+    if (!v.converting) continue;
+    const k = v.converting === 'mono' ? 'mono' : 'fuel';
+    let ore = Math.min(v.def.convert * skill * dt, c.propTotal('ore'), propRoom(c, k, k) / ORE_YIELD);
+    if (ore <= 1e-12) continue;
+    ore *= ecDrain(c, v.def.convEC * dt);
+    c.takeProp('ore', ore);
+    propFill(c, k, k, ore * ORE_YIELD);
+    v.convRate = ore / dt;
+    changed = changed || ore > 0;
+  }
+  if (changed) c.updateMass();
+}
+
+/* Move fuel (or ore) between this part and the rest of the craft. Returns tonnes moved. */
+function transferProp(c, p, k, cap, pull) {
+  const others = c.parts.filter((q) => q !== p && q.def[cap]);
+  if (!others.length || !p.def[cap]) return 0;
+  let moved;
+  if (pull) {
+    const avail = others.reduce((a, q) => a + (q[k] || 0), 0);
+    moved = Math.min(p.def[cap] - (p[k] || 0), avail);
+    if (moved <= 1e-12) return 0;
+    for (const q of others) q[k] = Math.max(0, (q[k] || 0) - ((q[k] || 0) / avail) * moved);
+    p[k] = (p[k] || 0) + moved;
+  } else {
+    const room = others.reduce((a, q) => a + Math.max(0, q.def[cap] - (q[k] || 0)), 0);
+    moved = Math.min(p[k] || 0, room);
+    if (moved <= 1e-12) return 0;
+    for (const q of others) q[k] = (q[k] || 0) + (Math.max(0, q.def[cap] - (q[k] || 0)) / room) * moved;
+    p[k] -= moved;
+  }
+  c.updateMass();
+  return moved;
+}
+
 /* Can anyone fly this craft right now? A crew can; a probe core needs power. */
 function hasControl(c) { return c.hasPod || (c.hasProbe && c.powered !== false && ecTotal(c) > 0.01); }
 

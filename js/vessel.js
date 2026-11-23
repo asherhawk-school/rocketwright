@@ -220,7 +220,7 @@ function makeGeo(rec, x, top, flip, parentUid) {
     cfg: rec.cfg ? { ...rec.cfg } : {},
     uid: rec.uid, id: rec.id, def, x, top, bot: top - def.h, flip, parent: parentUid, node: rec.node,
     side: rec.side || 0, sym: rec.sym || null, links: [], inv: false,
-    fuel: (def.fuel || 0) * fill, solid: def.solid || 0, mono: (def.mono || 0) * fill, gas: (def.gas || 0) * fill, ec: def.ec || 0,
+    fuel: (def.fuel || 0) * fill, solid: def.solid || 0, mono: (def.mono || 0) * fill, gas: (def.gas || 0) * fill, ec: def.ec || 0, ore: 0,
     ablator: def.ablator || 0, temp: 290, shell: !!def.fairing, open: false, area: 0,
     ignited: false, burn: 0, m: 0,
   };
@@ -466,6 +466,8 @@ class Craft {
     this.brakes = this.parts.filter((p) => p.def.brakeArea);
     this.chutes = this.parts.filter((p) => p.def.chute);
     this.cells = this.parts.filter((p) => p.def.cellEC);
+    this.drills = this.parts.filter((p) => p.def.drill);
+    this.converters = this.parts.filter((p) => p.def.convert);
     this.wings = this.parts.filter((p) => p.def.wing);
     this.wheels = this.parts.filter((p) => p.def.wheel);
     this.motors = this.wheels.filter((p) => p.def.motor);
@@ -548,7 +550,7 @@ class Craft {
   updateMass() {
     let M = 0, mx = 0, my = 0;
     for (const p of this.parts) {
-      p.m = p.def.mass + p.fuel + p.solid + p.mono + (p.gas || 0) + p.ablator + (p.shell ? SHELL_MASS_PER_M * p.def.shellW * shellH(p) : 0);
+      p.m = p.def.mass + p.fuel + p.solid + p.mono + (p.gas || 0) + (p.ore || 0) + p.ablator + (p.shell ? SHELL_MASS_PER_M * p.def.shellW * shellH(p) : 0);
       M += p.m;
       mx += p.m * p.x;
       my += (p.m * (p.top + p.bot)) / 2;

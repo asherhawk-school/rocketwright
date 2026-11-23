@@ -36,7 +36,7 @@ then visit http://localhost:8000.
 - **Space Centre upgrades**: every building starts at level 1 in career and can be upgraded twice: the Hangar (part count),
   Launch Pad and Runway (mass), Mission Control (active contracts), Tracking Station (manoeuvre nodes and faster time warp),
   Astronaut Office (crew size) and Research Lab (pricier research). Older careers start at level 2; sandbox is fully upgraded.
-- **Hangar**: drag 90 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
+- **Hangar**: drag 95 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS, plus engine mounts
   (twin, tri and quad) for clusters of engines side by side. Drop a part or a whole section on empty floor to **set it aside**
@@ -46,6 +46,11 @@ then visit http://localhost:8000.
   payload and split open, an atomic engine, an ion drive that burns argon and electricity, an aerospike that works well at any
   altitude, a small monopropellant engine, big batteries and fuel cells, struts, a 3 m heat shield, an inflatable heat shield,
   drogue parachutes and air brakes.
+- **Mining and refuelling**: every rocky world has ore in the ground, more in some biomes than others (none in seas).
+  A ground scanner shows the ore share below you; an auger drill (mounted low enough to reach the ground) digs it into ore
+  bins and hoppers while you're landed; an ore refinery turns it into rocket fuel or monopropellant. Drills and refineries run
+  on electricity, and engineers make them half as fast again. Any tank's part menu can pull fuel (or ore) in from the rest of
+  the craft or push it out.
 - **Planes and rovers**: a cockpit, fuselage, wings, control surfaces, air intakes, a turbofan and a turbojet, folding landing gear
   and powered rover wheels. Wings make lift from the angle they meet the air (and stall when it gets too steep); control surfaces
   pitch the plane with A/D and SAS. Jets only work in air with oxygen (Verdan and Gale), need an intake, and fade at high speed.
@@ -138,7 +143,7 @@ node tests/run.js
 
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
-career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, power and shadows, reentry heating with and
+career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, mining, refining and fuel transfer, power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers

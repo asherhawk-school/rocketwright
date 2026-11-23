@@ -48,6 +48,10 @@ function partInfo(c, p) {
     if (!d.drogue) out.push(`<span class="muted">Tears if it opens fully above ${CHUTE_TEAR_Q} kPa (now ${fmtNum(c.q || 0, 1)})</span>`);
   }
   if (d.gas) out.push(`Argon ${fmtNum(p.gas, 3)} / ${fmtNum(d.gas, 3)} t`);
+  if (d.oreCap) out.push(`Ore ${fmtNum(p.ore || 0, 2)} / ${fmtNum(d.oreCap, 1)} t`);
+  if (d.scanner) out.push(`Ore in the ground below: ${fmtNum(oreBelow(c, F.t) * 100, 1)}%`);
+  if (d.drill) out.push(!p.drilling ? 'Stopped' : !drillOnGround(c, p, F.t) ? 'Not touching the ground' : p.drillRate > 0 ? `Digging ${fmtNum(p.drillRate * 1000, 1)} kg/s` : 'Waiting (no room for ore, no power, or no ore here)');
+  if (d.convert) out.push(!p.converting ? 'Stopped' : p.convRate > 0 ? `Making ${p.converting === 'mono' ? 'monopropellant' : 'rocket fuel'} from ${fmtNum(p.convRate * 1000, 1)} kg of ore a second` : 'Waiting (no ore, no power, or tanks full)');
   if (d.prop === 'gas') out.push(`Uses argon and ${d.ecUse} charge/s at full thrust`);
   if (d.prop === 'mono') out.push('Burns monopropellant');
   if (d.fairing) out.push(p.shell ? `Shell on · ${shellH(p)} m tall` : 'Shell thrown off');
@@ -99,6 +103,16 @@ function partActions(c, p) {
   if (d.retract) a.push(['gear', p.gearUp ? 'Lower gear' : 'Raise gear']);
   if (d.wheel) a.push(['brake', c.wheelBrake ? 'Release brakes' : 'Brakes on']);
   if (d.cellEC) a.push(['cell', p.cellOff ? 'Switch on' : 'Switch off']);
+  if (d.drill) a.push(['drill', p.drilling ? 'Stop drilling' : 'Start drilling']);
+  if (d.convert) {
+    if (p.converting) a.push(['conv:off', 'Stop refining']);
+    else a.push(['conv:fuel', 'Make rocket fuel'], ['conv:mono', 'Make monopropellant']);
+  }
+  // move fuel or ore between tanks
+  for (const [k, cap, what] of [['fuel', 'fuel', 'fuel'], ['ore', 'oreCap', 'ore']]) {
+    if (!d[cap] || !c.parts.some((q) => q !== p && q.def[cap])) continue;
+    a.push([`pull:${k}`, `Pull ${what} here`], [`push:${k}`, `Push ${what} out`]);
+  }
   if (isEngine(d)) {
     if (!p.ignited) a.push(['engOn', 'Start engine']);
     else if (!d.solid) a.push(['engOff', 'Shut down']);
@@ -139,6 +153,13 @@ function partMenuAction(kind) {
   const c = F.craft, p = c.byUid.get(PM.uid);
   if (!p) return;
   if (kind === 'run' || kind === 'tx' || kind === 'drop') scienceAction(kind, p.uid);
+  else if (kind === 'drill') { const on = !p.drilling; for (const q of c.drills) if (q === p || (p.sym && q.sym === p.sym)) q.drilling = on; }
+  else if (kind.startsWith('conv:')) { const m = kind.slice(5); p.converting = m === 'off' ? null : m; }
+  else if (kind.startsWith('pull:') || kind.startsWith('push:')) {
+    const k = kind.slice(5), cap = k === 'ore' ? 'oreCap' : k;
+    const moved = transferProp(c, p, k, cap, kind.startsWith('pull:'));
+    flash(moved > 1e-6 ? `Moved ${fmtNum(moved, 2)} t of ${k}` : `Nothing to move`, 2);
+  }
   else if (kind === 'repack') { p.open = false; p.torn = false; p.area = 0; c.chuteOpen = c.chutes.some((q) => q.open); c.recompute(); flash(`${shortName(p.def)} repacked and ready`, 2); }
   else if (kind === 'chute') { p.open = true; c.chuteOpen = true; playSound('chute'); flash(`${shortName(p.def)} deployed`, 2); }
   else if (kind === 'fairing') { p.shell = false; jettisonFairing(c, p); playSound('stage'); flash('Fairing open', 2); }

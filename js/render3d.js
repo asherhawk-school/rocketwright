@@ -222,6 +222,13 @@ function buildPart(p, owner) {
     case 'antenna': add(box(2 * hw, 0.3, 2 * hw, 0, bot + 0.15, 0, M('grey')), cyl(0.025, 0.025, h - 0.3, bot + 0.3 + (h - 0.3) / 2, M('metal'), 6), sphere(0.08, 0, top, 0, M('red'))); break;
     case 'dock': add(cyl(hw, hw, h * 0.6, bot + h * 0.3, M('dark')), lathe([[0, bot + h * 0.6], [hw * 0.8, bot + h * 0.6], [hw * 0.55, top], [0, top]], M('metal')), band(hw * 0.5, top - 0.03, 0.06, M('yellow'))); break;
     case 'probe': add(lathe([[0, bot], [hw, bot], [hw * 0.8, top], [0, top]], M('grey')), band(hw * 0.92, bot + h * 0.47, h * 0.25, M('gold'))); break;
+    case 'scanner': add(box(2 * hw, h * 0.7, 2 * hw, 0, bot + h * 0.35, 0, M('dark')), sphere(hw * 0.4, 0, bot + h * 0.35, hw, M('lamp')),
+      cyl(0.02, 0.02, h * 0.3, top - h * 0.15, M('metal'), 6), sphere(0.05, 0, top, 0, M('orange'))); break;
+    case 'drill': add(cyl(hw, hw, h * 0.4, top - h * 0.2, M('yellow')), cyl(hw * 0.45, 0.03, h * 0.6, bot + h * 0.3, M('grey'), 10)); break;
+    case 'oretank': add(cyl(hw, hw, h, cy, M('bronze')), band(hw, bot + 0.13, 0.1, M('black')), band(hw, top - 0.13, 0.1, M('black')),
+      box(hw * 0.6, h * 0.2, 0.05, 0, cy, hw, M('yellow'))); break;
+    case 'converter': add(box(2 * hw, h, 2 * hw * 0.8, 0, cy, 0, M('grey')), box(2 * hw * 1.01, 0.14, 2 * hw * 0.81, 0, bot + h * 0.49, 0, M('yellow')),
+      cyl(0.08, 0.08, h * 0.35, bot + h * 0.8, M('metal'), 8)); break;
     case 'eva': {
       add(box(0.55, 0.44, 0.28, 0, bot + 0.68, -0.22, M('grey'))); // backpack
       add(box(0.16, 0.5, 0.2, -0.11, bot + 0.25, 0, M('white')), box(0.16, 0.5, 0.2, 0.11, bot + 0.25, 0, M('white')));

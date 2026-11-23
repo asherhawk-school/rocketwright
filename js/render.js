@@ -210,6 +210,36 @@ function drawPart(ctx, p, lw) {
       ctx.fillStyle = '#7dffa8'; ctx.beginPath(); ctx.arc(hw * 0.35, bot + h * 0.47, 0.06, 0, TAU); ctx.fill();
       break;
     }
+    case 'scanner': { // a small box with a sensor eye and a stub antenna
+      ctx.fillStyle = '#3a3f47'; ctx.fillRect(-hw, bot, 2 * hw, h * 0.7); ctx.strokeRect(-hw, bot, 2 * hw, h * 0.7);
+      ctx.fillStyle = '#7dffa8'; ctx.beginPath(); ctx.arc(0, bot + h * 0.35, hw * 0.45, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = '#c9ccd1'; ctx.beginPath(); ctx.moveTo(0, bot + h * 0.7); ctx.lineTo(0, top); ctx.stroke();
+      ctx.fillStyle = '#e07b2c'; ctx.beginPath(); ctx.arc(0, top, 0.05, 0, TAU); ctx.fill();
+      break;
+    }
+    case 'drill': { // a yellow motor housing over a grey auger
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#a07c1a', '#f0c040', '#8a6a14');
+      ctx.beginPath(); ctx.roundRect(-hw, top - h * 0.4, 2 * hw, h * 0.4, 0.06); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#8a9099'; poly(ctx, [[-hw * 0.45, top - h * 0.4], [hw * 0.45, top - h * 0.4], [0.03, bot], [-0.03, bot]]); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = '#4a4f57';
+      for (let y = bot + 0.1; y < top - h * 0.45; y += 0.14) { const r = hw * 0.45 * (y - bot) / (h * 0.6); ctx.beginPath(); ctx.moveTo(-r, y); ctx.lineTo(r, y + 0.08); ctx.stroke(); }
+      break;
+    }
+    case 'oretank': { // a rust-brown bin with dark bands and a hatch
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#5e3d22', '#b07a44', '#4e321c'); ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#3b2a1c'; ctx.fillRect(-hw, bot + 0.08, 2 * hw, 0.1); ctx.fillRect(-hw, top - 0.18, 2 * hw, 0.1);
+      ctx.fillStyle = '#e0b030'; ctx.fillRect(-hw * 0.3, bot + h * 0.4, hw * 0.6, h * 0.2);
+      ctx.fillStyle = '#d8a060'; ctx.fillRect(-hw * 0.85, bot + 0.2, 0.08, (h - 0.4) * ((p.ore || 0) / d.oreCap));
+      break;
+    }
+    case 'converter': { // a grey plant with pipes and a hazard stripe
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#5a6068', '#b8bec6', '#4e545c'); ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#e0b030'; ctx.fillRect(-hw, bot + h * 0.42, 2 * hw, 0.14);
+      ctx.fillStyle = '#2a2e34'; for (let i = -1; i <= 1; i++) ctx.fillRect(i * hw * 0.5 - 0.06, bot + h * 0.43, 0.12, 0.12);
+      ctx.fillStyle = '#8a9099'; ctx.fillRect(-hw * 0.7, bot + h * 0.62, 0.16, h * 0.32); ctx.fillRect(hw * 0.5, bot + h * 0.62, 0.16, h * 0.32);
+      if (p.converting) { ctx.fillStyle = '#7dffa8'; ctx.beginPath(); ctx.arc(0, bot + h * 0.78, 0.08, 0, TAU); ctx.fill(); }
+      break;
+    }
     case 'eva': { // an astronaut in a white suit, facing us
       const y0 = bot, rr = (x, y, w, hh, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, hh, r); ctx.fill(); ctx.stroke(); };
       ctx.fillStyle = '#7d848e'; rr(-0.29, y0 + 0.46, 0.58, 0.44, 0.06); // backpack

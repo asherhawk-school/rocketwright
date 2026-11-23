@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -1400,6 +1400,89 @@ test('scientists add to science and reset experiments; engineers repack parachut
   assert(!G.partActions(c, chute).some((x) => x[0] === 'repack'), 'no engineer, no repack');
   F.crew = [{ id: 2, name: s.crew[1].name, pod: pod.uid }];
   assert(G.partActions(c, chute).some((x) => x[0] === 'repack'), 'engineer can repack once down');
+});
+
+console.log('\nMining and refuelling');
+test('ore is in the ground of rocky worlds, more in some biomes, never in seas or gas giants', () => {
+  let sea = null;
+  for (let i = 0; i < 4000 && sea == null; i++) { const phi = i / 4000 * 6.28; if (G.terrainH(G.HOME, phi) < 0) sea = phi; }
+  assert(G.oreAt(G.HOME, sea) === 0, 'no ore in the sea');
+  assert(G.oreAt(G.TEMPEST, 1) === 0 && G.oreAt(G.SUN, 1) === 0, 'none in a gas giant or the star');
+  const vals = new Set();
+  for (let i = 0; i < 200; i++) vals.add(G.oreAt(G.MOON, i / 200 * 6.28).toFixed(4));
+  assert([...vals].every((v) => +v > 0) && vals.size > 2, 'Pallid has ore everywhere, in different amounts');
+});
+/* A mining lander standing on Pallid: ore bin, fuel tank, refinery and battery, with a drill reaching the ground. */
+function minerOnPallid() {
+  const d = G.newDesign();
+  const bin = G.attachPart(d, 'oreTank', null)[0];
+  const tank = G.attachPart(d, 'tankM', bin, 'bottom', 0, 0, false)[0];
+  G.attachPart(d, 'converter', bin, 'top', 0, 0, false);
+  G.attachPart(d, 'batteryBank', tank, 'side', 1, 0.2, false);
+  G.attachPart(d, 'drill', tank, 'side', -1, G.PART_DEFS.tankM.h - G.PART_DEFS.drill.h, false);
+  const c = new G.Craft(G.layoutDesign(d));
+  c.recompute();
+  const b = G.MOON, phi = 0.5, bp = G.bodyPos(b, 0);
+  const lowest = Math.min(...c.contacts.map((q) => q[1]));
+  const r = b.R + G.terrainH(b, phi) + (c.yc - lowest) + 0.02;
+  c.angle = phi; c.pos = [bp[0] + r * Math.cos(phi), bp[1] + r * Math.sin(phi)];
+  c.landed = { body: b, rx: c.pos[0] - bp[0], ry: c.pos[1] - bp[1] };
+  for (const p of c.parts) if (p.def.ec) p.ec = p.def.ec;
+  return c;
+}
+test('a drill on the ground digs ore at a rate set by the ground, faster with an engineer, and uses power', () => {
+  const c = minerOnPallid(), dr = c.drills[0];
+  assert(G.drillOnGround(c, dr, 0), 'drill reaches the ground');
+  dr.drilling = true;
+  const ec0 = c.parts.reduce((a, p) => a + p.ec, 0);
+  for (let i = 0; i < 100; i++) G.miningStep(c, 0.1, 0, 1);
+  const ore = c.propTotal('ore'), expect = G.PART_DEFS.drill.drill * G.oreBelow(c, 0) / 0.05 * 10;
+  assert(near(ore, expect, expect * 0.01), `dug ${ore.toFixed(4)} t, expected ${expect.toFixed(4)}`);
+  assert(c.parts.reduce((a, p) => a + p.ec, 0) < ec0 - 30, 'used charge');
+  const c2 = minerOnPallid(); c2.drills[0].drilling = true;
+  for (let i = 0; i < 100; i++) G.miningStep(c2, 0.1, 0, 1.5);
+  assert(near(c2.propTotal('ore'), ore * 1.5, ore * 0.02), 'engineer digs 1.5× as fast');
+  // up in the air the drill can't reach anything
+  const c3 = minerOnPallid(); c3.drills[0].drilling = true; c3.landed = null;
+  G.miningStep(c3, 1, 0, 1);
+  assert(c3.propTotal('ore') === 0, 'no ore in flight');
+  // and with flat batteries it stops
+  const c4 = minerOnPallid(); c4.drills[0].drilling = true;
+  for (const p of c4.parts) p.ec = 0;
+  G.miningStep(c4, 1, 0, 1);
+  assert(c4.propTotal('ore') === 0, 'no power, no ore');
+});
+test('the refinery turns ore into fuel (90%) until the tanks are full; fuel moves between tanks', () => {
+  const c = minerOnPallid();
+  const bin = c.parts.find((p) => p.id === 'oreTank'), tank = c.parts.find((p) => p.id === 'tankM');
+  bin.ore = 1.0; tank.fuel = 0;
+  const ref = c.converters[0];
+  ref.converting = 'fuel';
+  for (let i = 0; i < 300; i++) G.miningStep(c, 0.1, 0, 1);
+  const used = 1.0 - bin.ore;
+  assert(near(used, G.PART_DEFS.converter.convert * 30, 1e-6), `used ${used} t of ore`);
+  assert(near(tank.fuel, used * G.ORE_YIELD, 1e-6), 'fuel made from ore');
+  bin.ore = 1.5; ref.converting = null;
+  const m0 = c.M;
+  c.updateMass();
+  assert(c.M > m0, 'ore adds mass');
+  // fuel transfer between tanks
+  const d2 = G.newDesign();
+  const a = G.attachPart(d2, 'tankM', null)[0];
+  G.attachPart(d2, 'tankM', a, 'bottom', 0, 0, false);
+  const c2 = new G.Craft(G.layoutDesign(d2)); c2.recompute();
+  const [t1, t2] = c2.parts;
+  t1.fuel = 0.2; t2.fuel = 0.5;
+  const moved = G.transferProp(c2, t1, 'fuel', 'fuel', true);
+  assert(near(moved, 0.5, 1e-9) && near(t1.fuel, 0.7, 1e-9) && t2.fuel < 1e-9, 'pulled all of it');
+  G.transferProp(c2, t1, 'fuel', 'fuel', false);
+  assert(near(t2.fuel, 0.7, 1e-9) && t1.fuel < 1e-9, 'pushed it back');
+});
+test('ore and running drills survive saving and loading', () => {
+  const c = minerOnPallid();
+  c.parts.find((p) => p.id === 'oreTank').ore = 0.8; c.drills[0].drilling = true; c.converters[0].converting = 'mono';
+  const back = G.craftFromVessel(G.vesselFromCraft(c, 0, { id: 1, name: 'm' }));
+  assert(near(back.propTotal('ore'), 0.8, 1e-9) && back.drills[0].drilling && back.converters[0].converting === 'mono', 'kept');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

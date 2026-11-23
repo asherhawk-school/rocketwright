@@ -219,6 +219,17 @@ Object.assign(PART_DEFS, {
     desc: 'Turns rocket fuel from its own stage into power (1.5 per second) whenever the batteries aren\'t full. Can be switched off.' },
   fuelCellL: { kind: 'fuelcellL', name: 'Fuel Cell Array', cat: 'Utility', mass: 0.25, h: 0.6, w: 1.25, cellEC: 12,
     desc: 'A 1.25 m stack of fuel cells: 12 power per second from rocket fuel.' },
+  // mining and refuelling
+  oreScanner: { kind: 'scanner', name: 'Ground Scanner', cat: 'Utility', radial: true, mass: 0.05, h: 0.55, w: 0.45, scanner: true,
+    desc: 'Shows how much ore is in the ground below you, in the HUD and the part menu.' },
+  drill: { kind: 'drill', name: 'Auger Drill', cat: 'Utility', radial: true, mass: 0.25, h: 1.3, w: 0.6, drill: 0.004, drillEC: 4,
+    desc: 'Digs ore into ore tanks while the craft is landed. Mount it low so its tip reaches the ground. Uses 4 charge/s.' },
+  oreTank: { kind: 'oretank', name: 'Ore Bin', cat: 'Utility', mass: 0.25, h: 1.1, w: 1.25, oreCap: 1.5,
+    desc: 'Holds 1.5 t of ore. Launches empty.' },
+  oreTankL: { kind: 'oretank', name: 'Ore Hopper', cat: 'Utility', mass: 0.75, h: 1.6, w: 2, oreCap: 6,
+    desc: 'Holds 6 t of ore. Launches empty.' },
+  converter: { kind: 'converter', name: 'Ore Refinery', cat: 'Utility', mass: 1.2, h: 1.2, w: 2, convert: 0.01, convEC: 10,
+    desc: 'Turns ore into rocket fuel or monopropellant (0.9 t from each tonne of ore) and fills your tanks. Uses 10 charge/s.' },
 });
 Object.assign(PART_DEFS, {
   // Planes
@@ -271,7 +282,7 @@ const PART_COSTS = {
   probe: 700, battery: 150, batteryRing: 600, solar: 500, shield2: 600, shield125: 300, dockPort: 800, chuteRadial: 450,
   shield3: 1100, bloom: 2200, chuteDrogue: 400, chuteBig: 900, airbrake: 450, hearth: 9000, whisper: 7000, spindle: 3800, puff: 500,
   gasTank: 400, gasDrum: 1500, heron: 3800, cabin: 2500, fairing2: 600, fairing3: 1100, strut: 40, batteryDisc: 400, batteryBank: 1800,
-  fuelCell: 700, fuelCellL: 3000,
+  fuelCell: 700, fuelCellL: 3000, oreScanner: 1500, drill: 3000, oreTank: 1000, oreTankL: 2500, converter: 8000,
   cockpit: 1400, fuselage: 500, tailCone: 200, intake: 400, intakeRad: 300, wingS: 300, wingL: 700, strake: 150, elevon: 400, canard: 350,
   jetFan: 3500, jetTurbo: 4500, gear: 500, skid: 150, roverWheel: 700,
 };
@@ -520,6 +531,16 @@ function biomeNames(b) {
   if (!d) return [];
   return [d.spot, d.sea, d.shore, d.high, d.low, ...d.sectors.map((x) => x[1])].filter(Boolean);
 }
+/* Ore in the ground: a share for each world, more or less in each biome. None in seas, gas giants or the star. */
+const ORE_BASE = { cinder: 0.07, verdan: 0.02, pallid: 0.06, ochre: 0.08, pip: 0.12, shard: 0.1, gale: 0.04, ember: 0.09, frost: 0.05, glacis: 0.04, umbra: 0.1 };
+function oreAt(b, phi) {
+  const base = ORE_BASE[b.id] || 0, bio = biomeAt(b, phi);
+  if (!base || !bio || bio === BIOMES[b.id].sea) return 0;
+  let h = 7;
+  for (let i = 0; i < bio.length; i++) h = (h * 31 + bio.charCodeAt(i)) % 1000;
+  return base * (0.3 + (1.4 * h) / 1000);
+}
+
 /* A steady colour for each biome name (map view). */
 function biomeColor(name) {
   let h = 0;
