@@ -262,7 +262,7 @@ function recover() {
     const g = creditResult(s, r, 1);
     sci += g;
     sciLines.push(`<li>${esc(r.label)} · +${g.toFixed(1)} ⚗</li>`);
-    flightEvent({ kind: 'science', body: BODY_BY_ID[r.body], sit: r.sit });
+    flightEvent({ kind: 'science', body: BODY_BY_ID[r.body], sit: r.sit, biome: r.biome });
     p.result = null;
   }
   flightEvent({ kind: 'recover', crew: crewNames(F.crew) });

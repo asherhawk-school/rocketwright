@@ -465,6 +465,61 @@ function terrainH(b, phi) {
 }
 function groundAlt(b, phi) { const h = terrainH(b, phi); return b.ocean ? Math.max(h, 0) : h; }
 
+/* ---------- biomes ----------
+   Named regions on each world's surface. Seas, shores, the highest peaks and the lowest basins are picked
+   out by height; the rest of the ground is split into sectors by angle (degrees, counter-clockwise from +x).
+   Science taken landed, splashed down or flying low counts once per biome. */
+const BIOMES = {
+  cinder: { high: 'Scorched Peaks', low: 'Lava Basins', sectors: [[0, 'Ash Plains'], [140, 'Cracked Wastes'], [250, 'Glass Fields']] },
+  verdan: { spot: 'Space Centre', sea: 'Seas', shore: 'Shores', high: 'Mountains',
+    sectors: [[0, 'Grasslands'], [110, 'Badlands'], [170, 'Desert'], [230, 'Tundra'], [290, 'Forests']] },
+  pallid: { high: 'Highlands', low: 'Lowland Basins', sectors: [[0, 'Near Plains'], [120, 'Great Crater'], [200, 'Far Side'], [300, 'Dark Maria']] },
+  ochre: { high: 'Red Peaks', low: 'Dust Basins', sectors: [[0, 'Dune Sea'], [100, 'Great Canyon'], [200, 'Salt Flats'], [290, 'Rust Plains']] },
+  pip: { high: 'Ridges', low: 'Hollows', sectors: [[0, 'Near Side'], [180, 'Far Side']] },
+  shard: { high: 'Spires', low: 'Fractures', sectors: [[0, 'Splintered Plains'], [180, 'Shattered Side']] },
+  gale: { sea: 'Teal Seas', shore: 'Shores', high: 'Peaks', sectors: [[0, 'Moss Lowlands'], [120, 'Fern Highlands'], [240, 'Archipelago']] },
+  ember: { high: 'Volcanoes', low: 'Lava Lakes', sectors: [[0, 'Basalt Plains'], [150, 'Sulphur Fields'], [260, 'Ash Wastes']] },
+  frost: { high: 'Ice Ridges', low: 'Frozen Basins', sectors: [[0, 'Glacial Plains'], [180, 'Cracked Ice']] },
+  glacis: { high: 'Ice Peaks', low: 'Frozen Sea', sectors: [[0, 'Snowfields'], [130, 'Ice Shelf'], [250, 'Crevasses']] },
+  umbra: { high: 'Highlands', low: 'Basins', sectors: [[0, 'Dark Plains'], [180, 'Pale Fields']] },
+};
+const SHORE_H = 30;
+/* Heights that count as peaks (top 12% of the ground) and basins (bottom 12%), worked out once per world. */
+function biomeLevels(b) {
+  if (b._bl) return b._bl;
+  const hs = [];
+  for (let i = 0; i < 4096; i++) hs.push(terrainH(b, (i / 4096) * TAU));
+  hs.sort((x, y) => x - y);
+  return (b._bl = { lo: hs[Math.floor(hs.length * 0.12)], hi: hs[Math.floor(hs.length * 0.88)] });
+}
+function biomeAt(b, phi) {
+  const d = BIOMES[b.id];
+  if (!d) return null;
+  if (b.pad && d.spot) { const x = wrapPi(phi - PAD_PHI); if (x < 0.0012 && x > -RUNWAY_END - 0.0012) return d.spot; }
+  const h = terrainH(b, phi);
+  if (b.ocean && h < 0) return d.sea;
+  if (b.ocean && d.shore && h < SHORE_H) return d.shore;
+  const q = biomeLevels(b);
+  if (d.high && h >= q.hi) return d.high;
+  if (d.low && !b.ocean && h <= q.lo) return d.low;
+  const deg = ((((phi * 180) / Math.PI) % 360) + 360) % 360;
+  let name = d.sectors[0][1];
+  for (const [a, n] of d.sectors) if (deg >= a) name = n;
+  return name;
+}
+/* Every biome a world has. */
+function biomeNames(b) {
+  const d = BIOMES[b.id];
+  if (!d) return [];
+  return [d.spot, d.sea, d.shore, d.high, d.low, ...d.sectors.map((x) => x[1])].filter(Boolean);
+}
+/* A steady colour for each biome name (map view). */
+function biomeColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return `hsl(${h}, 55%, 55%)`;
+}
+
 /* Lowest altitude for time warp level `idx` (rails warp only), scaled by the body's size. */
 const WARP_ALT = [0, 0, 0, 0, 0, 2000, 5000, 15000, 40000, 100000, 300000];
 function warpBase(b) { return b.star ? b.R * 0.5 : b.atmo ? b.atmo.top : Math.max(3000, b.R * 0.03); }

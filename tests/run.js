@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -1155,6 +1155,67 @@ test('moving a part keeps its settings', () => {
   const nu = G.attachPart(d, 'tankM', pod.uid, 'bottom', 0, 0, false);
   G.insertSubtree(d, sub, nu);
   assert(G.cfgVal(G.anyPart(d, nu[0]), 'fill') === 40, 'fill level lost when moved');
+});
+
+console.log('\nBiomes');
+test('every world with ground has biomes, and every biome can be found on it', () => {
+  for (const b of G.BODIES) {
+    if (b.star || b.gas) { assert(G.biomeAt(b, 1) === null, `${b.name} should have no biomes`); continue; }
+    assert(G.BIOMES[b.id], `${b.name} has no biomes`);
+    const names = new Set(G.biomeNames(b)), found = new Map();
+    for (let i = 0; i < 20000; i++) { const n = G.biomeAt(b, (i / 20000) * Math.PI * 2); assert(names.has(n), `${b.name}: unknown biome ${n}`); found.set(n, (found.get(n) || 0) + 1); }
+    for (const n of names) assert(found.has(n), `${b.name}: ${n} never appears`);
+    const hi = G.BIOMES[b.id].high;
+    const share = found.get(hi) / 20000;
+    assert(share > 0.04 && share < 0.2, `${b.name}: ${hi} covers ${(share * 100).toFixed(0)}%`);
+  }
+});
+test('the pad and runway are the Space Centre; Verdan has seas and shores', () => {
+  assert(G.biomeAt(G.HOME, G.PAD_PHI) === 'Space Centre', 'pad');
+  assert(G.biomeAt(G.HOME, G.PAD_PHI - (G.RUNWAY_START + G.RUNWAY_END) / 2) === 'Space Centre', 'runway');
+  let sea = null;
+  for (let i = 0; i < 5000 && sea == null; i++) { const phi = i / 5000 * 6.28; if (G.terrainH(G.HOME, phi) < 0) sea = phi; }
+  assert(sea != null && G.biomeAt(G.HOME, sea) === 'Seas', 'sea biome');
+});
+test('science landed counts once per biome; science in space does not depend on biome', () => {
+  const s = G.newSave('career', 9);
+  const b = G.MOON, phis = [];
+  const names = new Set();
+  for (let i = 0; i < 400 && phis.length < 2; i++) { const phi = i / 400 * 6.28, n = G.biomeAt(b, phi); if (!names.has(n)) { names.add(n); phis.push(phi); } }
+  const p = { def: G.PART_DEFS.thermometer || Object.values(G.PART_DEFS).find((d) => d.exp === 'thermo') };
+  const vals = phis.map((phi) => {
+    const c = { pos: [Math.cos(phi) * b.R, Math.sin(phi) * b.R], landed: { body: b } };
+    const bp = G.bodyPos(b, 0); c.pos[0] += bp[0]; c.pos[1] += bp[1];
+    const sit = 'landed', bio = G.sciBiome(c, b, 0, sit);
+    const q = { def: p.def };
+    const r = G.runExperiment(s, q, b, sit, bio);
+    G.creditResult(s, r.result, 1);
+    return { v: r.value, id: r.result.id, bio };
+  });
+  assert(vals[0].bio !== vals[1].bio && vals[0].id !== vals[1].id, 'different biomes, different subjects');
+  assert(near(vals[0].v, vals[1].v, 1e-9) && vals[0].v > 0, 'each biome is worth the full amount');
+  const c = { pos: [b.R * 2, 0] };
+  assert(G.sciBiome(c, b, 0, 'spaceLow') === null && G.subjectId('thermo', b, 'spaceLow', null) === 'thermo@pallid:spaceLow', 'space subjects unchanged (old saves keep their science)');
+});
+test('biome contracts only complete in the right biome', () => {
+  const s = G.newSave('career', 21);
+  Object.assign(s.milestones, { orbit: true, space: true, alt10k: true, land_pallid: true, orbit_pallid: true });
+  let land = null, sci = null;
+  for (let i = 0; i < 400 && !(land && sci); i++) {
+    const c = G.genContract(s);
+    if (!c) continue;
+    if (c.type === 'land' && c.p.biome && !land) land = c;
+    if (c.type === 'science' && c.p.biome && !sci) sci = c;
+  }
+  assert(land && sci, 'biome contracts are offered');
+  for (const c of [land, sci]) { c.state = 'active'; s.contracts.push(c); }
+  const body = G.BODY_BY_ID[land.p.body];
+  const other = G.biomeNames(body).find((n) => n !== land.p.biome);
+  assert(!G.checkContracts(s, { kind: 'land', body, biome: other }).length, 'wrong biome should not count');
+  assert(G.checkContracts(s, { kind: 'land', body, biome: land.p.biome }).includes(land), 'right biome counts');
+  const sb = G.BODY_BY_ID[sci.p.body];
+  assert(!G.checkContracts(s, { kind: 'science', body: sb, sit: sci.p.sit, biome: null }).includes(sci), 'no biome should not count');
+  assert(G.checkContracts(s, { kind: 'science', body: sb, sit: sci.p.sit, biome: sci.p.biome }).includes(sci), 'right biome science counts');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

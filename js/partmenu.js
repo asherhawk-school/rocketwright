@@ -89,7 +89,7 @@ function partActions(c, p) {
     if (p.result) {
       if (c.parts.some((q) => q.def.antenna)) a.push(['tx', 'Transmit']);
       a.push(['drop', 'Discard']);
-    } else if (canRun(p, b, sit)) a.push(['run', `Run (${subjectLeft(Career.s, subjectId(d.exp, b, sit), subjectCap(d.exp, b, sit)).toFixed(1)} ⚗)`]);
+    } else if (canRun(p, b, sit)) a.push(['run', `Run (${subjectLeft(Career.s, subjectId(d.exp, b, sit, sciBiome(c, b, F.t, sit)), subjectCap(d.exp, b, sit)).toFixed(1)} ⚗)`]);
   }
   if (d.chute && !p.open && !p.torn) a.push(['chute', d.drogue ? 'Deploy drogue' : 'Deploy parachute']);
   if (d.fairing && p.shell) a.push(['fairing', 'Open fairing']);

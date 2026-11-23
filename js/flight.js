@@ -25,7 +25,7 @@ function initFlightView() {
   let seed = 7;
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
-  for (const id of ['hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
+  for (const id of ['hBiome', 'hBiomeRow', 'hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
     'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bGear', 'bBrakes', 'bQSave', 'bQLoad', 'bRcs', 'hNext', 'hPitch',
     'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch']) F.hud[id] = document.getElementById(id);
   resizeFlight();
@@ -944,9 +944,9 @@ function renderSciencePanel() {
   const c = F.craft, s = Career.s, el = F.hud.sciList;
   if (!F.sciOpen || !s) return;
   const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
-  const sit = situationOf(c, b, F.t);
+  const sit = situationOf(c, b, F.t), bio = sciBiome(c, b, F.t, sit);
   const antenna = c.parts.some((p) => p.def.antenna);
-  F.hud.sciWhere.textContent = `${SITUATIONS[sit].label} ${b.name}`;
+  F.hud.sciWhere.textContent = sitText(sit, b, bio);
   const rows = [];
   for (const p of c.parts) {
     if (!p.def.exp || c.dead) continue;
@@ -955,12 +955,12 @@ function renderSciencePanel() {
     const btns = []; // [kind, label, disabled]
     if (p.result) {
       const left = subjectLeft(s, p.result.id, p.result.cap);
-      status = `Holding: ${SITUATIONS[p.result.sit].label.toLowerCase()} ${BODY_BY_ID[p.result.body].name} · ${left.toFixed(1)} ⚗ if recovered`;
+      status = `Holding: ${sitText(p.result.sit, BODY_BY_ID[p.result.body], p.result.biome).replace(/^./, (x) => x.toLowerCase())} · ${left.toFixed(1)} ⚗ if recovered`;
       if (antenna) btns.push(['tx', `Transmit ${(left * TRANSMIT_FRACTION).toFixed(1)}`, false]);
       btns.push(['drop', 'Discard', false]);
     } else if (p.spent) status = 'Used. Recover it to reset.';
     else if (canRun(p, b, sit)) {
-      const v = subjectLeft(s, subjectId(p.def.exp, b, sit), subjectCap(p.def.exp, b, sit));
+      const v = subjectLeft(s, subjectId(p.def.exp, b, sit, bio), subjectCap(p.def.exp, b, sit));
       status = v < 0.05 ? 'Nothing new to learn here' : `Worth ${v.toFixed(1)} ⚗ here`;
       btns.push(['run', 'Run', v < 0.05]);
     } else status = 'Does not work here';
@@ -996,13 +996,13 @@ function scienceAction(kind, uid) {
   if (kind === 'run') {
     const sit = situationOf(c, b, F.t);
     if (!canRun(p, b, sit)) return;
-    const r = runExperiment(s, p, b, sit);
+    const r = runExperiment(s, p, b, sit, sciBiome(c, b, F.t, sit));
     flash(`${EXPERIMENTS[p.def.exp].name}: result stored (${r.value.toFixed(1)} ⚗ if recovered)`, 3);
   } else if (kind === 'tx') {
     const r = transmit(s, p);
     if (r) {
       toast(`Transmitted ${EXPERIMENTS[r.result.exp].name}: +${r.gain.toFixed(1)} science`);
-      flightEvent({ kind: 'science', body: BODY_BY_ID[r.result.body], sit: r.result.sit });
+      flightEvent({ kind: 'science', body: BODY_BY_ID[r.result.body], sit: r.result.sit, biome: r.result.biome });
       persist();
     }
   } else if (kind === 'drop') {
@@ -1226,8 +1226,9 @@ function checkMilestones(b) {
 }
 
 function onTouchdown(b, water, speed) {
-  flash(`${water ? 'Splashdown' : 'Touchdown'} on ${b.name} at ${speed.toFixed(1)} m/s`, 4);
-  flightEvent({ kind: 'land', body: b });
+  const c0 = F.craft, bp0 = bodyPos(b, F.t), bio = biomeAt(b, Math.atan2(c0.pos[1] - bp0[1], c0.pos[0] - bp0[0]));
+  flash(`${water ? 'Splashdown' : 'Touchdown'} on ${b.name}${bio ? ` (${bio})` : ''} at ${speed.toFixed(1)} m/s`, 4);
+  flightEvent({ kind: 'land', body: b, biome: bio });
   if (b !== HOME) {
     award('land_' + b.id);
     if (!F.flags.landedOn.includes(b.id)) F.flags.landedOn.push(b.id);
@@ -1409,6 +1410,36 @@ function mapClick(sx, sy) {
   }
 }
 
+/* A ring round a world in map view, coloured by biome, with the names written along it when there's room. */
+function drawBiomeRing(ctx, b, x, y, rr) {
+  const N = 720, w = clamp(rr * 0.05, 4, 10), runs = [];
+  for (let i = 0; i < N; i++) {
+    const name = biomeAt(b, (i / N) * TAU), last = runs[runs.length - 1];
+    if (last && last.name === name) last.n++; else runs.push({ name, i, n: 1 });
+  }
+  if (runs.length > 1 && runs[0].name === runs[runs.length - 1].name) { const l = runs.pop(); runs[0].i = l.i - N; runs[0].n += l.n; }
+  ctx.save();
+  ctx.lineWidth = w;
+  for (const r of runs) {
+    ctx.strokeStyle = biomeColor(r.name);
+    ctx.beginPath();
+    // the map's y axis points down, so angles run clockwise on screen
+    ctx.arc(x, y, rr + w / 2 + 1, -((r.i + r.n) / N) * TAU, -(r.i / N) * TAU);
+    ctx.stroke();
+  }
+  ctx.font = '11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  const seen = new Set();
+  for (const r of runs.slice().sort((p, q) => q.n - p.n)) {
+    if (seen.has(r.name) || (r.n / N) * TAU * rr < ctx.measureText(r.name).width + 6) continue;
+    seen.add(r.name);
+    const a = ((r.i + r.n / 2) / N) * TAU, R = rr + w + 12;
+    ctx.fillStyle = biomeColor(r.name);
+    ctx.fillText(r.name, x + Math.cos(a) * R, y - Math.sin(a) * R + 4);
+  }
+  ctx.restore();
+}
+
 function renderMap() {
   const ctx = F.ctx, W = F.W, H = F.H, c = F.craft, t = F.t;
   ctx.fillStyle = '#03050c';
@@ -1471,6 +1502,7 @@ function renderMap() {
         for (const f of [-0.5, -0.15, 0.25, 0.6]) ctx.fillRect(x - rr, y + f * rr, 2 * rr, rr * 0.14);
         ctx.restore();
       }
+      if (BIOMES[b.id] && rpx > 40) drawBiomeRing(ctx, b, x, y, rr);
       const sp = b.soi * z;
       if (sp > 14 && sp < 6000) {
         ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(255,200,120,0.22)';
@@ -1702,6 +1734,10 @@ function updateHud() {
   h.hRadar.textContent = fmtDist(radar);
   const o = F.orbit;
   h.hBody.textContent = (c.landed ? 'Landed on ' : 'Orbiting ') + b.name;
+  // the biome below, while close enough to the ground for it to matter
+  const bio = alt < spaceHighAlt(b) ? biomeAt(b, Math.atan2(ry, rx)) : null;
+  h.hBiomeRow.classList.toggle('hidden', !bio);
+  if (bio && h.hBiome.textContent !== bio) h.hBiome.textContent = bio;
   if (o) {
     h.hAp.textContent = isFinite(o.ra) ? fmtDist(o.ra - b.R) : 'Escaping';
     const sub = o.rp < b.R;

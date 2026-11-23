@@ -58,6 +58,17 @@ function contractBuilders(s) {
       desc: `Transmit or recover any experiment result taken ${SITUATIONS[sit].label.toLowerCase()} ${b.name}.`, p: { body: b.id, sit },
       reward: r100(5000 * (1 + f(b) * 0.7)), sci: Math.round(6 + 3 * f(b)), rep: 3 + f(b), days: 30 + 60 * f(b) };
   }]);
+  // science from one biome: landed (or splashed down) there, or flying low over it
+  const withBiomes = bodies.filter((b) => BIOMES[b.id] && (b !== HOME || m.alt10k));
+  if (withBiomes.length) B.push([1.5, () => {
+    const b = pick(s, withBiomes), d = BIOMES[b.id];
+    const biome = pick(s, biomeNames(b).filter((n) => n !== d.spot));
+    const sit = biome === d.sea ? 'splashed' : b.atmo && rand(s) < 0.4 ? 'flyingLow' : 'landed';
+    const k = b === HOME ? 0.6 : 1 + f(b) * 0.9;
+    return { type: 'science', title: `Science ${SITUATIONS[sit].label.toLowerCase()} ${b.name}'s ${biome}`,
+      desc: `Transmit or recover any experiment result taken ${SITUATIONS[sit].label.toLowerCase()} the ${biome} biome of ${b.name}.`, p: { body: b.id, sit, biome },
+      reward: r100(6000 * k), sci: Math.round(5 + 3 * f(b)), rep: 3 + f(b), days: 30 + 60 * f(b) };
+  }]);
   const orbitable = bodies.filter((b) => b !== HOME || !m.orbit);
   if (orbitable.length) B.push([2, () => {
     const b = pick(s, orbitable);
@@ -72,7 +83,11 @@ function contractBuilders(s) {
     }]);
     const landable = away.filter((b) => !b.gas);
     if (landable.length) B.push([1.5, () => {
-      const b = pick(s, landable);
+      const b = pick(s, landable), d = BIOMES[b.id];
+      // sometimes a particular biome
+      const biome = d && rand(s) < 0.4 ? pick(s, biomeNames(b).filter((n) => n !== d.sea && n !== d.spot)) : null;
+      if (biome) return { type: 'land', title: `Land in ${b.name}'s ${biome}`, desc: `Touch down safely in the ${biome} biome of ${b.name}.`, p: { body: b.id, biome },
+        reward: r100(20000 * (1 + f(b))), sci: Math.round(12 + 5 * f(b)), rep: 7 + 2 * f(b), days: 40 + 70 * f(b) };
       return { type: 'land', title: `Land on ${b.name}`, desc: `Touch down safely on ${b.name}.`, p: { body: b.id },
         reward: r100(16000 * (1 + f(b))), sci: Math.round(10 + 5 * f(b)), rep: 6 + 2 * f(b), days: 40 + 70 * f(b) };
     }]);
@@ -180,8 +195,8 @@ function checkContracts(s, ev) {
         (!p.maxSpeed || ev.speed <= p.maxSpeed) && ev.partIds.includes(p.part); break;
       case 'flyby': ok = ev.kind === 'tick' && b.id === p.body; break;
       case 'orbit': ok = ev.kind === 'tick' && b.id === p.body && stableOrbit(ev, b); break;
-      case 'land': ok = ev.kind === 'land' && b.id === p.body; break;
-      case 'science': ok = ev.kind === 'science' && b.id === p.body && ev.sit === p.sit; break;
+      case 'land': ok = ev.kind === 'land' && b.id === p.body && (!p.biome || ev.biome === p.biome); break;
+      case 'science': ok = ev.kind === 'science' && b.id === p.body && ev.sit === p.sit && (!p.biome || ev.biome === p.biome); break;
       case 'rescue': ok = ev.kind === 'recover' && (ev.crew || []).includes(p.crewName); break;
       case 'satellite': ok = ev.kind === 'tick' && b.id === p.body && ev.hasAntenna && stableOrbit(ev, b) &&
         ev.orbit.rp - b.R >= p.lo && ev.orbit.ra - b.R <= p.hi; break;

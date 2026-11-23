@@ -37,10 +37,19 @@ function situationOf(c, b, t) {
   return alt < spaceHighAlt(b) ? 'spaceLow' : 'spaceHigh';
 }
 
-function subjectId(exp, b, sit) { return `${exp}@${b.id}:${sit}`; }
+/* Situations where it matters which biome you're in. */
+const BIOME_SITS = new Set(['landed', 'splashed', 'flyingLow']);
+function sciBiome(c, b, t, sit) {
+  if (!BIOME_SITS.has(sit)) return null;
+  const bp = bodyPos(b, t);
+  return biomeAt(b, Math.atan2(c.pos[1] - bp[1], c.pos[0] - bp[0]));
+}
+function sitText(sit, b, bio) { return `${SITUATIONS[sit].label} ${b.name}${bio ? ` (${bio})` : ''}`; }
+
+function subjectId(exp, b, sit, bio) { return `${exp}@${b.id}:${sit}` + (bio ? `:${bio}` : ''); }
 function subjectCap(exp, b, sit) { return EXPERIMENTS[exp].base * (BODY_SCI[b.id] || 1) * SITUATIONS[sit].mult; }
 function subjectLeft(s, id, cap) { return cap * (1 - (s.sci[id] || 0)); }
-function subjectLabel(exp, b, sit) { return `${EXPERIMENTS[exp].name} · ${SITUATIONS[sit].label} ${b.name}`; }
+function subjectLabel(exp, b, sit, bio) { return `${EXPERIMENTS[exp].name} · ${sitText(sit, b, bio)}`; }
 
 function canRun(p, b, sit) {
   const e = EXPERIMENTS[p.def.exp];
@@ -52,11 +61,11 @@ function canRun(p, b, sit) {
 }
 
 /* Run the experiment on part p; stores the result on the part. */
-function runExperiment(s, p, b, sit) {
+function runExperiment(s, p, b, sit, bio) {
   const exp = p.def.exp;
   const cap = subjectCap(exp, b, sit);
-  const id = subjectId(exp, b, sit);
-  p.result = { id, exp, body: b.id, sit, cap, label: subjectLabel(exp, b, sit) };
+  const id = subjectId(exp, b, sit, bio);
+  p.result = { id, exp, body: b.id, sit, biome: bio || null, cap, label: subjectLabel(exp, b, sit, bio) };
   return { value: subjectLeft(s, id, cap), result: p.result };
 }
 

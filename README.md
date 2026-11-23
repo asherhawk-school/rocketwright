@@ -55,6 +55,10 @@ then visit http://localhost:8000.
   off-centre thrust torque, side-booster separation, RCS translation, atmospheric drag, fin stability,
   reaction wheels and engine gimbal, parachutes (a main canopy that opens fully too fast tears off; drogues don't), air brakes,
   terrain and oceans, crash and landing detection.
+- **Biomes**: every world with ground is split into named regions (Verdan has the Space Centre, Grasslands, Badlands, Desert,
+  Tundra, Forests, Mountains, Shores and Seas; Pallid has a Great Crater, Highlands, Dark Maria and more). The HUD shows the biome
+  below you, map view rings each world with its biomes, science taken landed, splashed down or flying low counts once per biome,
+  and contracts can ask you to land in or gather science from a particular biome.
 - **Solar system**: the star Helion with six planets and seven moons, all original: scorched Cinder; home world Verdan and
   its moon Pallid; desert Ochre (Pip, Shard); the gas giant Tempest (Gale with air and seas, volcanic Ember, icy Frost); frozen
   Glacis; and distant Umbra. Each has its own gravity, terrain, colours, and in some cases air and seas. Gas giants have no surface.
@@ -121,7 +125,7 @@ node tests/run.js
 
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
-career rules (research, science values, contracts, recovery, crew loss), power and shadows, reentry heating with and
+career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers
