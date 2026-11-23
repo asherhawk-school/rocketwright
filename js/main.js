@@ -337,6 +337,7 @@ function onKeyDown(e) {
     case 'KeyR': toggleRcs(); break;
     case 'KeyK': toggleBrakes(); break;
     case 'KeyG': toggleGear(); break;
+    case 'KeyV': R3.yaw = 0; R3.pitch = 0.12; flash('Camera reset', 1); break;
     case 'KeyB': toggleScience(); break;
     case 'KeyU': undock(); break;
     case 'BracketLeft': case 'BracketRight': cycleNearby(e.code === 'BracketRight' ? 1 : -1); break;
@@ -383,6 +384,7 @@ function wireUi() {
   wireHangar();
   wireHub();
   wirePartMenu();
+  wireCamera3d();
   $('bSci').addEventListener('click', toggleScience);
   $('sciList').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-sci]');
@@ -434,6 +436,7 @@ function loop(now) {
 }
 
 function boot() {
+  init3d();
   buildPalette();
   initFlightView();
   wireUi();

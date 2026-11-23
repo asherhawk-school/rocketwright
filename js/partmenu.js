@@ -16,6 +16,7 @@ function screenToCraft(c, sx, sy) {
 
 function partAt(c, sx, sy) {
   if (!c || c.dead) return null;
+  if (typeof gfx3d === 'function' && gfx3d()) return pick3d(c, sx, sy);
   const [lx, ly] = screenToCraft(c, sx, sy);
   const pad = Math.max(0.15, 5 / F.zoom);
   for (let i = c.parts.length - 1; i >= 0; i--) {

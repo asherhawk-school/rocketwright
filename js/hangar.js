@@ -36,7 +36,7 @@ function buildPalette() {
       b.className = 'part-btn';
       b.title = d.desc;
       const cv = document.createElement('canvas');
-      drawPartIcon(cv, id);
+      if (gfx3d()) partIcon3d(cv, id, 46, 54); else drawPartIcon(cv, id);
       const txt = document.createElement('div');
       txt.innerHTML = '<div class="pname"></div><div class="pstat"></div>';
       txt.querySelector('.pname').textContent = d.name;
@@ -271,6 +271,8 @@ function hitPart(lx, ly) {
 function onCanvasDown(e) {
   const v = Hangar.view;
   if (!v) return;
+  if (e.button === 2) return; // right button turns the 3D view
+  if (hangarRotated()) { R3.hYaw = 0; R3.hPitch = 0; drawBuild(); return; } // editing works from the front
   const rect = e.currentTarget.getBoundingClientRect();
   const lx = (e.clientX - rect.left - v.ox) / v.s, ly = (v.oy - (e.clientY - rect.top)) / v.s;
   const hit = hitPart(lx, ly);
@@ -289,6 +291,8 @@ function drawBuild() {
   const ctx = cv.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
+  const g3 = gfx3d(), turned = hangarRotated();
+  $('btnTurn').classList.toggle('hidden', !g3);
   ctx.strokeStyle = 'rgba(79,209,255,0.07)';
   ctx.lineWidth = 1;
   for (let x = (W / 2) % 24; x < W; x += 24) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
@@ -305,13 +309,17 @@ function drawBuild() {
     Hangar.view = { s, ox: W / 2 - ((b.minX + b.maxX) / 2) * s, oy: H / 2 + ((b.minY + b.maxY) / 2) * s, W, H };
   }
   const v = Hangar.view;
+  if (g3) drawHangar3d(craft, v, W, H);
   ctx.save();
   ctx.setTransform(dpr * v.s, 0, 0, -dpr * v.s, dpr * v.ox, dpr * v.oy);
   const lw = 1 / v.s;
+  if (craft && turned) { ctx.restore(); $('selTools').classList.add('hidden'); return; } // overlays only line up from the front
   if (craft) {
     const order = craft.parts.slice().sort((p, q) => (p.def.radial ? 1 : 0) - (q.def.radial ? 1 : 0));
-    for (const p of order) drawPart(ctx, p, lw);
-    for (const f of craft.shells) drawShell(ctx, f, lw, 0.28);
+    if (!g3) {
+      for (const p of order) drawPart(ctx, p, lw);
+      for (const f of craft.shells) drawShell(ctx, f, lw, 0.28);
+    }
     const box = (p, col, dash) => {
       const hw = maxWidth(p.def) / 2 + 0.12;
       ctx.strokeStyle = col; ctx.lineWidth = 2 / v.s;
@@ -595,6 +603,30 @@ function setSymmetry(on) {
 
 function wireHangar() {
   $('buildCanvas').addEventListener('pointerdown', onCanvasDown);
+  // turn the rocket around in 3D: drag with the right mouse button, or press Turn
+  let turn = null;
+  $('buildCanvas').addEventListener('contextmenu', (e) => { if (gfx3d()) e.preventDefault(); });
+  $('buildCanvas').addEventListener('pointerdown', (e) => { if (gfx3d() && e.button === 2) turn = { x: e.clientX, y: e.clientY, yaw: R3.hYaw, pitch: R3.hPitch }; });
+  window.addEventListener('pointermove', (e) => {
+    if (!turn) return;
+    R3.hYaw = turn.yaw - (e.clientX - turn.x) * 0.01;
+    R3.hPitch = clamp(turn.pitch + (e.clientY - turn.y) * 0.01, -1.2, 1.2);
+    drawBuild();
+  });
+  window.addEventListener('pointerup', () => { turn = null; });
+  $('btnTurn').addEventListener('click', (e) => {
+    e.currentTarget.blur();
+    if (hangarRotated()) { R3.hYaw = 0; R3.hPitch = 0; drawBuild(); return; }
+    const t0 = performance.now();
+    const spin = (now) => {
+      const k = Math.min(1, (now - t0) / 3200);
+      R3.hYaw = TAU * (k - Math.sin(k * TAU) / TAU) ; R3.hPitch = 0.25 * Math.sin(k * Math.PI);
+      if (k >= 1) { R3.hYaw = 0; R3.hPitch = 0; }
+      drawBuild();
+      if (k < 1 && $('hangar').offsetParent !== null) requestAnimationFrame(spin);
+    };
+    requestAnimationFrame(spin);
+  });
   $('buildCanvas').addEventListener('pointerleave', () => { if (Hangar.hover != null) { Hangar.hover = null; drawBuild(); } });
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerup', onPointerUp);

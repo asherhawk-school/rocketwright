@@ -339,6 +339,9 @@ function showDvMap(back) {
 function showSettings() {
   showModal(`<h2>Save &amp; Settings</h2>
     <label class="field">Sound volume <input type="range" id="volSlider" min="0" max="1" step="0.05" value="${Sound.vol}"></label>
+    <label class="field">Graphics <select id="gfxSelect" ${R3.ok ? '' : 'disabled'}>
+      <option value="3d" ${gfx3d() ? 'selected' : ''}>3D (round parts, lighting, a camera you can turn)</option>
+      <option value="2d" ${gfx3d() ? '' : 'selected'}>Classic 2D${R3.ok ? '' : ' (3D needs WebGL)'}</option></select></label>
     <p>Your game saves automatically in this browser. Export it to keep a copy or move it to another device.</p>
     <input type="file" id="importFile" accept=".json,application/json" class="hidden">`, [
     { label: 'Export save', cls: 'primary', fn: exportSave },
@@ -349,6 +352,7 @@ function showSettings() {
   $('importFile').addEventListener('change', (e) => importSave(e.target.files[0]));
   $('volSlider').addEventListener('input', (e) => { initSound(); setVolume(+e.target.value); });
   $('volSlider').addEventListener('change', () => playSound('stage'));
+  $('gfxSelect').addEventListener('change', (e) => { setGfx(e.target.value); buildPalette(); });
 }
 
 function exportSave() {

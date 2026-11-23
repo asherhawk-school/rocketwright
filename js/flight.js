@@ -1241,6 +1241,7 @@ function drawStars(alpha, rot) {
 }
 
 function renderWorld() {
+  if (typeof gfx3d === 'function' && gfx3d()) { renderWorld3d(); return; }
   const ctx = F.ctx, W = F.W, H = F.H, c = F.craft, t = F.t;
   const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], t);
   const bp = bodyPos(b, t);

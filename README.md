@@ -1,9 +1,11 @@
 # Rocketwright
 
-A 2D rocket-building and spaceflight sandbox that runs in the browser. Build a rocket from parts, launch it from the
+A rocket-building and spaceflight sandbox that runs in the browser, drawn in 3D. Build a rocket from parts, launch it from the
 planet **Verdan**, get into orbit, and land on its moon **Pallid**.
 
-No build step and no dependencies: plain HTML, CSS and JavaScript on a `<canvas>`.
+No build step: plain HTML, CSS and JavaScript. The 3D graphics use [Three.js](https://threejs.org/) (r128, loaded from cdnjs);
+without WebGL the game falls back to its classic 2D drawing (you can also pick 2D in Settings). The physics happens in one
+plane either way.
 
 ## Play
 
@@ -16,6 +18,10 @@ python3 -m http.server 8000
 then visit http://localhost:8000.
 
 ## Features
+
+- **3D graphics**: round, lit parts; planets as spheres with oceans, continents and a glowing atmosphere; ground that stretches
+  away in every direction; flames, smoke, clouds, the pad, tower and runway. Drag with the mouse (or right-drag) to swing the
+  camera round your craft, double-click or press V to reset it. In the hangar, right-drag or press ⟳ Turn to look round the rocket.
 
 - **Career mode**: start with ¤25,000 and three astronauts at the Space Centre. Take generated contracts in Mission Control
   (reach an altitude, test a part, gather science, fly by, orbit, land, place a satellite) that scale with your progress. Launches cost
@@ -94,6 +100,7 @@ then visit http://localhost:8000.
 | ↑ / ↓ (rover on the ground) | Drive forward / back |
 | B | Science panel (career) |
 | M | Map view (F changes focus) |
+| Drag / right-drag; V | Swing the 3D camera; reset it |
 | , / . | Time warp slower / faster |
 | Mouse wheel, + / − | Zoom |
 | Esc | Menu (revert, recover, back to hangar) |
@@ -119,7 +126,8 @@ driving, braking and settling, and landing on gear (gently, hard, and gear up).
 
 - `js/data.js`: constants, parts, milestones, the solar system, gravity, terrain, orbit maths and trajectory prediction
 - `js/vessel.js`: craft model: part tree and layout, fuel groups, automatic staging, mass properties, Δv simulation, example craft
-- `js/render.js`: part, flame, terrain and launch pad drawing
+- `js/render.js`: 2D part, flame, terrain and launch pad drawing (also used for the classic view)
+- `js/render3d.js`: the 3D view: part models, planets, ground, particles, the orbiting camera and the 3D hangar
 - `js/systems.js`: electricity and reentry heating
 - `js/navigation.js`: manoeuvre nodes, targets, transfer windows and the Δv map
 - `js/universe.js`: saved vessels, on-rails motion, crew aboard, rescue capsules
