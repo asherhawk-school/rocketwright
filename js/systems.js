@@ -163,7 +163,12 @@ function transferProp(c, p, k, cap, pull) {
 }
 
 /* Can anyone fly this craft right now? A crew can; a probe core needs power. */
-function hasControl(c) { return c.hasPod || (c.hasProbe && c.powered !== false && ecTotal(c) > 0.01); }
+function hasControl(c) {
+  if (c.hasPod) return true;
+  if (!c.hasProbe || c.powered === false || !(ecTotal(c) > 0.01)) return false;
+  // with the comms network on, the probe being flown also needs a signal
+  return !(typeof F !== 'undefined' && c === F.craft && typeof commnetOn === 'function' && commnetOn() && F.comm && !F.comm.ok);
+}
 
 /* ---------------- heating ---------------- */
 

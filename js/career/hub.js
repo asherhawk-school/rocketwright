@@ -371,6 +371,8 @@ function showSettings() {
     <label class="field">Graphics <select id="gfxSelect" ${R3.ok ? '' : 'disabled'}>
       <option value="3d" ${gfx3d() ? 'selected' : ''}>3D (round parts, lighting, a camera you can turn)</option>
       <option value="2d" ${gfx3d() ? '' : 'selected'}>Classic 2D${R3.ok ? '' : ' (3D needs WebGL)'}</option></select></label>
+    ${Career.s ? `<h3>This game</h3>
+    <label class="check"><input type="checkbox" id="optComm" ${Career.s.commnet ? 'checked' : ''}> Comms network: probes need a signal from a ground station or relay to be controlled, and science needs one to be transmitted</label>` : ''}
     <p>Your game saves automatically in this browser. Export it to keep a copy or move it to another device.</p>
     <input type="file" id="importFile" accept=".json,application/json" class="hidden">`, [
     { label: 'Export save', cls: 'primary', fn: exportSave },
@@ -382,6 +384,7 @@ function showSettings() {
   $('volSlider').addEventListener('input', (e) => { initSound(); setVolume(+e.target.value); });
   $('volSlider').addEventListener('change', () => playSound('stage'));
   $('gfxSelect').addEventListener('change', (e) => { setGfx(e.target.value); buildPalette(); });
+  if ($('optComm')) $('optComm').addEventListener('change', (e) => { Career.s.commnet = e.target.checked; persist(); });
 }
 
 function exportSave() {

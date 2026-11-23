@@ -210,6 +210,23 @@ function drawPart(ctx, p, lw) {
       ctx.fillStyle = '#7dffa8'; ctx.beginPath(); ctx.arc(hw * 0.35, bot + h * 0.47, 0.06, 0, TAU); ctx.fill();
       break;
     }
+    case 'dish': { // a parabolic dish on a short arm, facing outward
+      ctx.fillStyle = '#8a9099'; ctx.fillRect(-hw, bot + h * 0.42, hw * 0.7, h * 0.16); ctx.strokeRect(-hw, bot + h * 0.42, hw * 0.7, h * 0.16);
+      ctx.fillStyle = d.relayCol ? '#e0b030' : '#eef1f4';
+      ctx.beginPath(); ctx.moveTo(-hw * 0.3, bot); ctx.quadraticCurveTo(hw * 0.5, bot + h / 2, -hw * 0.3, top); ctx.lineTo(-hw * 0.1, top);
+      ctx.quadraticCurveTo(hw * 0.75, bot + h / 2, -hw * 0.1, bot); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = '#4a4f57'; ctx.beginPath(); ctx.moveTo(-hw * 0.3, bot + 0.05); ctx.lineTo(hw, bot + h / 2); ctx.lineTo(-hw * 0.3, top - 0.05); ctx.stroke();
+      ctx.fillStyle = '#c23b2a'; ctx.beginPath(); ctx.arc(hw, bot + h / 2, 0.05, 0, TAU); ctx.fill();
+      break;
+    }
+    case 'relayant': { // a mast with three rings
+      ctx.fillStyle = '#3a3f47'; ctx.fillRect(-hw, bot, 2 * hw, 0.2); ctx.strokeRect(-hw, bot, 2 * hw, 0.2);
+      ctx.strokeStyle = '#c9ccd1'; ctx.lineWidth = lw * 2; ctx.beginPath(); ctx.moveTo(0, bot + 0.2); ctx.lineTo(0, top); ctx.stroke();
+      ctx.lineWidth = lw; ctx.strokeStyle = '#e0b030';
+      for (const k of [0.45, 0.65, 0.85]) { ctx.beginPath(); ctx.ellipse(0, bot + h * k, hw * (1.1 - k * 0.5), 0.05, 0, 0, TAU); ctx.stroke(); }
+      ctx.fillStyle = '#7dffa8'; ctx.beginPath(); ctx.arc(0, top, 0.05, 0, TAU); ctx.fill();
+      break;
+    }
     case 'scanner': { // a small box with a sensor eye and a stub antenna
       ctx.fillStyle = '#3a3f47'; ctx.fillRect(-hw, bot, 2 * hw, h * 0.7); ctx.strokeRect(-hw, bot, 2 * hw, h * 0.7);
       ctx.fillStyle = '#7dffa8'; ctx.beginPath(); ctx.arc(0, bot + h * 0.35, hw * 0.45, 0, TAU); ctx.fill(); ctx.stroke();

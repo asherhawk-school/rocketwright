@@ -222,6 +222,16 @@ function buildPart(p, owner) {
     case 'antenna': add(box(2 * hw, 0.3, 2 * hw, 0, bot + 0.15, 0, M('grey')), cyl(0.025, 0.025, h - 0.3, bot + 0.3 + (h - 0.3) / 2, M('metal'), 6), sphere(0.08, 0, top, 0, M('red'))); break;
     case 'dock': add(cyl(hw, hw, h * 0.6, bot + h * 0.3, M('dark')), lathe([[0, bot + h * 0.6], [hw * 0.8, bot + h * 0.6], [hw * 0.55, top], [0, top]], M('metal')), band(hw * 0.5, top - 0.03, 0.06, M('yellow'))); break;
     case 'probe': add(lathe([[0, bot], [hw, bot], [hw * 0.8, top], [0, top]], M('grey')), band(hw * 0.92, bot + h * 0.47, h * 0.25, M('gold'))); break;
+    case 'dish': {
+      add(cyl(0.04, 0.04, hw * 0.9, cy, M('metal'), 6));
+      const dsh = new THREE.Mesh(new THREE.SphereGeometry(hw, 20, 10, 0, TAU, 0, 0.9), M(d.relayCol ? 'yellow' : 'white', { side: THREE.DoubleSide }));
+      dsh.rotation.z = -Math.PI / 2; dsh.position.set(-hw * 0.2, cy, 0); add(dsh);
+      add(cyl(0.015, 0.015, hw * 0.9, cy, M('dark'), 4)); // feed arm
+      break;
+    }
+    case 'relayant': add(box(2 * hw, 0.2, 2 * hw, 0, bot + 0.1, 0, M('dark')), cyl(0.03, 0.03, h - 0.2, bot + 0.2 + (h - 0.2) / 2, M('metal'), 6),
+      band(hw * 0.85, bot + h * 0.45, 0.04, M('yellow')), band(hw * 0.65, bot + h * 0.65, 0.04, M('yellow')), band(hw * 0.45, bot + h * 0.85, 0.04, M('yellow')),
+      sphere(0.06, 0, top, 0, M('lamp'))); break;
     case 'scanner': add(box(2 * hw, h * 0.7, 2 * hw, 0, bot + h * 0.35, 0, M('dark')), sphere(hw * 0.4, 0, bot + h * 0.35, hw, M('lamp')),
       cyl(0.02, 0.02, h * 0.3, top - h * 0.15, M('metal'), 6), sphere(0.05, 0, top, 0, M('orange'))); break;
     case 'drill': add(cyl(hw, hw, h * 0.4, top - h * 0.2, M('yellow')), cyl(hw * 0.45, 0.03, h * 0.6, bot + h * 0.3, M('grey'), 10)); break;

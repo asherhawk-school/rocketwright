@@ -116,6 +116,11 @@ function contractBuilders(s) {
       desc: `Put a craft with an antenna into orbit around ${b.name} with periapsis above ${fmtNum(lo)} km and apoapsis below ${fmtNum(hi)} km.`,
       p: { body: b.id, lo: lo * 1000, hi: hi * 1000 }, reward: r100(10000 * (1 + f(b))), sci: 5, rep: 4 + f(b), days: 40 + 60 * f(b) };
   }]);
+  if (m.orbit && s.tech.includes('comms')) B.push([1, () => {
+    const b = pick(s, bodies);
+    return { type: 'relay', title: `Relay satellite at ${b.name}`, desc: `Put a craft with a relay antenna into a stable orbit around ${b.name}.`,
+      p: { body: b.id }, reward: r100(14000 * (1 + f(b))), sci: 6, rep: 5 + f(b), days: 50 + 60 * f(b) };
+  }]);
   return B;
 }
 
@@ -202,6 +207,7 @@ function checkContracts(s, ev) {
       case 'orbit': ok = ev.kind === 'tick' && b.id === p.body && stableOrbit(ev, b); break;
       case 'land': ok = ev.kind === 'land' && b.id === p.body && (!p.biome || ev.biome === p.biome); break;
       case 'science': ok = ev.kind === 'science' && b.id === p.body && ev.sit === p.sit && (!p.biome || ev.biome === p.biome); break;
+      case 'relay': ok = ev.kind === 'tick' && b.id === p.body && ev.hasRelay && stableOrbit(ev, b); break;
       case 'flag': ok = ev.kind === 'flag' && b.id === p.body; break;
       case 'rescue': ok = ev.kind === 'recover' && (ev.crew || []).includes(p.crewName); break;
       case 'satellite': ok = ev.kind === 'tick' && b.id === p.body && ev.hasAntenna && stableOrbit(ev, b) &&

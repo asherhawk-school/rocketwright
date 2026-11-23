@@ -71,7 +71,7 @@ function partInfo(c, p) {
   if (d.decoupler) out.push(d.crossfeed ? 'Decoupler (lets fuel through)' : 'Decoupler');
   if (d.dock) out.push(p.links.some((u) => { const q = c.byUid.get(u); return q && q.def.dock; }) ? 'Docked' : freePorts(c).includes(p) ? 'Free port' : 'Port (blocked)');
   if (d.solar) out.push('Solar panel');
-  if (d.antenna) out.push('Antenna: transmits science');
+  if (d.antenna) out.push(`${d.relay ? 'Relay antenna' : 'Antenna'} · reaches ${fmtDist(d.range)}${F.comm ? ` · ${F.comm.ok ? 'signal home' : 'no signal'}` : ''}`);
   if (d.torque) out.push(`Reaction wheels ${d.torque} kN·m`);
   if (d.exp && Career.s && isCareer()) {
     out.push(p.result ? `Holding: ${p.result.label}` : p.spent ? 'Used. Recover it to reset.' : `${EXPERIMENTS[d.exp].name}: ready`);
@@ -91,7 +91,7 @@ function partActions(c, p) {
     const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
     const sit = situationOf(c, b, F.t);
     if (p.result) {
-      if (c.parts.some((q) => q.def.antenna)) a.push(['tx', 'Transmit']);
+      if (c.parts.some((q) => q.def.antenna) && hasSignal()) a.push(['tx', 'Transmit']);
       a.push(['drop', 'Discard']);
     } else if (canRun(p, b, sit)) a.push(['run', `Run (${subjectLeft(Career.s, subjectId(d.exp, b, sit, sciBiome(c, b, F.t, sit)), subjectCap(d.exp, b, sit)).toFixed(1)} ⚗)`]);
   }

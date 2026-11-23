@@ -20,12 +20,14 @@ function newSave(mode, seed) {
     crew: [], hired: 0, sci: {}, milestones: {}, created: Date.now(), flights: 0,
   };
   s.levels = Object.fromEntries(Object.keys(FACILITIES).map((k) => [k, mode === 'career' ? 1 : 3]));
+  s.commnet = mode === 'career'; // probes need a signal (can be changed in Settings)
   if (mode === 'career') for (const r of ROLE_ORDER) hireCrew(s, true, r);
   return s;
 }
 /* Bring an older save up to date: roles for astronauts, and building levels (older careers start at level 2). */
 function migrateSave(s) {
   for (const c of s.crew || []) if (!c.role) c.role = ROLE_ORDER[(c.id - 1) % 3];
+  if (s.commnet === undefined) s.commnet = false; // older games keep flying as before
   if (!s.levels) s.levels = Object.fromEntries(Object.keys(FACILITIES).map((k) => [k, s.mode === 'career' ? 2 : 3]));
   return s;
 }

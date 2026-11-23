@@ -16,9 +16,9 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 let src = '';
-for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
+for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'comms.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -1483,6 +1483,67 @@ test('ore and running drills survive saving and loading', () => {
   c.parts.find((p) => p.id === 'oreTank').ore = 0.8; c.drills[0].drilling = true; c.converters[0].converting = 'mono';
   const back = G.craftFromVessel(G.vesselFromCraft(c, 0, { id: 1, name: 'm' }));
   assert(near(back.propTotal('ore'), 0.8, 1e-9) && back.drills[0].drilling && back.converters[0].converting === 'mono', 'kept');
+});
+
+console.log('\nComms network');
+/* A probe (core + battery, optional antenna) at a given angle and altitude round Verdan, with the network on. */
+function probeAt(phi, alt, extra) {
+  G.Career.s = G.newSave('career', 12);
+  const s = G.Career.s; s.vessels = []; s.vesselSeq = 1;
+  const d = G.newDesign();
+  const core = G.attachPart(d, 'probe', null)[0];
+  const bat = G.attachPart(d, 'battery', core, 'side', 1, 0, false)[0];
+  if (extra) G.attachPart(d, extra, core, 'side', -1, 0, false);
+  G.flightStart(d, 'Probe', { t0: 0 });
+  const F = G.F, c = F.craft, r = G.HOME.R + alt;
+  c.landed = null; c.pos = [r * Math.cos(phi), r * Math.sin(phi)]; c.vel = [0, 0];
+  F.others = []; F.tutorial = null; F.crew = [];
+  return { F, s, c };
+}
+const relayRecord = (s, phi, alt) => {
+  const d = G.newDesign();
+  const core = G.attachPart(d, 'probe', null)[0];
+  G.attachPart(d, 'relayS', core, 'side', 1, 0, false);
+  const c = new G.Craft(G.layoutDesign(d)); c.recompute();
+  const r = G.HOME.R + alt; c.pos = [r * Math.cos(phi), r * Math.sin(phi)]; c.vel = [0, 0]; c.angle = 0;
+  const v = G.vesselFromCraft(c, 0, { id: s.vesselSeq++, name: 'Relay One' });
+  s.vessels.push(v);
+  return v;
+};
+test('a probe above a ground station has a signal; behind Verdan it has none and loses control', () => {
+  const { F, c } = probeAt(G.PAD_PHI, 100000);
+  assert(G.commnetOn(), 'network on in a new career');
+  F.comm = G.linkToHome(c, 0);
+  assert(F.comm.ok && F.comm.station === 'Space Centre' && G.hasControl(c), 'signal over the Space Centre');
+  // halfway between two stations, low down: the planet blocks every station
+  const b = probeAt(G.PAD_PHI + Math.PI / 3, 100000);
+  b.F.comm = G.linkToHome(b.c, 0);
+  assert(!b.F.comm.ok && !G.hasControl(b.c), 'no signal, no control');
+  assert(!G.hasSignal(), 'no transmitting either');
+  // crewed craft never need a signal
+  b.c.hasPod = true;
+  assert(G.hasControl(b.c), 'crew can always fly');
+});
+test('a relay satellite high above passes the signal on', () => {
+  const { F, s, c } = probeAt(G.PAD_PHI + Math.PI / 3, 100000);
+  relayRecord(s, G.PAD_PHI + Math.PI / 3, 2000000);
+  F.comm = G.linkToHome(c, 0);
+  assert(F.comm.ok && F.comm.via[0] === 'Relay One' && F.comm.path.length === 3, 'via the relay');
+  assert(G.hasControl(c), 'control restored');
+});
+test('antenna range matters: a bare probe core reaches low orbit but not Pallid; a whip antenna does', () => {
+  const far = probeAt(G.PAD_PHI, 8e6);
+  assert(!G.linkToHome(far.c, 0).ok, 'probe core alone is out of range');
+  const whip = probeAt(G.PAD_PHI, 8e6, 'antenna');
+  assert(G.linkToHome(whip.c, 0).ok, 'whip antenna reaches');
+  assert(G.partsRange([{ id: 'relayL' }]).relay === G.PART_DEFS.relayL.range, 'relay dish relays');
+});
+test('with the network off (sandbox and older games) nothing changes', () => {
+  const { F, s, c } = probeAt(G.PAD_PHI + Math.PI / 3, 100000);
+  s.commnet = false;
+  F.comm = null;
+  assert(!G.commnetOn() && G.hasControl(c) && G.hasSignal(), 'free control');
+  assert(G.newSave('sandbox', 1).commnet === false, 'sandbox starts with it off');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

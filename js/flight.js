@@ -27,7 +27,7 @@ function initFlightView() {
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hBiome', 'hBiomeRow', 'hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
     'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bGear', 'bBrakes', 'bQSave', 'bQLoad', 'bRcs', 'hNext', 'hPitch',
-    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag', 'fOre', 'fOreRow']) F.hud[id] = document.getElementById(id);
+    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag', 'fOre', 'fOreRow', 'hSig', 'hSigRow']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
 }
@@ -62,7 +62,7 @@ function flightStart(design, name, opts = {}) {
     flightContracts: [], sciOpen: false, node: null, target: F.target && opts.keepTarget ? F.target : null, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi', mapPan: [0, 0], mapPress: null,
     deadTimer: 0, endShown: false, pred: null, encounter: null, orbit: null, lastBody: HOME, rotOffset: 0, paused: false,
     flags: { space: false, maxAlt: 0, visited: [], landedOn: [] }, flightMilestones: [], running: true,
-    dvTick: 0, dvCache: null, rcsTx: 0, rcsTy: 0,
+    dvTick: 0, dvCache: null, rcsTx: 0, rcsTy: 0, comm: null,
   });
   F.zoom = clamp((F.H * 0.42) / (c.length + 8), 2, 30);
   for (const k in F.keys) F.keys[k] = false;
@@ -113,7 +113,7 @@ function flightLoadVessel(v, t) {
     flightContracts: [], sciOpen: false, node: null, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi', mapPan: [0, 0], mapPress: null,
     deadTimer: 0, endShown: false, pred: null, encounter: null, orbit: null, lastBody: c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], t),
     rotOffset: 0, paused: false, flags: v.flags || { space: true, maxAlt: 0, visited: [], landedOn: [] }, flightMilestones: [], running: true,
-    dvTick: 0, dvCache: null, rcsTx: 0, rcsTy: 0, predTick: 0,
+    dvTick: 0, dvCache: null, rcsTx: 0, rcsTy: 0, comm: null, predTick: 0,
   });
   F.zoom = clamp((F.H * 0.42) / (c.length + 8), 2, 30);
   for (const k in F.keys) F.keys[k] = false;
@@ -431,6 +431,7 @@ function flightUpdate(dt) {
     } else F.closest = F.target ? closestApproach(cp, F.target) : null;
     F.predTick = F.map ? 3 : 15;
   }
+  if (F.frame % 10 === 0 || !F.comm) F.comm = commnetOn() && !c.dead ? linkToHome(c, F.t) : null;
   updateParticles(dt * Math.min(w, 4));
   checkMilestones(b);
   if (c.dead && !F.endShown) {
@@ -987,8 +988,8 @@ function renderSciencePanel() {
   if (!F.sciOpen || !s) return;
   const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
   const sit = situationOf(c, b, F.t), bio = sciBiome(c, b, F.t, sit);
-  const antenna = c.parts.some((p) => p.def.antenna);
-  F.hud.sciWhere.textContent = sitText(sit, b, bio);
+  const antenna = c.parts.some((p) => p.def.antenna) && hasSignal();
+  F.hud.sciWhere.textContent = sitText(sit, b, bio) + (c.parts.some((p) => p.def.antenna) && !hasSignal() ? ' · no signal' : '');
   const rows = [];
   for (const p of c.parts) {
     if (c.dead) continue;
@@ -1118,7 +1119,10 @@ function updateSystemsHud(c, b, o, t) {
   }
   // heat or power trouble
   let warn = '', danger = false;
-  if (!c.dead && !hasControl(c)) { warn = '⚡ No power: the probe core cannot steer, throttle or stage'; danger = true; }
+  if (!c.dead && !hasControl(c)) {
+    warn = c.hasProbe && ecTotal(c) > 0.01 ? '📡 No signal: the probe cannot be controlled until it reaches a ground station or relay' : '⚡ No power: the probe core cannot steer, throttle or stage';
+    danger = true;
+  }
   else if (!c.dead && c.hottest) {
     const p = c.hottest, mt = partMaxTemp(p.def), f = p.temp / mt;
     if (f > 0.6) { warn = `🔥 ${p.def.name} ${fmtNum(p.temp)} / ${fmtNum(mt)} K`; danger = f > 0.85; }
@@ -1290,7 +1294,7 @@ function checkMilestones(b) {
   if (c.dead) return;
   const bp = bodyPos(b, F.t);
   const alt = Math.hypot(c.pos[0] - bp[0], c.pos[1] - bp[1]) - b.R;
-  flightEvent({ kind: 'tick', body: b, alt, orbit: F.orbit, landed: !!c.landed, hasAntenna: c.parts.some((p) => p.def.antenna) });
+  flightEvent({ kind: 'tick', body: b, alt, orbit: F.orbit, landed: !!c.landed, hasAntenna: c.parts.some((p) => p.def.antenna), hasRelay: c.parts.some((p) => p.def.relay) });
   if (b === HOME) {
     F.flags.maxAlt = Math.max(F.flags.maxAlt, alt);
     if (!c.landed && alt > 40) award('liftoff');
@@ -1686,6 +1690,19 @@ function renderMap() {
       ctx.fillText(`Closest ${fmtDist(ca.d - (F.target.R || 0))}`, cx2, cy2 - 12);
     }
   }
+  // the signal path home, and the ground stations
+  if (commnetOn()) {
+    for (const st of stationNodes(t)) {
+      const [gx, gy] = S(st.pos[0], st.pos[1]);
+      if (HOME.R * z > 30) { ctx.fillStyle = '#7dffa8'; ctx.fillRect(gx - 2.5, gy - 2.5, 5, 5); }
+    }
+    if (F.comm && F.comm.ok) {
+      ctx.strokeStyle = 'rgba(125,255,168,0.6)'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      F.comm.path.forEach((p, i) => { const [px, py] = S(p[0], p[1]); if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
   // other vessels
   F.mapVessels = [];
   const s0 = universe();
@@ -1818,6 +1835,8 @@ function updateHud() {
   h.hRadar.textContent = fmtDist(radar);
   const o = F.orbit;
   h.hBody.textContent = (c.landed ? 'Landed on ' : 'Orbiting ') + b.name;
+  h.hSigRow.classList.toggle('hidden', !F.comm);
+  if (F.comm) { const st = signalText(); if (h.hSig.textContent !== st) h.hSig.textContent = st; h.hSig.classList.toggle('bad', !F.comm.ok); }
   // the biome below, while close enough to the ground for it to matter
   const bio = alt < spaceHighAlt(b) ? biomeAt(b, Math.atan2(ry, rx)) : null;
   h.hBiomeRow.classList.toggle('hidden', !bio);

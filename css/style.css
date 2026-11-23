@@ -397,3 +397,6 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 .fac-next { color: #7dffa8; font-size: 13px; }
 .role-help { display: grid; gap: 4px; margin: 10px 0; font-size: 13px; }
 @media (max-width: 520px) { .fac-row { flex-wrap: wrap; } .fac-row button { width: 100%; } }
+#hSig.bad { color: #ff6b6b; }
+label.check { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; font-size: 13px; line-height: 1.4; }
+label.check input { margin-top: 2px; flex: none; }
