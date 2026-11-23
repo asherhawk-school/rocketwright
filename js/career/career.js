@@ -121,5 +121,5 @@ function milestoneReward(id) {
   const f = bid ? (BODY_SCI[bid] || 1) : 1;
   const base = { liftoff: 1000, alt10k: 2000, space: 5000, orbit: 10000, splash: 4000 }[id];
   if (base) return { funds: base, rep: 2 };
-  return { funds: { soi: 4000, orbit: 8000, land: 12000, return: 15000 }[k] * f, rep: 3 + f };
+  return { funds: { soi: 4000, orbit: 8000, land: 12000, return: 15000, flag: 6000 }[k] * f, rep: 3 + f };
 }

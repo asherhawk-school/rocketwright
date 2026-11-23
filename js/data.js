@@ -168,6 +168,12 @@ Object.assign(PART_DEFS, {
 });
 
 Object.assign(PART_DEFS.pod, { seats: 1 });
+/* Not built in the hangar: an astronaut on a spacewalk, and a flag they plant. */
+Object.assign(PART_DEFS, {
+  eva: { kind: 'eva', name: 'Astronaut', hidden: true, mass: 0.09, h: 1.3, w: 0.6, pod: true, torque: 0.25, ec: 20, mono: 0.004,
+    rcs: true, rcsThrust: 0.25, isp: 80, maxTemp: 900, exps: ['evaReport', 'sample'], desc: 'An astronaut in a spacesuit with a small jetpack.' },
+  flag: { kind: 'flag', name: 'Flag', hidden: true, mass: 0.01, h: 2.2, w: 0.15, maxTemp: 1200, desc: 'Planted to mark a visit.' },
+});
 Object.assign(PART_DEFS.chute, { chuteFull: 720, chuteSemi: 45 });
 Object.assign(PART_DEFS.chuteRadial, { chuteFull: 400, chuteSemi: 25 });
 Object.assign(PART_DEFS, {
@@ -310,6 +316,7 @@ const MILESTONE_KINDS = [
   { k: 'orbit', label: 'Orbit', desc: (b) => `Reach a stable orbit around ${b.name}.` },
   { k: 'land', label: 'Land', desc: (b) => `Land safely on ${b.name}.`, solid: true },
   { k: 'return', label: 'Return', desc: (b) => `Land on ${b.name}, then come home safely to Verdan.`, solid: true },
+  { k: 'flag', label: 'Flag on', desc: (b) => `Go on a spacewalk on ${b.name} and plant a flag.`, solid: true },
 ];
 /* Old saves used these ids for Pallid. */
 const OLD_MILESTONE_IDS = { moonSoi: 'soi_pallid', moonOrbit: 'orbit_pallid', moonLand: 'land_pallid', roundTrip: 'return_pallid' };

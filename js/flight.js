@@ -27,7 +27,7 @@ function initFlightView() {
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hBiome', 'hBiomeRow', 'hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
     'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bGear', 'bBrakes', 'bQSave', 'bQLoad', 'bRcs', 'hNext', 'hPitch',
-    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch']) F.hud[id] = document.getElementById(id);
+    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
 }
@@ -360,6 +360,11 @@ function flightUpdate(dt) {
     F.rcsTx = (k.KeyE ? 1 : 0) - (k.KeyQ ? 1 : 0);
     F.rcsTy = (k.KeyH ? 1 : 0) - (k.KeyN ? 1 : 0);
   } else { F.userRot = 0; F.drive = 0; F.rcsTx = F.rcsTy = 0; }
+  // an astronaut on the ground walks instead of turning
+  if (F.kind === 'eva' && c.landed && !c.dead) {
+    F.walk = (k.KeyD || k.ArrowRight || k.vRotR ? 1 : 0) - (k.KeyA || k.ArrowLeft || k.vRotL ? 1 : 0);
+    F.userRot = 0;
+  } else F.walk = 0;
 
   enforceWarp();
   syncOthers();
@@ -408,7 +413,7 @@ function flightUpdate(dt) {
 
 function physStep(dt) {
   const c = F.craft;
-  if (!c.dead) { c.ctrl = controlInput(c); stepCraft(c, dt, true); }
+  if (!c.dead) { evaStep(c, dt); c.ctrl = controlInput(c); stepCraft(c, dt, true); }
   for (const d of F.debris) if (!d.dead) { d.ctrl = 0; stepCraft(d, dt, false); }
   for (const o of F.others) if (!o.dead) { o.ctrl = 0; o.throttle = 0; stepCraft(o, dt, false); }
   for (const o of F.others) if (o.dead && !o.counted) { o.counted = true; if (isCareer() && o.meta) crewLost(o.meta.crew); toast(`${o.meta ? o.meta.name : 'A vessel'} was destroyed`); }
@@ -730,11 +735,11 @@ function contact(c, b, t, player) {
   const ux = rx / r, uy = ry / r;
   const speed = Math.hypot(c.vel[0] - bv[0], c.vel[1] - bv[1]);
   const upright = Math.cos(c.angle) * ux + Math.sin(c.angle) * uy;
-  let limit = c.hasLegs ? 12 : 6;
+  let limit = c.hasLegs ? 12 : c.isEva ? 9 : 6;
   if (pen.water) limit = Math.max(limit, 10);
-  if (speed > limit || (upright < 0.75 && speed > 3)) { explode(c, player, speed); return; }
+  if (speed > limit || (upright < 0.75 && speed > 3 && !c.isEva)) { explode(c, player, speed); return; }
   c.pos[0] += ux * pen.maxPen; c.pos[1] += uy * pen.maxPen;
-  if (upright > 0.75) {
+  if (upright > 0.75 || c.isEva) { // astronauts land on their feet
     c.angle = Math.atan2(uy, ux);
     const p2 = penetration(c, b, bp);
     c.pos[0] += ux * p2.maxPen; c.pos[1] += uy * p2.maxPen;
@@ -949,7 +954,29 @@ function renderSciencePanel() {
   F.hud.sciWhere.textContent = sitText(sit, b, bio);
   const rows = [];
   for (const p of c.parts) {
-    if (!p.def.exp || c.dead) continue;
+    if (c.dead) continue;
+    // experiments an astronaut collects and carries
+    for (const exp of p.def.exps || []) {
+      const btns = [];
+      let status;
+      const id = subjectId(exp, b, sit, expWorks(exp, b, sit) ? bio : null);
+      if (!expWorks(exp, b, sit)) status = 'Does not work here';
+      else if ((p.held || []).some((r) => r.id === id)) status = 'Already carrying this one';
+      else {
+        const v = subjectLeft(s, id, subjectCap(exp, b, sit));
+        status = v < 0.05 ? 'Nothing new to learn here' : `Worth ${v.toFixed(1)} ⚗ here`;
+        btns.push(['erun:' + exp, 'Collect', v < 0.05]);
+      }
+      rows.push({ key: `${p.uid}:${exp}`, uid: p.uid, name: EXPERIMENTS[exp].name, status, btns });
+    }
+    (p.held || []).forEach((r, i) => {
+      const left = subjectLeft(s, r.id, r.cap), btns = [];
+      if (antenna) btns.push(['htx:' + i, `Transmit ${(left * TRANSMIT_FRACTION).toFixed(1)}`, false]);
+      btns.push(['hdrop:' + i, 'Discard', false]);
+      rows.push({ key: `${p.uid}:h${i}:${r.id}`, uid: p.uid, name: `Carrying: ${EXPERIMENTS[r.exp].name}`,
+        status: `${sitText(r.sit, BODY_BY_ID[r.body], r.biome)} · ${left.toFixed(1)} ⚗ if recovered`, btns });
+    });
+    if (!p.def.exp) continue;
     const e = EXPERIMENTS[p.def.exp];
     let status;
     const btns = []; // [kind, label, disabled]
@@ -964,18 +991,18 @@ function renderSciencePanel() {
       status = v < 0.05 ? 'Nothing new to learn here' : `Worth ${v.toFixed(1)} ⚗ here`;
       btns.push(['run', 'Run', v < 0.05]);
     } else status = 'Does not work here';
-    rows.push({ uid: p.uid, name: e.name, status, btns });
+    rows.push({ key: String(p.uid), uid: p.uid, name: e.name, status, btns });
   }
-  const sig = `${antenna}|` + rows.map((r) => `${r.uid}:${r.btns.map((x) => x[0]).join(',')}`).join('|');
+  const sig = `${antenna}|` + rows.map((r) => `${r.key}:${r.btns.map((x) => x[0]).join(',')}`).join('|');
   if (sig !== F.sciSig) {
     F.sciSig = sig;
-    el.innerHTML = rows.map((r) => `<div class="sci-row" data-row="${r.uid}"><div><b>${r.name}</b><div class="muted sci-status"></div></div>
+    el.innerHTML = rows.map((r) => `<div class="sci-row" data-row="${r.key.replace(/["<>&]/g, '')}"><div><b>${r.name}</b><div class="muted sci-status"></div></div>
       <div class="sci-btns">${r.btns.map(([k]) => `<button data-sci="${k}" data-uid="${r.uid}"></button>`).join('')}</div></div>`).join('') +
       (!antenna && rows.length ? '<div class="muted small-note">Add a Whip Antenna to transmit results without coming home.</div>' : '') ||
       '<div class="muted">No experiments on this craft. Add science parts in the hangar.</div>';
   }
   for (const r of rows) {
-    const row = el.querySelector(`[data-row="${r.uid}"]`);
+    const row = [...el.querySelectorAll('.sci-row')].find((x) => x.dataset.row === r.key.replace(/["<>&]/g, ''));
     if (!row) continue;
     const st = row.querySelector('.sci-status');
     if (st.textContent !== r.status) st.textContent = r.status;
@@ -989,11 +1016,25 @@ function renderSciencePanel() {
   }
 }
 
-function scienceAction(kind, uid) {
+function scienceAction(kindArg, uid) {
   const c = F.craft, s = Career.s, p = c.byUid.get(uid);
   if (!p || !s) return;
   const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
-  if (kind === 'run') {
+  const [kind, arg] = String(kindArg).split(':');
+  if (kind === 'erun') {
+    const sit = situationOf(c, b, F.t);
+    const r = collectResult(s, p, arg, b, sit, sciBiome(c, b, F.t, sit));
+    if (r) flash(`${EXPERIMENTS[arg].name}: collected (${r.value.toFixed(1)} ⚗ if recovered)`, 3);
+  } else if (kind === 'htx') {
+    const r = transmitHeld(s, p, +arg);
+    if (r) {
+      toast(`Transmitted ${EXPERIMENTS[r.result.exp].name}: +${r.gain.toFixed(1)} science`);
+      flightEvent({ kind: 'science', body: BODY_BY_ID[r.result.body], sit: r.result.sit, biome: r.result.biome });
+      persist();
+    }
+  } else if (kind === 'hdrop') {
+    (p.held || []).splice(+arg, 1);
+  } else if (kind === 'run') {
     const sit = situationOf(c, b, F.t);
     if (!canRun(p, b, sit)) return;
     const r = runExperiment(s, p, b, sit, sciBiome(c, b, F.t, sit));
@@ -1226,6 +1267,7 @@ function checkMilestones(b) {
 }
 
 function onTouchdown(b, water, speed) {
+  if (F.kind === 'eva') return; // an astronaut's hops don't count as landings
   const c0 = F.craft, bp0 = bodyPos(b, F.t), bio = biomeAt(b, Math.atan2(c0.pos[1] - bp0[1], c0.pos[0] - bp0[0]));
   flash(`${water ? 'Splashdown' : 'Touchdown'} on ${b.name}${bio ? ` (${bio})` : ''} at ${speed.toFixed(1)} m/s`, 4);
   flightEvent({ kind: 'land', body: b, biome: bio });
@@ -1803,6 +1845,15 @@ function updateHud() {
   h.bGear.classList.toggle('hidden', !c.wheels.some((p) => p.def.retract));
   h.bGear.classList.toggle('on', c.wheels.some((p) => p.def.retract && !p.gearUp));
   h.bBrakes.classList.toggle('hidden', !c.wheels.length && !c.brakes.length);
+  // spacewalks
+  const evaOk = F.kind === 'eva' ? !c.dead : canEva();
+  h.bEva.classList.toggle('hidden', !evaOk);
+  if (evaOk) {
+    const label = F.kind === 'eva' ? 'Board (J)' : 'Spacewalk (J)';
+    if (h.bEva.textContent !== label) h.bEva.textContent = label;
+    h.bEva.classList.toggle('on', F.kind === 'eva' && !!boardTarget());
+  }
+  h.bFlag.classList.toggle('hidden', !(F.kind === 'eva' && c.landed && !c.dead));
   h.bBrakes.classList.toggle('on', !!(c.wheelBrake || c.brakes.some((p) => p.brake)));
   const rel = wrapPi(c.angle - Math.atan2(ry, rx));
   const pitch = 90 - (Math.abs(rel) * 180) / Math.PI;

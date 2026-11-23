@@ -91,6 +91,11 @@ function contractBuilders(s) {
       return { type: 'land', title: `Land on ${b.name}`, desc: `Touch down safely on ${b.name}.`, p: { body: b.id },
         reward: r100(16000 * (1 + f(b))), sci: Math.round(10 + 5 * f(b)), rep: 6 + 2 * f(b), days: 40 + 70 * f(b) };
     }]);
+    if (landable.length) B.push([1, () => {
+      const b = pick(s, landable);
+      return { type: 'flag', title: `Plant a flag on ${b.name}`, desc: `Land a crewed craft on ${b.name}, send an astronaut outside (J) and plant a flag (L).`,
+        p: { body: b.id }, reward: r100(20000 * (1 + f(b))), sci: Math.round(8 + 4 * f(b)), rep: 8 + 2 * f(b), days: 50 + 70 * f(b) };
+    }]);
   }
   if (m.orbit) B.push([1.2, () => {
     const used = new Set(s.crew.map((c) => c.name).concat((s.vessels || []).flatMap((v) => (v.crew || []).map((x) => x.name)),
@@ -197,6 +202,7 @@ function checkContracts(s, ev) {
       case 'orbit': ok = ev.kind === 'tick' && b.id === p.body && stableOrbit(ev, b); break;
       case 'land': ok = ev.kind === 'land' && b.id === p.body && (!p.biome || ev.biome === p.biome); break;
       case 'science': ok = ev.kind === 'science' && b.id === p.body && ev.sit === p.sit && (!p.biome || ev.biome === p.biome); break;
+      case 'flag': ok = ev.kind === 'flag' && b.id === p.body; break;
       case 'rescue': ok = ev.kind === 'recover' && (ev.crew || []).includes(p.crewName); break;
       case 'satellite': ok = ev.kind === 'tick' && b.id === p.body && ev.hasAntenna && stableOrbit(ev, b) &&
         ev.orbit.rp - b.R >= p.lo && ev.orbit.ra - b.R <= p.hi; break;

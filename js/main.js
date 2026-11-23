@@ -55,6 +55,10 @@ function launchDesign(design, name, crewId, crewN = 1, site = 'pad') {
     F.revertCrew = crew[0].id;
     F.revertCrewN = crew.length;
     flash(`${crew.length > 1 ? crewNames(F.crew).join(', ') + ' are' : crew[0].name + ' is'} aboard ${name}. Press SPACE to launch!`, 5);
+  } else if (!isCareer() && designSeats(design) > 0) {
+    // sandbox: a guest astronaut flies along, so there's someone to go on spacewalks
+    const pod = F.craft.parts.find((q) => q.def.seats);
+    F.crew = [{ name: CREW_POOL[Math.floor(Math.random() * CREW_POOL.length)], guest: true, pod: pod.uid }];
   }
 }
 
@@ -257,13 +261,14 @@ function recover() {
   let sci = 0, refund = 0, factor = 1;
   const sciLines = [];
   for (const p of c.parts) {
-    if (!p.result) continue;
-    const r = p.result;
-    const g = creditResult(s, r, 1);
-    sci += g;
-    sciLines.push(`<li>${esc(r.label)} · +${g.toFixed(1)} ⚗</li>`);
-    flightEvent({ kind: 'science', body: BODY_BY_ID[r.body], sit: r.sit, biome: r.biome });
+    for (const r of partResults(p)) {
+      const g = creditResult(s, r, 1);
+      sci += g;
+      sciLines.push(`<li>${esc(r.label)} · +${g.toFixed(1)} ⚗</li>`);
+      flightEvent({ kind: 'science', body: BODY_BY_ID[r.body], sit: r.sit, biome: r.biome });
+    }
     p.result = null;
+    p.held = [];
   }
   flightEvent({ kind: 'recover', crew: crewNames(F.crew) });
   if (isCareer()) {
@@ -301,7 +306,7 @@ function toggleRcs() {
 
 /* [ and ] switch between vessels close enough to see. */
 function cycleNearby(dir) {
-  const near = F.others.filter((o) => !o.dead);
+  const near = F.others.filter((o) => !o.dead && !(o.meta && o.meta.kind === 'flag'));
   if (!near.length) { flash('No other vessels nearby', 2); return; }
   const o = near[dir > 0 ? 0 : near.length - 1];
   switchToVessel(o.vid);
@@ -340,7 +345,9 @@ function onKeyDown(e) {
   if (e.repeat) return;
   const c = F.craft;
   switch (e.code) {
-    case 'Space': doStage(); break;
+    case 'Space': if (F.kind === 'eva') evaHop(); else doStage(); break;
+    case 'KeyJ': evaKey(); break;
+    case 'KeyL': plantFlag(); break;
     case 'KeyM': toggleMap(); break;
     case 'Comma': changeWarp(-1); break;
     case 'Period': changeWarp(1); break;
@@ -414,6 +421,8 @@ function wireUi() {
   $('flight').addEventListener('mousedown', (e) => { if (e.target.closest('button')) e.preventDefault(); });
   $('bStage').addEventListener('click', doStage);
   $('bGear').addEventListener('click', toggleGear);
+  $('bEva').addEventListener('click', evaKey);
+  $('bFlag').addEventListener('click', plantFlag);
   $('bBrakes').addEventListener('click', toggleBrakes);
   $('bMap').addEventListener('click', toggleMap);
   $('bMenu').addEventListener('click', openMenu);

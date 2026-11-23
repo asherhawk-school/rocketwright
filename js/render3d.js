@@ -222,6 +222,21 @@ function buildPart(p, owner) {
     case 'antenna': add(box(2 * hw, 0.3, 2 * hw, 0, bot + 0.15, 0, M('grey')), cyl(0.025, 0.025, h - 0.3, bot + 0.3 + (h - 0.3) / 2, M('metal'), 6), sphere(0.08, 0, top, 0, M('red'))); break;
     case 'dock': add(cyl(hw, hw, h * 0.6, bot + h * 0.3, M('dark')), lathe([[0, bot + h * 0.6], [hw * 0.8, bot + h * 0.6], [hw * 0.55, top], [0, top]], M('metal')), band(hw * 0.5, top - 0.03, 0.06, M('yellow'))); break;
     case 'probe': add(lathe([[0, bot], [hw, bot], [hw * 0.8, top], [0, top]], M('grey')), band(hw * 0.92, bot + h * 0.47, h * 0.25, M('gold'))); break;
+    case 'eva': {
+      add(box(0.55, 0.44, 0.28, 0, bot + 0.68, -0.22, M('grey'))); // backpack
+      add(box(0.16, 0.5, 0.2, -0.11, bot + 0.25, 0, M('white')), box(0.16, 0.5, 0.2, 0.11, bot + 0.25, 0, M('white')));
+      add(box(0.18, 0.08, 0.24, -0.11, bot + 0.04, 0.01, M('dark')), box(0.18, 0.08, 0.24, 0.11, bot + 0.04, 0.01, M('dark')));
+      add(sphere(0.25, 0, bot + 0.68, 0, M('white'), 0.95, 1.05, 0.75)); // body
+      add(band(0.24, bot + 0.66, 0.06, M('orange')));
+      add(box(0.1, 0.38, 0.12, -0.31, bot + 0.66, 0, M('white')), box(0.1, 0.38, 0.12, 0.31, bot + 0.66, 0, M('white')));
+      add(sphere(0.22, 0, bot + 1.07, 0, M('white')), sphere(0.16, 0, bot + 1.06, 0.1, M('glass'), 1, 0.75, 0.7)); // helmet and visor
+      break;
+    }
+    case 'flag': {
+      add(cyl(0.035, 0.035, h, cy, M('metal'), 8), cyl(0.12, 0.12, 0.06, bot + 0.03, M('bronze'), 10));
+      add(box(1.0, 0.6, 0.02, 0.535, top - 0.36, 0, M('blue')), box(0.3, 0.3, 0.03, 0.535, top - 0.36, 0, M('white')));
+      break;
+    }
     case 'battery': add(box(2 * hw, h, 2 * hw, 0, cy, 0, M('dark')), box(hw, 0.08, 0.1, 0, top - 0.06, hw, M('yellow'))); break;
     case 'batring': add(cyl(hw, hw, h, cy, M('dark')), band(hw, cy, h * 0.4, M('yellow'))); break;
     case 'batbank': {

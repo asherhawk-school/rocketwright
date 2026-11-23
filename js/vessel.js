@@ -477,6 +477,7 @@ class Craft {
     this.chuteArea = this.chutes.reduce((a, p) => a + (p.open ? p.area || 0 : 0), 0);
     this.chuteAlt = Math.max(0, ...this.parts.filter((p) => p.def.chute).map((p) => cfgVal(p, 'deployAlt')));
     this.hasPod = this.parts.some((p) => p.def.pod);
+    this.isEva = this.parts.length === 1 && this.parts[0].def.kind === 'eva';
     this.hasProbe = this.parts.some((p) => p.def.probe);
     this.solarParts = this.parts.filter((p) => p.def.solar);
     this.ecMax = this.parts.reduce((a, p) => a + (p.def.ec || 0), 0);

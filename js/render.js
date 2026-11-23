@@ -210,6 +210,27 @@ function drawPart(ctx, p, lw) {
       ctx.fillStyle = '#7dffa8'; ctx.beginPath(); ctx.arc(hw * 0.35, bot + h * 0.47, 0.06, 0, TAU); ctx.fill();
       break;
     }
+    case 'eva': { // an astronaut in a white suit, facing us
+      const y0 = bot, rr = (x, y, w, hh, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, hh, r); ctx.fill(); ctx.stroke(); };
+      ctx.fillStyle = '#7d848e'; rr(-0.29, y0 + 0.46, 0.58, 0.44, 0.06); // backpack
+      ctx.fillStyle = '#dfe3e8'; rr(-0.2, y0, 0.17, 0.5, 0.05); rr(0.03, y0, 0.17, 0.5, 0.05); // legs
+      ctx.fillStyle = '#4a4f57'; ctx.fillRect(-0.21, y0, 0.19, 0.07); ctx.fillRect(0.02, y0, 0.19, 0.07); // boots
+      ctx.fillStyle = '#f1f3f5'; rr(-0.23, y0 + 0.42, 0.46, 0.5, 0.1); // body
+      ctx.fillStyle = '#e07b2c'; ctx.fillRect(-0.23, y0 + 0.62, 0.46, 0.06);
+      ctx.fillStyle = '#e6e9ec'; rr(-0.33, y0 + 0.47, 0.11, 0.38, 0.05); rr(0.22, y0 + 0.47, 0.11, 0.38, 0.05); // arms
+      ctx.fillStyle = '#f6f7f9'; ctx.beginPath(); ctx.arc(0, y0 + 1.07, 0.22, 0, TAU); ctx.fill(); ctx.stroke(); // helmet
+      ctx.fillStyle = '#23324a'; ctx.beginPath(); ctx.ellipse(0, y0 + 1.06, 0.15, 0.11, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(170,215,255,0.65)'; ctx.beginPath(); ctx.ellipse(-0.05, y0 + 1.1, 0.05, 0.03, -0.5, 0, TAU); ctx.fill();
+      break;
+    }
+    case 'flag': { // a pole with a blue banner and a rising-chevron emblem
+      ctx.fillStyle = '#6b4a2e'; ctx.fillRect(-0.12, bot, 0.24, 0.06);
+      ctx.fillStyle = '#c9ccd1'; ctx.fillRect(-0.035, bot, 0.07, h); ctx.strokeRect(-0.035, bot, 0.07, h);
+      ctx.fillStyle = '#3d78c0'; ctx.fillRect(0.035, top - 0.66, 1.0, 0.6); ctx.strokeRect(0.035, top - 0.66, 1.0, 0.6);
+      ctx.fillStyle = '#f4f6f8'; poly(ctx, [[0.25, top - 0.58], [0.535, top - 0.16], [0.82, top - 0.58], [0.535, top - 0.42]]); ctx.fill();
+      ctx.fillStyle = '#ffd34d'; ctx.beginPath(); ctx.arc(0.535, top - 0.5, 0.05, 0, TAU); ctx.fill();
+      break;
+    }
     case 'battery': {
       ctx.fillStyle = '#3a3f47'; ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
       ctx.fillStyle = '#e0b030'; ctx.fillRect(-hw * 0.5, top - 0.1, hw, 0.08);

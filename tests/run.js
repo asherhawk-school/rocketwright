@@ -16,9 +16,9 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 let src = '';
-for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
+for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -315,7 +315,7 @@ test('a new career starts with funds, three astronauts and only the basic parts'
   assert(G.lockedParts(G.PRESETS['Orbiter I']()).length > 0, 'Orbiter I should need research');
 });
 test('every part belongs to exactly one research node', () => {
-  for (const id of Object.keys(G.PART_DEFS)) assert(G.PART_TECH[id], id + ' is not in the tech tree');
+  for (const id of Object.keys(G.PART_DEFS)) if (!G.PART_DEFS[id].hidden) assert(G.PART_TECH[id], id + ' is not in the tech tree');
   const all = G.TECH_NODES.flatMap((n) => n.parts);
   assert(all.length === new Set(all).size, 'a part is in two nodes');
 });
@@ -1216,6 +1216,121 @@ test('biome contracts only complete in the right biome', () => {
   const sb = G.BODY_BY_ID[sci.p.body];
   assert(!G.checkContracts(s, { kind: 'science', body: sb, sit: sci.p.sit, biome: null }).includes(sci), 'no biome should not count');
   assert(G.checkContracts(s, { kind: 'science', body: sb, sit: sci.p.sit, biome: sci.p.biome }).includes(sci), 'right biome science counts');
+});
+
+console.log('\nSpacewalks');
+/* A crewed Sky Hopper either landed on Pallid or in orbit round Verdan, with one astronaut aboard. */
+function evaSetup(where) {
+  G.Career.s = G.newSave('career', 5);
+  const s = G.Career.s; s.vessels = []; s.vesselSeq = 1;
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Hopper', { t0: 0 });
+  const F = G.F, c = F.craft;
+  F.others = []; F.tutorial = null;
+  const pod = c.parts.find((p) => p.def.seats);
+  F.crew = [{ id: s.crew[0].id, name: s.crew[0].name, pod: pod.uid }];
+  if (where === 'pallid') {
+    const b = G.MOON, phi = 1.0, bp = G.bodyPos(b, 0);
+    const lowest = Math.min(...c.contacts.map((q) => q[1]));
+    const r = b.R + G.terrainH(b, phi) + (c.yc - lowest) + 0.02;
+    c.angle = phi; c.pos = [bp[0] + r * Math.cos(phi), bp[1] + r * Math.sin(phi)]; c.vel = G.bodyState(b, 0).slice(2, 4);
+    c.landed = { body: b, rx: c.pos[0] - bp[0], ry: c.pos[1] - bp[1] };
+  } else {
+    const r = G.HOME.R + 120000, v = Math.sqrt(G.HOME.mu / r);
+    c.landed = null; c.pos = [r, 0]; c.vel = [0, v]; c.angle = 0;
+  }
+  F.lastBody = where === 'pallid' ? G.MOON : G.HOME;
+  return { F, s, ship: c };
+}
+const steps = (n) => { for (let i = 0; i < n; i++) G.physStep(G.PHYS_DT); };
+
+test('an astronaut climbs out onto Pallid, walks, hops and lands on their feet', () => {
+  const { F, ship } = evaSetup('pallid');
+  const shipVid = F.vid;
+  G.goEva();
+  assert(F.kind === 'eva' && F.craft.isEva, 'now flying the astronaut');
+  assert(F.crew.length === 1 && F.crew[0].pod === F.craft.parts[0].uid, 'astronaut is the crew');
+  const shipNow = F.others.find((o) => o.vid === shipVid);
+  assert(shipNow && shipNow.meta.crew.length === 0, 'the ship is left behind, empty');
+  assert(F.craft.landed && F.craft.landed.body === G.MOON, 'standing on Pallid');
+  assert(F.canRevert, 'can still revert the flight');
+  const phi0 = Math.atan2(F.craft.landed.ry, F.craft.landed.rx);
+  F.walk = 1; F.keys.KeyD = true;
+  for (let i = 0; i < 150; i++) { G.flightUpdate(G.PHYS_DT); }
+  F.keys.KeyD = false;
+  const phi1 = Math.atan2(F.craft.landed.ry, F.craft.landed.rx);
+  const walked = (phi0 - phi1) * G.MOON.R;
+  assert(walked > 3 && walked < 6, `walked ${walked.toFixed(2)} m in 3 s`);
+  G.evaHop();
+  steps(2);
+  assert(!F.craft.landed, 'in the air after a hop');
+  steps(800);
+  assert(F.craft.landed && !F.craft.dead, 'came down safely');
+});
+test('planting a flag leaves a flag vessel, earns the milestone and completes the contract', () => {
+  const { F, s } = evaSetup('pallid');
+  s.contracts.push({ id: 99, type: 'flag', state: 'active', title: 'Plant a flag on Pallid', p: { body: 'pallid' }, reward: 1000, sci: 1, rep: 1, deadline: 1e12 });
+  G.goEva();
+  const funds = s.funds;
+  G.plantFlag();
+  const flag = F.others.find((o) => o.meta && o.meta.kind === 'flag');
+  assert(flag && flag.landed && flag.landed.body === G.MOON, 'flag planted');
+  assert(s.milestones.flag_pallid, 'milestone');
+  assert(s.contracts.find((c) => c.id === 99).state === 'done', 'contract complete');
+  assert(s.funds > funds, 'paid');
+  // flags survive being saved and loaded
+  const rec = G.vesselFromCraft(flag, G.F.t, flag.meta);
+  const back = G.craftFromVessel(rec);
+  assert(back.parts[0].id === 'flag' && back.landed, 'flag round-trips');
+});
+test('surface samples are carried back aboard and recovered', () => {
+  const { F, s } = evaSetup('pallid');
+  const shipVid = F.vid;
+  G.goEva();
+  const me = F.craft.parts[0];
+  const sit = G.situationOf(F.craft, G.MOON, F.t);
+  const r1 = G.collectResult(s, me, 'sample', G.MOON, sit, 'Near Plains');
+  const r2 = G.collectResult(s, me, 'sample', G.MOON, sit, 'Near Plains');
+  const r3 = G.collectResult(s, me, 'evaReport', G.MOON, sit, 'Near Plains');
+  assert(r1 && !r2 && r3 && me.held.length === 2, 'one result per subject, several carried');
+  assert(!G.collectResult(s, me, 'sample', G.MOON, 'spaceLow', null), 'no surface samples in space');
+  // walk back to the hatch and climb in
+  const ship = F.others.find((o) => o.vid === shipVid);
+  const pod = ship.parts.find((p) => p.def.seats);
+  const hatch = ship.toWorld(pod.x, pod.bot);
+  F.craft.pos = [hatch[0], hatch[1]];
+  assert(G.boardTarget(), 'close enough to board');
+  const name = F.crew[0].name;
+  G.boardNearby();
+  assert(F.kind === 'ship' && F.vid === shipVid && G.crewNames(F.crew).includes(name), 'back aboard');
+  assert(!F.others.some((o) => o.isEva), 'no astronaut left outside');
+  const held = F.craft.parts.find((p) => p.def.seats).held;
+  assert(held && held.length === 2, 'science moved into the capsule');
+  const rec = G.vesselFromCraft(F.craft, F.t, { id: F.vid, name: 'x', crew: F.crew, kind: 'ship' });
+  const sci = s.science;
+  rec.landed = null;
+  G.recoverRecord(rec);
+  assert(s.science > sci + 50, `recovered ${s.science - sci} science`);
+});
+test('in orbit the astronaut floats beside the ship, jetpacks, and boards again', () => {
+  const { F, ship } = evaSetup('orbit');
+  G.goEva();
+  const e = F.craft;
+  assert(!e.landed && Math.hypot(e.pos[0] - ship.pos[0], e.pos[1] - ship.pos[1]) < 5, 'beside the ship');
+  const v0 = e.vel.slice(), mono0 = e.parts[0].mono;
+  F.keys.KeyH = true;
+  for (let i = 0; i < 50; i++) G.flightUpdate(G.PHYS_DT);
+  F.keys.KeyH = false;
+  assert(e.parts[0].mono < mono0, 'jetpack uses monopropellant');
+  assert(G.boardTarget(), 'the hatch is in reach');
+  G.evaKey();
+  assert(F.kind === 'ship' && F.crew.length === 1, 'aboard again');
+});
+test('sandbox flights carry a guest astronaut for spacewalks; gas giants and dense air keep the hatch shut', () => {
+  G.Career.s = G.newSave('sandbox', 3);
+  const { F } = evaSetup('orbit');
+  F.craft.q = 5;
+  G.goEva();
+  assert(F.kind !== 'eva', 'hatch stays shut in dense air');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

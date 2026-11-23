@@ -222,9 +222,9 @@ function showTracking() {
     const home = v.landed && b === HOME;
     const crew = crewNames(v.crew);
     return `<div class="trk-row ${v.kind}">
-      <div><b>${esc(v.name)}</b>${v.kind === 'stranded' ? ' <span class="pill rep">needs rescue</span>' : ''}
+      <div><b>${esc(v.name)}</b>${v.kind === 'stranded' ? ' <span class="pill rep">needs rescue</span>' : v.kind === 'eva' ? ' <span class="pill">on a spacewalk</span>' : v.kind === 'flag' ? ' <span class="pill">flag</span>' : ''}
         <div class="muted">${esc(vesselSituation(v))} · ${fmtDur(s.ut - v.launchT)} since launch${crew.length ? ' · 👩‍🚀 ' + esc(crew.join(', ')) : ''}</div></div>
-      <div class="trk-btns">${v.kind === 'stranded' ? '' : `<button class="primary" data-fly="${v.id}">Fly</button>`}
+      <div class="trk-btns">${v.kind === 'stranded' || v.kind === 'flag' ? '' : `<button class="primary" data-fly="${v.id}">Fly</button>`}
         ${home ? `<button data-rec="${v.id}">Recover</button>` : ''}
         ${v.kind === 'stranded' ? '' : `<button data-del="${v.id}">Terminate</button>`}</div></div>`;
   }).join('');

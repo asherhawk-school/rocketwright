@@ -9,6 +9,9 @@ const EXPERIMENTS = {
   jar: { name: 'Sample Canister', base: 14, oneShot: true },
   seismic: { name: 'Seismic Scan', base: 20, sits: ['landed'] },
   sniffer: { name: 'Air Sample', base: 16, sits: ['flyingLow', 'flyingHigh'] },
+  // collected by astronauts on a spacewalk, and carried (several at once) until transmitted or recovered
+  evaReport: { name: 'Spacewalk Report', base: 8 },
+  sample: { name: 'Surface Sample', base: 30, sits: ['landed', 'splashed'] },
 };
 const SITUATIONS = {
   landed: { label: 'Landed on', mult: 1.5 },
@@ -51,14 +54,36 @@ function subjectCap(exp, b, sit) { return EXPERIMENTS[exp].base * (BODY_SCI[b.id
 function subjectLeft(s, id, cap) { return cap * (1 - (s.sci[id] || 0)); }
 function subjectLabel(exp, b, sit, bio) { return `${EXPERIMENTS[exp].name} · ${sitText(sit, b, bio)}`; }
 
-function canRun(p, b, sit) {
-  const e = EXPERIMENTS[p.def.exp];
-  if (!e || p.result || p.spent) return false;
-  if (e.sits && !e.sits.includes(sit)) return false;
-  if (p.def.exp === 'sniffer' && !b.atmo) return false;
+function expWorks(exp, b, sit) {
+  const e = EXPERIMENTS[exp];
+  if (!e || (e.sits && !e.sits.includes(sit))) return false;
+  if (exp === 'sniffer' && !b.atmo) return false;
   if (b.star && (sit === 'landed' || sit === 'splashed')) return false;
   return true;
 }
+function canRun(p, b, sit) {
+  if (!EXPERIMENTS[p.def.exp] || p.result || p.spent) return false;
+  return expWorks(p.def.exp, b, sit);
+}
+
+/* An astronaut collects a result and carries it (in p.held); one per subject. */
+function collectResult(s, p, exp, b, sit, bio) {
+  const id = subjectId(exp, b, sit, bio);
+  p.held = p.held || [];
+  if (!expWorks(exp, b, sit) || p.held.some((r) => r.id === id)) return null;
+  const cap = subjectCap(exp, b, sit);
+  const r = { id, exp, body: b.id, sit, biome: bio || null, cap, label: subjectLabel(exp, b, sit, bio) };
+  p.held.push(r);
+  return { value: subjectLeft(s, id, cap), result: r };
+}
+function transmitHeld(s, p, i) {
+  const r = (p.held || [])[i];
+  if (!r) return null;
+  p.held.splice(i, 1);
+  return { gain: creditResult(s, r, TRANSMIT_FRACTION), result: r };
+}
+/* Every result a part has: its own experiment's, and any carried ones. */
+function partResults(p) { return (p.result ? [p.result] : []).concat(p.held || []); }
 
 /* Run the experiment on part p; stores the result on the part. */
 function runExperiment(s, p, b, sit, bio) {

@@ -55,6 +55,10 @@ then visit http://localhost:8000.
   off-centre thrust torque, side-booster separation, RCS translation, atmospheric drag, fin stability,
   reaction wheels and engine gimbal, parachutes (a main canopy that opens fully too fast tears off; drogues don't), air brakes,
   terrain and oceans, crash and landing detection.
+- **Spacewalks**: press J to send an astronaut outside. In space they fly with a small jetpack (Q/E, H/N) and turn with A/D;
+  on the ground they walk (A/D) and hop (Space). They can plant a flag (L), which stays as a marker in the Tracking Station and
+  earns a milestone, and collect spacewalk reports and surface samples (B), carrying the results until they climb back into any
+  capsule or cabin with a free seat (J near its hatch, or right beside a landed craft). Sandbox flights carry a guest astronaut.
 - **Biomes**: every world with ground is split into named regions (Verdan has the Space Centre, Grasslands, Badlands, Desert,
   Tundra, Forests, Mountains, Shores and Seas; Pallid has a Great Crater, Highlands, Dark Maria and more). The HUD shows the biome
   below you, map view rings each world with its biomes, science taken landed, splashed down or flying low counts once per biome,
@@ -105,6 +109,8 @@ then visit http://localhost:8000.
 | K | Brakes: air brakes out, wheel brakes on (again to release) |
 | G | Landing gear up / down |
 | ↑ / ↓ (rover on the ground) | Drive forward / back |
+| J | Spacewalk: climb out, or climb back in near a hatch |
+| A / D, Space, L (on a spacewalk) | Walk, hop, plant a flag |
 | B | Science panel (career) |
 | M | Map view (F changes focus) |
 | Drag on the map | Pan around (a click without dragging adds a node, targets a vessel or focuses a planet) |
@@ -125,7 +131,7 @@ node tests/run.js
 
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
-career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), power and shadows, reentry heating with and
+career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers
@@ -142,6 +148,7 @@ hangar (building onto them, putting them back, and keeping them out of launches)
 - `js/navigation.js`: manoeuvre nodes, targets, transfer windows and the Δv map
 - `js/universe.js`: saved vessels, on-rails motion, crew aboard, rescue capsules
 - `js/docking.js`: docking ports, merging and undocking craft
+- `js/eva.js`: spacewalks, flags and boarding
 - `js/sound.js`: synthesised audio
 - `js/tutorials.js`: guided missions
 - `js/flight.js`: simulation loop, time warp, camera, map view, HUD
