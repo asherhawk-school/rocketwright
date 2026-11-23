@@ -368,6 +368,7 @@ function onKeyDown(e) {
     case 'Space': if (F.kind === 'eva') evaHop(); else doStage(); break;
     case 'KeyJ': evaKey(); break;
     case 'KeyC': toggleAlarms(); break;
+    case 'KeyY': tipOntoWheels(); break;
     case 'KeyI': deployStation(); break;
     case 'KeyL': if (F.kind === 'eva') plantFlag(); else toggleLights(); break;
     case 'KeyM': toggleMap(); break;
@@ -448,6 +449,7 @@ function wireUi() {
   $('alarmList').addEventListener('click', alarmClick);
   $('bFlag').addEventListener('click', plantFlag);
   $('bDeploy').addEventListener('click', deployStation);
+  $('bTip').addEventListener('click', tipOntoWheels);
   $('bBrakes').addEventListener('click', toggleBrakes);
   $('bMap').addEventListener('click', toggleMap);
   $('bMenu').addEventListener('click', openMenu);

@@ -27,7 +27,7 @@ function initFlightView() {
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hBiome', 'hBiomeRow', 'hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
     'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bGear', 'bBrakes', 'bQSave', 'bQLoad', 'bRcs', 'hNext', 'hPitch',
-    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag', 'fOre', 'fOreRow', 'hSig', 'hSigRow', 'crewPanel', 'alarmPanel', 'alarmList', 'bAlarm', 'bDeploy']) F.hud[id] = document.getElementById(id);
+    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag', 'fOre', 'fOreRow', 'hSig', 'hSigRow', 'crewPanel', 'alarmPanel', 'alarmList', 'bAlarm', 'bDeploy', 'bTip']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
 }
@@ -76,7 +76,13 @@ function flightStart(design, name, opts = {}) {
 
 /* Lay a plane or rover on the runway, wheels down, nose pointing east along it. */
 function placeOnRunway(c) {
-  // the side with the most wheels is the underside; mirror the craft so that's +x (which points down)
+  layOnWheels(c, HOME, PAD_PHI - RUNWAY_START - 30 / HOME.R, 0);
+}
+
+/* Lay a craft down on its wheels at angle phi on body b (the runway at launch, or a rover that has landed
+   standing up somewhere else). The side with the most wheels becomes the underside. */
+function layOnWheels(c, b, phi, t) {
+  // mirror the craft if needed so the wheel side is +x (which points down)
   let side = 0;
   for (const w of c.wheels) side += Math.sign(wheelPoint(w)[0] - c.xc);
   if (side < 0) {
@@ -87,12 +93,32 @@ function placeOnRunway(c) {
   let down = -Infinity;
   for (const w of c.wheels) if (!w.gearUp) down = Math.max(down, wheelPoint(w)[0] - c.xc);
   for (const [lx] of c.contacts) down = Math.max(down, lx - c.xc);
-  const phi = PAD_PHI - RUNWAY_START - 30 / HOME.R;
-  const r = HOME.R + terrainH(HOME, phi) + down + 0.01;
+  // clear the highest ground under the whole length of the craft
+  let g = -Infinity;
+  for (let k = -4; k <= 4; k++) g = Math.max(g, groundAlt(b, phi + (k / 4) * (c.length / 2 + 1) / b.R));
+  const r = b.R + g + down + 0.01, bp = bodyPos(b, t), bv = bodyVel(b, t);
   c.angle = phi - Math.PI / 2;
-  c.pos = [r * Math.cos(phi), r * Math.sin(phi)];
-  c.vel = [0, 0];
-  c.landed = { body: HOME, rx: c.pos[0], ry: c.pos[1], wheels: c.wheels.some((w) => !w.gearUp) };
+  c.angVel = 0;
+  c.pos = [bp[0] + r * Math.cos(phi), bp[1] + r * Math.sin(phi)];
+  c.vel = [bv[0], bv[1]];
+  c.landed = { body: b, rx: r * Math.cos(phi), ry: r * Math.sin(phi), wheels: c.wheels.some((w) => !w.gearUp) };
+}
+
+/* Y: a rover that landed standing up (or fell over) gets tipped onto its wheels where it is. */
+function canTip(c) { return !!(c && !c.dead && c.landed && !c.landed.wheels && c.motors && c.motors.length && c.wheels.some((w) => !w.gearUp)); }
+function tipOntoWheels() {
+  const c = F.craft;
+  if (!canTip(c)) {
+    flash(c.landed && c.landed.wheels ? 'Already on its wheels' : c.motors && c.motors.length ? 'Land first: tipping onto the wheels works on the ground' : 'Only craft with rover wheels can do this', 2.5);
+    return;
+  }
+  const b = c.landed.body, bp = bodyPos(b, F.t);
+  layOnWheels(c, b, Math.atan2(c.pos[1] - bp[1], c.pos[0] - bp[0]), F.t);
+  F.hold = null;
+  F.dvTick = 0;
+  playSound('stage');
+  logEvent(`Tipped onto its wheels on ${b.name}`);
+  flash('On its wheels · ↑/↓ drive, K brakes', 3);
 }
 
 function newVesselId() {
@@ -284,12 +310,13 @@ function separatePiece(c, comp, dec) {
   const dx = cx - c.xc, dy = cy - c.yc;
   const side = dec.def.radial || Math.abs(dx) > 0.6;
   const dir = side ? [Math.sign(dx) || 1, -0.15] : [0, Math.sign(dy) || -1];
-  const push = side ? 3 : 1.5;
+  // on the ground, let go gently (so a rover dropped off beside its lander isn't flung over)
+  const push = c.landed ? 0.4 : side ? 3 : 1.5;
   const wv = c.rotLocal(dir[0] * push, dir[1] * push);
   const share = m / (m + c.M);
   d.vel = [c.vel[0] + wv[0] * (1 - share), c.vel[1] + wv[1] * (1 - share)];
   if (!c.landed) { c.vel[0] -= wv[0] * share; c.vel[1] -= wv[1] * share; }
-  d.angVel = c.angVel + (side ? -(Math.sign(dx) || 1) * 0.25 : (Math.random() - 0.5) * 0.06);
+  d.angVel = c.landed ? 0 : c.angVel + (side ? -(Math.sign(dx) || 1) * 0.25 : (Math.random() - 0.5) * 0.06);
   d.throttle = 0;
   d.landed = null;
   if (comp.some((p) => p.def.pod || p.def.probe || p.def.asteroid)) {
@@ -1401,6 +1428,7 @@ function checkMilestones(b) {
 
 function onTouchdown(b, water, speed) {
   if (F.kind === 'eva') return; // an astronaut's hops don't count as landings
+  if (canTip(F.craft)) setTimeout(() => flash('Rover down! Press Y (or "On wheels") to tip it onto its wheels', 5), 1500);
   const c0 = F.craft, bp0 = bodyPos(b, F.t), bio = biomeAt(b, Math.atan2(c0.pos[1] - bp0[1], c0.pos[0] - bp0[0]));
   flash(`${water ? 'Splashdown' : 'Touchdown'} on ${b.name}${bio ? ` (${bio})` : ''} at ${speed.toFixed(1)} m/s`, 4);
   logEvent(`${water ? 'Splashed down' : 'Landed'} on ${b.name}${bio ? ` in the ${bio}` : ''} at ${speed.toFixed(1)} m/s`);
@@ -2042,6 +2070,7 @@ function updateHud() {
     h.bEva.classList.toggle('on', F.kind === 'eva' && !!boardTarget());
   }
   h.bFlag.classList.toggle('hidden', !(F.kind === 'eva' && c.landed && !c.dead));
+  h.bTip.classList.toggle('hidden', !canTip(c));
   h.bDeploy.classList.toggle('hidden', !(F.kind === 'eva' && c.landed && !c.dead && c.parts[0].kits));
   h.bBrakes.classList.toggle('on', !!(c.wheelBrake || c.brakes.some((p) => p.brake)));
   const rel = wrapPi(c.angle - Math.atan2(ry, rx));

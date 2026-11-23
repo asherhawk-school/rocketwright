@@ -766,7 +766,8 @@ function burnSim(c) {
     const present = new Set(c.parts.map((p) => p.uid));
     const det = new Set();
     for (const u of next) { const p = c.byUid.get(u); if (p && p.def.decoupler) for (const q of c.detachedFrom(u, present)) det.add(q); }
-    for (const u of det) { const p = c.byUid.get(u); if (isEngine(p.def) && p.ignited) watchE.push(p); else if (p.def.fuel || p.def.gas) watchT.push(p); }
+    // (empty tanks being dropped, like a rover's frame, don't end the burn)
+    for (const u of det) { const p = c.byUid.get(u); if (isEngine(p.def) && p.ignited) watchE.push(p); else if (p.fuel > 1e-6 || (p.gas || 0) > 1e-6) watchT.push(p); }
   }
   // long, gentle burns (ion drives) take bigger steps
   let flow = 0;
@@ -900,6 +901,25 @@ const PRESETS = {
     attachPart(d, 'roverWheel', body, 'side', 1, 0.8, false);
     attachPart(d, 'solar', body, 'side', -1, 0.15, false);
     attachPart(d, 'antenna', probe, 'side', -1, 0, false);
+    return d;
+  },
+  'Pallid Rover': () => {
+    // the Pallid Lander with a little rover hanging off the lander stage; it drops off after landing (Space), then Y tips it onto its wheels
+    const d = PRESETS['Pallid Lander']();
+    const tank = d.parts.find((p) => p.id === 'tankL').uid;
+    const rd = attachPart(d, 'radDec', tank, 'side', 1, 0.4, false)[0];
+    const core = attachPart(d, 'probe', rd, 'side', 1, 0, false)[0];
+    const bat = attachPart(d, 'batteryDisc', core, 'bottom', 0, 0, false)[0];
+    const body = attachPart(d, 'tankM125', bat, 'bottom', 0, 0, false)[0];
+    setPartCfg(d, body, 'fill', 0);
+    attachPart(d, 'roverWheel', core, 'side', 1, -0.3, false);
+    attachPart(d, 'roverWheel', body, 'side', 1, 0.8, false);
+    attachPart(d, 'solar', body, 'side', -1, 0.1, false);
+    attachPart(d, 'antenna', core, 'side', -1, 0, false);
+    // the rover's decoupler gets a stage of its own, after landing and before the parachute
+    const auto = autoStages(layoutDesign(d)), chute = d.parts.find((p) => p.id === 'chute').uid;
+    auto[rd] = auto[chute] - 0.5;
+    d.stageOf = normalizeStages(auto);
     return d;
   },
   'Pallid Lander': () => {

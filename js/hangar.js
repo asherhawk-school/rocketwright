@@ -112,14 +112,23 @@ function geoPart(uid) {
   return null;
 }
 
+/* Where a design launches from: the runway for planes (jets) and rovers (wheels, no rocket engines), else the pad.
+   A rocket carrying a rover to another world still goes from the pad. */
+function launchSiteFor(d) {
+  if (Hangar.site) return Hangar.site;
+  const defs = d.parts.map((p) => PART_DEFS[p.id]).filter(Boolean);
+  if (!defs.some((x) => x.wheel)) return 'pad';
+  return defs.some((x) => x.jet) || !defs.some((x) => isEngine(x) && !x.jet) ? 'runway' : 'pad';
+}
+
 function hangarChanged() {
   Store.set('current', { name: Hangar.name, design: Hangar.design });
   reanalyze();
   if (Hangar.sel != null && !anyPart(Hangar.design, Hangar.sel)) Hangar.sel = null;
   drawBuild();
   updateStats();
-  // craft on wheels start on the runway unless you pick otherwise
-  $('launchSite').value = Hangar.site || (Hangar.design.parts.some((p) => PART_DEFS[p.id].wheel) ? 'runway' : 'pad');
+  // planes and rovers start on the runway unless you pick otherwise
+  $('launchSite').value = launchSiteFor(Hangar.design);
   $('btnUndo').disabled = !Hangar.undo.length;
   $('btnRedo').disabled = !Hangar.redo.length;
 }
@@ -438,7 +447,7 @@ function drawBuild() {
     }
   }
   // craft with wheels lie on that side on the runway: show where the ground will be
-  if (craft && craft.wheels.length && !turned) {
+  if (craft && craft.wheels.length && !turned && launchSiteFor(Hangar.design) === 'runway') {
     let n = 0, far = 0;
     for (const w of craft.wheels) { const s = w.flip ? -1 : 1; n += s; far = Math.max(far, Math.abs(wheelPoint(w)[0] - craft.xc) + w.def.wheelR); }
     const s = n < 0 ? -1 : 1, gx = craft.xc + s * far, b = craft.bounds;
@@ -822,7 +831,7 @@ function wireHangar() {
   $('selSaveSec').addEventListener('click', () => { if (Hangar.sel != null) saveSection(Hangar.sel); });
   $('crewSelect').addEventListener('change', (e) => { Hangar.crewId = +e.target.value; });
   $('crewCount').addEventListener('change', (e) => { Hangar.crewN = +e.target.value; });
-  $('launchSite').addEventListener('change', (e) => { Hangar.site = e.target.value; e.target.blur(); });
+  $('launchSite').addEventListener('change', (e) => { Hangar.site = e.target.value; e.target.blur(); drawBuild(); });
   $('btnUndo').addEventListener('click', undo);
   $('btnRedo').addEventListener('click', redo);
   $('btnSym').addEventListener('click', () => setSymmetry(!Hangar.sym));

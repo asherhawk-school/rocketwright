@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'alarms.js', 'crew.js', 'asteroids.js', 'anomalies.js', 'comms.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange, fireGroup, toggleLights, findGrab, undock, autoStages, asteroidTick, spawnAsteroid, heldRock, diff, completeContract, logEvent, crewMood, separatePiece, addAlarm, alarmList, alarmClip, nextAlarm, alarmPresets, removeAlarm, surveySites, nearestSite, touristGoalMet, availableCrew, waitingTourists, rosterSize, canEva, labStep, labAnalyse, labSkill, deployStation, stationTick, STATION_DAYS, BODY_SCI, ANOMALIES, ANOMALY_BY_ID, anomalyTick, anomalyFound, milestoneName, surfaceMarkers, startStrategy, stopStrategy, hasStrategy, STRATEGIES };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange, fireGroup, toggleLights, findGrab, undock, autoStages, asteroidTick, spawnAsteroid, heldRock, diff, completeContract, logEvent, crewMood, separatePiece, addAlarm, alarmList, alarmClip, nextAlarm, alarmPresets, removeAlarm, surveySites, nearestSite, touristGoalMet, availableCrew, waitingTourists, rosterSize, canEva, labStep, labAnalyse, labSkill, deployStation, stationTick, STATION_DAYS, BODY_SCI, ANOMALIES, ANOMALY_BY_ID, anomalyTick, anomalyFound, milestoneName, surfaceMarkers, startStrategy, stopStrategy, hasStrategy, STRATEGIES, tipOntoWheels, canTip, switchToVessel };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -1960,6 +1960,51 @@ test('wheels on both sides get a warning; a rover with wheels on one side lies o
     }
     assert(c.landed && c.landed.wheels, 'standing on its wheels');
   }
+});
+
+test('on Pallid: a lander drops its rover gently, Y tips it onto its wheels, and it drives', () => {
+  G.Career.s = G.newSave('sandbox', 1);
+  const s = G.Career.s; s.vessels = []; s.vesselSeq = 1;
+  // lander: capsule, tank with legs, engine; the rover hangs off a radial decoupler on the tank
+  const d = G.designFromStack(['pod', 'tankM', 'wren']);
+  const tank = d.parts.find((p) => p.id === 'tankM').uid;
+  G.attachPart(d, 'legs', tank, 'side', 1, 0.6, true);
+  const rd = G.attachPart(d, 'radDec', tank, 'side', 1, 0.1, false)[0];
+  const core = G.attachPart(d, 'probe', rd, 'side', 1, 0, false)[0];
+  const bat = G.attachPart(d, 'batteryDisc', core, 'bottom', 0, 0, false)[0];
+  const body = G.attachPart(d, 'tankM125', bat, 'bottom', 0, 0, false)[0];
+  G.setPartCfg(d, body, 'fill', 0);
+  G.attachPart(d, 'roverWheel', core, 'side', 1, -0.3, false);
+  G.attachPart(d, 'roverWheel', body, 'side', 1, 0.8, false);
+  G.attachPart(d, 'solar', body, 'side', -1, 0.1, false);
+  G.flightStart(d, 'Rover Lander', { t0: 0 });
+  const F = G.F, c = F.craft; F.others = []; F.debris = []; F.tutorial = null;
+  // stand it on Pallid
+  const b = G.MOON, phi = 0.4, bp = G.bodyPos(b, 0);
+  const lowest = Math.min(...c.contacts.map((q) => q[1]));
+  const r = b.R + G.terrainH(b, phi) + (c.yc - lowest) + 0.02;
+  c.angle = phi; c.pos = [bp[0] + r * Math.cos(phi), bp[1] + r * Math.sin(phi)]; c.vel = G.bodyState(b, 0).slice(2, 4);
+  c.landed = { body: b, rx: c.pos[0] - bp[0], ry: c.pos[1] - bp[1] };
+  F.lastBody = b;
+  G.fireDecoupler(c, c.byUid.get(rd));
+  const rover = F.others.find((o) => o.parts.some((p) => p.def.motor));
+  assert(rover, 'the rover is a vessel of its own');
+  steps(400);
+  assert(!rover.dead && rover.landed, 'it came down safely beside the lander');
+  G.switchToVessel(rover.vid);
+  const rv = F.craft;
+  assert(G.canTip(rv), 'standing up: can tip it');
+  G.tipOntoWheels();
+  assert(rv.landed && rv.landed.wheels, 'on its wheels');
+  const p0 = Math.atan2(rv.pos[1] - bp[1], rv.pos[0] - bp[0]);
+  F.keys.ArrowUp = true;
+  for (let i = 0; i < 400; i++) G.flightUpdate(G.PHYS_DT);
+  F.keys.ArrowUp = false;
+  const bp2 = G.bodyPos(b, F.t), p1 = Math.atan2(rv.pos[1] - bp2[1], rv.pos[0] - bp2[0]);
+  assert(!rv.dead && Math.abs(G.wrapPi(p1 - p0)) * b.R > 3, `drove ${(Math.abs(G.wrapPi(p1 - p0)) * b.R).toFixed(1)} m`);
+  // still the right way up: wheels below the body
+  const rr = Math.hypot(rv.pos[0] - bp2[0], rv.pos[1] - bp2[1]);
+  for (const w of rv.wheels) { const wp = rv.toWorld(...G.wheelPoint(w)); assert(Math.hypot(wp[0] - bp2[0], wp[1] - bp2[1]) < rr, 'wheels still underneath'); }
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

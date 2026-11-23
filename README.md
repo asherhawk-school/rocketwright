@@ -80,7 +80,9 @@ then visit http://localhost:8000.
   and powered rover wheels. Wings make lift from the angle they meet the air (and stall when it gets too steep); control surfaces
   pitch the plane with A/D and SAS. Jets only work in air with oxygen (Verdan and Gale), need an intake, and fade at high speed.
   Wheels ride on springy suspension, roll, brake and drive. Craft with wheels start on the **runway** east of the pad (or pick the
-  pad in the hangar). Examples: the Swallow Jet and the Dune Rover.
+  pad in the hangar). Examples: the Swallow Jet and the Dune Rover. To drive on another world, hang a rover off a lander
+  with a radial decoupler (the **Pallid Rover** example does this), drop it after landing, and press Y to tip it onto its
+  wheels. Wheels go on one side only; the hangar marks that side as the ground.
 - **Staging editor**: automatic staging you can reorder by dragging parts between stages (or between two stages to make a new one),
   with simulated Δv, thrust-to-weight and burn time for every stage.
 - **Part settings**: when each parachute opens fully, engine and booster thrust limits, how much fuel each tank carries, and how
@@ -164,6 +166,7 @@ then visit http://localhost:8000.
 | K | Brakes: air brakes out, wheel brakes on (again to release) |
 | G | Landing gear up / down |
 | ↑ / ↓ (rover on the ground) | Drive forward / back |
+| Y | Tip a rover that's standing up onto its wheels |
 | J | Spacewalk: climb out, or climb back in near a hatch |
 | A / D, Space, L (on a spacewalk) | Walk, hop, plant a flag |
 | L | Lights on / off (plant a flag on a spacewalk) |
