@@ -19,9 +19,50 @@ function newSave(mode, seed) {
     tech: ['start'], contracts: [], contractSeq: 1, rng: (seed >>> 0) || 0x9e3779b9,
     crew: [], hired: 0, sci: {}, milestones: {}, created: Date.now(), flights: 0,
   };
-  if (mode === 'career') for (let i = 0; i < 3; i++) hireCrew(s, true);
+  s.levels = Object.fromEntries(Object.keys(FACILITIES).map((k) => [k, mode === 'career' ? 1 : 3]));
+  if (mode === 'career') for (const r of ROLE_ORDER) hireCrew(s, true, r);
   return s;
 }
+/* Bring an older save up to date: roles for astronauts, and building levels (older careers start at level 2). */
+function migrateSave(s) {
+  for (const c of s.crew || []) if (!c.role) c.role = ROLE_ORDER[(c.id - 1) % 3];
+  if (!s.levels) s.levels = Object.fromEntries(Object.keys(FACILITIES).map((k) => [k, s.mode === 'career' ? 2 : 3]));
+  return s;
+}
+
+/* ---------- Space Centre buildings ----------
+   Each has three levels. Upgrading costs money and lifts a limit. Sandbox games have everything at level 3. */
+const FACILITIES = {
+  hangar: { name: 'Hangar', icon: '🚀', costs: [40000, 220000], limit: [30, 255, Infinity], what: (x) => isFinite(x) ? `Craft of up to ${x} parts` : 'No part limit' },
+  pad: { name: 'Launch Pad & Runway', icon: '🛫', costs: [50000, 280000], limit: [18, 140, Infinity], what: (x) => isFinite(x) ? `Craft up to ${x} t` : 'No mass limit' },
+  mission: { name: 'Mission Control', icon: '📋', costs: [30000, 180000], limit: [2, 7, 20], what: (x) => `${x} active contracts` },
+  tracking: { name: 'Tracking Station', icon: '🛰️', costs: [35000, 200000], limit: [8, 9, 10],
+    what: (x, lv) => `${lv < 2 ? 'No manoeuvre nodes' : 'Manoeuvre nodes'} · time warp up to ${fmtNum(WARP_STEPS[x])}×` },
+  astro: { name: 'Astronaut Office', icon: '👩‍🚀', costs: [20000, 120000], limit: [5, 12, Infinity], what: (x) => isFinite(x) ? `Up to ${x} astronauts` : 'Any number of astronauts' },
+  lab: { name: 'Research Lab', icon: '🔬', costs: [30000, 200000], limit: [100, 300, Infinity], what: (x) => isFinite(x) ? `Research nodes costing up to ⚗ ${x}` : 'Research any node' },
+};
+const WARP_STEPS = [1, 2, 3, 4, 10, 50, 100, 1000, 10000, 100000, 1000000];
+function facLevel(s, id) { return !s || s.mode !== 'career' ? 3 : (s.levels && s.levels[id]) || 1; }
+function facLimit(s, id) { return FACILITIES[id].limit[facLevel(s, id) - 1]; }
+function upgradeCost(s, id) { const lv = facLevel(s, id); return lv >= 3 ? null : FACILITIES[id].costs[lv - 1]; }
+function upgradeFacility(s, id) {
+  const cost = upgradeCost(s, id);
+  if (cost == null) return 'Already fully upgraded';
+  if (s.funds < cost) return `Needs ${fmtFunds(cost)}`;
+  s.funds -= cost;
+  s.levels = s.levels || {};
+  s.levels[id] = facLevel(s, id) + 1;
+  return null;
+}
+
+/* ---------- astronaut roles ---------- */
+const ROLES = {
+  pilot: { name: 'Pilot', icon: '🧭', desc: 'Unlocks SAS modes as they gain rank: prograde and retrograde, then radial and manoeuvre, then target.' },
+  engineer: { name: 'Engineer', icon: '🔧', desc: 'Repacks used or torn parachutes once you\'re down, and runs drills and converters better.' },
+  scientist: { name: 'Scientist', icon: '🧪', desc: 'Resets used experiments so they can be run again, and adds to the science you collect.' },
+};
+const ROLE_ORDER = ['pilot', 'engineer', 'scientist'];
+const roleOf = (c) => (c && c.role) || 'pilot';
 
 const isCareer = () => !!(Career.s && Career.s.mode === 'career');
 function setSave(s) {
@@ -38,7 +79,7 @@ function persist() {
 }
 function loadSave() {
   const s = Store.get('save', null);
-  Career.s = s && s.v === SAVE_VERSION ? s : null;
+  Career.s = s && s.v === SAVE_VERSION ? migrateSave(s) : null;
   // tidy up after a game that was closed mid-flight
   if (Career.s && !(typeof F !== 'undefined' && F.running) && typeof restoreCheckpoint === 'function') {
     const cp = restoreCheckpoint(Career.s);
@@ -102,11 +143,15 @@ function recoveryFactor(phi, water) {
 /* ---------- crew ---------- */
 
 function hireCost(s) { return 8000 + 4000 * Math.max(0, s.hired - 3); }
-function hireCrew(s, free) {
+function hireCrew(s, free, role) {
   const used = new Set(s.crew.map((c) => c.name));
   const name = CREW_POOL.find((n) => !used.has(n)) || `Recruit ${s.crew.length + 1}`;
-  if (!free) { if (s.funds < hireCost(s)) return null; s.funds -= hireCost(s); }
-  const c = { id: s.crew.length + 1, name, status: 'available', flights: 0, worlds: [] };
+  if (!free) {
+    if (s.crew.filter((c) => c.status !== 'lost').length >= facLimit(s, 'astro')) return null;
+    if (s.funds < hireCost(s)) return null;
+    s.funds -= hireCost(s);
+  }
+  const c = { id: s.crew.length + 1, name, role: ROLES[role] ? role : ROLE_ORDER[s.crew.length % 3], status: 'available', flights: 0, worlds: [] };
   s.crew.push(c);
   s.hired++;
   return c;

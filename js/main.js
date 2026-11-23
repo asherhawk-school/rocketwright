@@ -27,6 +27,8 @@ function launchDesign(design, name, crewId, crewN = 1, site = 'pad') {
     const cost = designCost(design);
     if (lockedParts(design).length) { toast('This design uses parts you have not researched'); return; }
     if (s.funds < cost) { toast(`Not enough funds: this rocket costs ${fmtFunds(cost)}`); return; }
+    if (design.parts.length > facLimit(s, 'hangar')) { toast('Too many parts for the Hangar. Upgrade it first.'); return; }
+    if (analyzeDesign(design).mass > facLimit(s, 'pad')) { toast('Too heavy for the launch pad. Upgrade it first.'); return; }
     const seats = designSeats(design);
     if (seats > 0) {
       const lead = s.crew.find((c) => c.id === crewId && c.status === 'available') || availableCrew(s)[0];
@@ -60,6 +62,7 @@ function launchDesign(design, name, crewId, crewN = 1, site = 'pad') {
     const pod = F.craft.parts.find((q) => q.def.seats);
     F.crew = [{ name: CREW_POOL[Math.floor(Math.random() * CREW_POOL.length)], guest: true, pod: pod.uid }];
   }
+  updateSasButtons();
 }
 
 /* End the flight: bring the clock forward, and either bring the crew home (recovered) or leave the
@@ -262,7 +265,7 @@ function recover() {
   const sciLines = [];
   for (const p of c.parts) {
     for (const r of partResults(p)) {
-      const g = creditResult(s, r, 1);
+      const g = creditResult(s, r, 1, scienceBonus(s, F.crew));
       sci += g;
       sciLines.push(`<li>${esc(r.label)} · +${g.toFixed(1)} ⚗</li>`);
       flightEvent({ kind: 'science', body: BODY_BY_ID[r.body], sit: r.sit, biome: r.biome });

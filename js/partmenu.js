@@ -92,6 +92,7 @@ function partActions(c, p) {
     } else if (canRun(p, b, sit)) a.push(['run', `Run (${subjectLeft(Career.s, subjectId(d.exp, b, sit, sciBiome(c, b, F.t, sit)), subjectCap(d.exp, b, sit)).toFixed(1)} ⚗)`]);
   }
   if (d.chute && !p.open && !p.torn) a.push(['chute', d.drogue ? 'Deploy drogue' : 'Deploy parachute']);
+  if (d.chute && (p.open || p.torn) && c.landed && crewHasRole('engineer')) a.push(['repack', 'Repack (engineer)']);
   if (d.fairing && p.shell) a.push(['fairing', 'Open fairing']);
   if (d.inflate && !p.inflated) a.push(['inflate', 'Inflate shield']);
   if (d.brakeArea) a.push(['brake', p.brake ? 'Stow air brakes' : 'Deploy air brakes']);
@@ -138,6 +139,7 @@ function partMenuAction(kind) {
   const c = F.craft, p = c.byUid.get(PM.uid);
   if (!p) return;
   if (kind === 'run' || kind === 'tx' || kind === 'drop') scienceAction(kind, p.uid);
+  else if (kind === 'repack') { p.open = false; p.torn = false; p.area = 0; c.chuteOpen = c.chutes.some((q) => q.open); c.recompute(); flash(`${shortName(p.def)} repacked and ready`, 2); }
   else if (kind === 'chute') { p.open = true; c.chuteOpen = true; playSound('chute'); flash(`${shortName(p.def)} deployed`, 2); }
   else if (kind === 'fairing') { p.shell = false; jettisonFairing(c, p); playSound('stage'); flash('Fairing open', 2); }
   else if (kind === 'inflate') { p.inflated = true; c.recompute(); playSound('chute'); flash('Heat shield inflated', 2); }

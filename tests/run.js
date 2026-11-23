@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -1331,6 +1331,75 @@ test('sandbox flights carry a guest astronaut for spacewalks; gas giants and den
   F.craft.q = 5;
   G.goEva();
   assert(F.kind !== 'eva', 'hatch stays shut in dense air');
+});
+
+console.log('\nAstronaut roles and Space Centre upgrades');
+test('a new career has a pilot, an engineer and a scientist, and level-1 buildings; sandbox is fully upgraded', () => {
+  const s = G.newSave('career', 4);
+  assert(s.crew.map((c) => c.role).join() === 'pilot,engineer,scientist', 'roles');
+  assert(Object.values(s.levels).every((l) => l === 1), 'level 1');
+  const sb = G.newSave('sandbox', 4);
+  assert(G.facLevel(sb, 'hangar') === 3 && G.facLimit(sb, 'pad') === Infinity, 'sandbox level 3');
+});
+test('older saves get roles, and older careers start with level-2 buildings', () => {
+  const old = { v: 1, mode: 'career', crew: [{ id: 1, name: 'A' }, { id: 2, name: 'B' }, { id: 3, name: 'C' }, { id: 4, name: 'D' }] };
+  G.migrateSave(old);
+  assert(old.crew.map((c) => c.role).join() === 'pilot,engineer,scientist,pilot', 'roles filled');
+  assert(G.facLevel(old, 'mission') === 2 && G.facLimit(old, 'hangar') === 255, 'level 2');
+});
+test('upgrades cost money and lift limits: contracts, research, astronauts and parts', () => {
+  const s = G.newSave('career', 8);
+  assert(G.maxActive(s) === 2, 'two contracts at level 1');
+  s.science = 1000;
+  s.tech.push('general', 'advanced', 'fuelsys');
+  assert(/Research Lab/.test(G.research(s, 'heavy')), 'lab too small for a 120-science node');
+  s.funds = 1e6;
+  assert(G.upgradeFacility(s, 'lab') === null && G.facLevel(s, 'lab') === 2, 'lab upgraded');
+  assert(G.research(s, 'heavy') === null, 'now it can research it');
+  assert(G.upgradeFacility(s, 'mission') === null && G.maxActive(s) === 7, 'more contracts');
+  const before = s.funds;
+  G.upgradeFacility(s, 'mission');
+  assert(before - s.funds === 180000 && G.upgradeFacility(s, 'mission') !== null, 'level 3 is the top');
+  s.funds = 1e6;
+  while (s.crew.length < 5) assert(G.hireCrew(s, false, 'engineer'), 'hire up to five');
+  assert(G.hireCrew(s, false, 'engineer') === null, 'office full at five');
+  s.funds = 10;
+  assert(G.upgradeFacility(s, 'astro') !== null, 'needs money');
+});
+test('pilots unlock SAS modes by rank; probe cores give the basics; tracking level limits warp and nodes', () => {
+  G.Career.s = G.newSave('career', 2);
+  const s = G.Career.s; s.vessels = []; s.vesselSeq = 1;
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Hopper', { t0: 0 });
+  const F = G.F; F.tutorial = null;
+  const pod = F.craft.parts.find((p) => p.def.seats);
+  F.crew = [{ id: 2, name: s.crew[1].name, pod: pod.uid }]; // the engineer
+  assert(G.sasAllowed('stab') && !G.sasAllowed('pro'), 'engineer: hold only');
+  F.crew = [{ id: 1, name: s.crew[0].name, pod: pod.uid }]; // the pilot, rank 0
+  assert(G.sasAllowed('pro') && !G.sasAllowed('radout'), 'new pilot: prograde');
+  s.crew[0].flights = 4;
+  assert(G.sasAllowed('node') && G.sasAllowed('tgt'), 'experienced pilot: everything');
+  G.flightStart(G.PRESETS['Comms Probe'](), 'Probe', { t0: 0 });
+  F.crew = [];
+  assert(G.sasAllowed('retro') && !G.sasAllowed('node'), 'probe core: prograde and retrograde');
+  assert(G.maxWarp() === 8 && !G.nodesAllowed(), 'level-1 tracking: 10,000× and no nodes');
+  s.levels.tracking = 2;
+  assert(G.maxWarp() === 9 && G.nodesAllowed(), 'level 2');
+  G.Career.s = G.newSave('sandbox', 1);
+  assert(G.sasAllowed('tgt') && G.maxWarp() === 10, 'sandbox has everything');
+});
+test('scientists add to science and reset experiments; engineers repack parachutes', () => {
+  G.Career.s = G.newSave('career', 6);
+  const s = G.Career.s; s.vessels = []; s.vesselSeq = 1;
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Hopper', { t0: 0 });
+  const F = G.F, c = F.craft, pod = c.parts.find((p) => p.def.seats);
+  F.crew = [{ id: 3, name: s.crew[2].name, pod: pod.uid }];
+  assert(G.crewHasRole('scientist') && !G.crewHasRole('engineer'), 'scientist aboard');
+  assert(G.scienceBonus(s, F.crew) > 1.05 && G.scienceBonus(s, [{ id: 1 }]) === 1, 'bonus only from scientists');
+  const chute = c.parts.find((p) => p.def.chute);
+  chute.open = true; chute.area = 100;
+  assert(!G.partActions(c, chute).some((x) => x[0] === 'repack'), 'no engineer, no repack');
+  F.crew = [{ id: 2, name: s.crew[1].name, pod: pod.uid }];
+  assert(G.partActions(c, chute).some((x) => x[0] === 'repack'), 'engineer can repack once down');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -16,7 +16,7 @@ function reachableBodies(s) {
   if (has(['soi_tempest', 'soi_glacis', 'soi_gale', 'soi_ember', 'soi_frost'])) out.push(UMBRA);
   return out;
 }
-const maxActive = (s) => Math.min(8, 3 + Math.floor(Math.max(0, s.rep) / 50));
+const maxActive = (s) => facLimit(s, 'mission');
 
 function validSits(b, s) {
   const out = [];

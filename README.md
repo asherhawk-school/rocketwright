@@ -29,6 +29,13 @@ then visit http://localhost:8000.
   situations), transmit or recover the results, and research a 14-node tech tree. Astronauts gain experience and can be lost.
   Reverting a flight undoes it; a **quick save** (F5) lets you return to any moment of a flight (F9) as many times as you like;
   saves can be exported and imported. **Sandbox mode** unlocks everything with no money.
+- **Astronaut roles**: every astronaut is a pilot, engineer or scientist. Pilots unlock SAS modes as they gain rank
+  (prograde and retrograde, then radial and manoeuvre, then target; probe cores give hold, prograde and retrograde).
+  Engineers repack used parachutes once you've landed. Scientists reset used experiments and add 10% or more to the science
+  you bring in. Hire the role you need in the Astronaut Office.
+- **Space Centre upgrades**: every building starts at level 1 in career and can be upgraded twice: the Hangar (part count),
+  Launch Pad and Runway (mass), Mission Control (active contracts), Tracking Station (manoeuvre nodes and faster time warp),
+  Astronaut Office (crew size) and Research Lab (pricier research). Older careers start at level 2; sandbox is fully upgraded.
 - **Hangar**: drag 90 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS, plus engine mounts
@@ -131,7 +138,7 @@ node tests/run.js
 
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
-career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), power and shadows, reentry heating with and
+career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers

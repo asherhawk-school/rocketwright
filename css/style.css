@@ -386,3 +386,13 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
 .mtable td.na { color: #2c3547; font-size: 12px; }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 .enc b { white-space: normal; text-align: right; }
+
+/* SAS modes this crew can't use yet */
+#sasBtns button.locked { opacity: 0.35; }
+/* Space Centre upgrades and astronaut roles */
+.fac-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.fac-ico { font-size: 26px; width: 36px; text-align: center; }
+.fac-main { flex: 1; min-width: 0; }
+.fac-next { color: #7dffa8; font-size: 13px; }
+.role-help { display: grid; gap: 4px; margin: 10px 0; font-size: 13px; }
+@media (max-width: 520px) { .fac-row { flex-wrap: wrap; } .fac-row button { width: 100%; } }

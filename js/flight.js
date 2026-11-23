@@ -302,13 +302,33 @@ function separatePiece(c, comp, dec) {
   }
 }
 
+/* SAS modes come in tiers. In career, a probe core gives the first two; pilots give more as they gain rank. */
+const SAS_TIERS = [['off', 'stab'], ['pro', 'retro'], ['radout', 'radin', 'node'], ['tgt', 'kill']];
+function sasLevel(c) {
+  if (!isCareer() || F.tutorial) return 3;
+  let lv = c && c.hasProbe ? 1 : 0;
+  for (const x of F.crew || []) {
+    const cm = x.id && Career.s.crew.find((k) => k.id === x.id);
+    if (cm && roleOf(cm) === 'pilot') lv = Math.max(lv, Math.min(3, crewRank(cm) + 1));
+  }
+  return lv;
+}
+function sasAllowed(mode, c = F.craft) { const lv = sasLevel(c); return SAS_TIERS.slice(0, lv + 1).some((t) => t.includes(mode)); }
 function setSas(mode) {
+  if (!sasAllowed(mode)) {
+    const tier = SAS_TIERS.findIndex((t) => t.includes(mode));
+    flash(`That SAS mode needs a pilot of rank ${tier - 1}${tier <= 1 ? ' or a probe core' : ''} aboard`, 3);
+    return;
+  }
   F.sas = mode;
   F.hold = null;
   updateSasButtons();
 }
 function updateSasButtons() {
-  document.querySelectorAll('#sasBtns button').forEach((b) => b.classList.toggle('on', b.dataset.sas === F.sas));
+  document.querySelectorAll('#sasBtns button').forEach((b) => {
+    b.classList.toggle('on', b.dataset.sas === F.sas);
+    b.classList.toggle('locked', !sasAllowed(b.dataset.sas));
+  });
 }
 
 function changeWarp(dir) {
@@ -317,6 +337,7 @@ function changeWarp(dir) {
     if (n >= WARPS.length) return;
     if (!warpAllowed(n)) {
       const c = F.craft;
+      if (n > maxWarp()) { flash(`Upgrade the Tracking Station for ${fmtNum(WARPS[n])}× warp`, 2); return; }
       flash(c.isThrusting() ? 'Cut the throttle (X) before time warping' : `Too low for ${WARPS[n]}× warp`, 2);
       return;
     }
@@ -327,7 +348,14 @@ function changeWarp(dir) {
   F.acc = 0;
 }
 
+function maxWarp() { return isCareer() && !F.tutorial ? facLimit(Career.s, 'tracking') : WARPS.length - 1; }
+function nodesAllowed() {
+  if (!isCareer() || F.tutorial || facLevel(Career.s, 'tracking') >= 2) return true;
+  flash('Upgrade the Tracking Station to plan manoeuvre nodes', 3);
+  return false;
+}
 function warpAllowed(idx) {
+  if (idx > maxWarp()) return false;
   if (idx <= 3) return true;
   const c = F.craft;
   if (c.dead) return true;
@@ -925,6 +953,12 @@ function describeEvent(e, now) {
 /* ---------------- career hooks ---------------- */
 
 /* Let active contracts look at what just happened. */
+/* Is someone with this role aboard the craft being flown (career only; sandbox crews can do everything)? */
+function crewHasRole(role) {
+  if (!isCareer()) return true;
+  return (F.crew || []).some((x) => { const cm = x.id && Career.s.crew.find((k) => k.id === x.id); return cm && roleOf(cm) === role; });
+}
+
 function flightEvent(ev) {
   if (!isCareer()) return;
   const done = checkContracts(Career.s, ev);
@@ -985,7 +1019,10 @@ function renderSciencePanel() {
       status = `Holding: ${sitText(p.result.sit, BODY_BY_ID[p.result.body], p.result.biome).replace(/^./, (x) => x.toLowerCase())} · ${left.toFixed(1)} ⚗ if recovered`;
       if (antenna) btns.push(['tx', `Transmit ${(left * TRANSMIT_FRACTION).toFixed(1)}`, false]);
       btns.push(['drop', 'Discard', false]);
-    } else if (p.spent) status = 'Used. Recover it to reset.';
+    } else if (p.spent) {
+      status = crewHasRole('scientist') ? 'Used. Your scientist can reset it.' : 'Used. Recover it, or bring a scientist to reset it.';
+      if (crewHasRole('scientist')) btns.push(['reset', 'Reset', false]);
+    }
     else if (canRun(p, b, sit)) {
       const v = subjectLeft(s, subjectId(p.def.exp, b, sit, bio), subjectCap(p.def.exp, b, sit));
       status = v < 0.05 ? 'Nothing new to learn here' : `Worth ${v.toFixed(1)} ⚗ here`;
@@ -1026,7 +1063,7 @@ function scienceAction(kindArg, uid) {
     const r = collectResult(s, p, arg, b, sit, sciBiome(c, b, F.t, sit));
     if (r) flash(`${EXPERIMENTS[arg].name}: collected (${r.value.toFixed(1)} ⚗ if recovered)`, 3);
   } else if (kind === 'htx') {
-    const r = transmitHeld(s, p, +arg);
+    const r = transmitHeld(s, p, +arg, scienceBonus(s, F.crew));
     if (r) {
       toast(`Transmitted ${EXPERIMENTS[r.result.exp].name}: +${r.gain.toFixed(1)} science`);
       flightEvent({ kind: 'science', body: BODY_BY_ID[r.result.body], sit: r.result.sit, biome: r.result.biome });
@@ -1040,12 +1077,14 @@ function scienceAction(kindArg, uid) {
     const r = runExperiment(s, p, b, sit, sciBiome(c, b, F.t, sit));
     flash(`${EXPERIMENTS[p.def.exp].name}: result stored (${r.value.toFixed(1)} ⚗ if recovered)`, 3);
   } else if (kind === 'tx') {
-    const r = transmit(s, p);
+    const r = transmit(s, p, scienceBonus(s, F.crew));
     if (r) {
       toast(`Transmitted ${EXPERIMENTS[r.result.exp].name}: +${r.gain.toFixed(1)} science`);
       flightEvent({ kind: 'science', body: BODY_BY_ID[r.result.body], sit: r.result.sit, biome: r.result.biome });
       persist();
     }
+  } else if (kind === 'reset') {
+    if (crewHasRole('scientist')) { p.spent = false; flash(`${EXPERIMENTS[p.def.exp].name} reset by your scientist`, 2); }
   } else if (kind === 'drop') {
     if (p.result && EXPERIMENTS[p.result.exp].oneShot) p.spent = true;
     p.result = null;
@@ -1137,7 +1176,7 @@ function addNodeAt(which) {
   const o = F.orbit;
   if (!o) return;
   const dt = which === 'ap' ? o.tAp : o.tPe;
-  if (!isFinite(dt)) return;
+  if (!isFinite(dt) || !nodesAllowed()) return;
   F.node = makeNode(F.t + Math.max(dt, 5));
   F.predTick = 0;
   if (!F.map) F.map = true;
@@ -1205,7 +1244,7 @@ function mapTap(sx, sy) {
     const d = Math.hypot(sx - p.x, sy - p.y);
     if (d < bd && p.t > F.t + 5) { bd = d; best = p; }
   }
-  if (best && !F.craft.dead && !F.craft.landed) {
+  if (best && !F.craft.dead && !F.craft.landed && nodesAllowed()) {
     F.node = makeNode(best.t);
     F.predTick = 0;
     flash('Node added: drag its handles or use the panel to plan the burn', 3);

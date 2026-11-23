@@ -53,6 +53,7 @@ function research(s, id) {
   const st = techState(s, n);
   if (st === 'done') return 'Already researched';
   if (st === 'locked') return 'Research the earlier nodes first';
+  if (n.cost > facLimit(s, 'lab')) return `Upgrade the Research Lab to research nodes costing more than ⚗ ${facLimit(s, 'lab')}`;
   if (s.science < n.cost) return `Needs ${n.cost} science`;
   s.science = Math.round((s.science - n.cost) * 10) / 10;
   s.tech.push(id);

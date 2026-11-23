@@ -600,6 +600,9 @@ function updateStats() {
     const extra = [];
     if (locked.length) extra.push({ lvl: 'err', text: `Uses parts you haven't researched: ${locked.map((id) => PART_DEFS[id].name).join(', ')}.` });
     if (cost > s.funds) extra.push({ lvl: 'err', text: `This rocket costs ${fmtFunds(cost)} but you have ${fmtFunds(s.funds)}.` });
+    const maxParts = facLimit(s, 'hangar'), maxMass = facLimit(s, 'pad');
+    if (Hangar.design.parts.length > maxParts) extra.push({ lvl: 'err', text: `The Hangar can only build craft of up to ${maxParts} parts. Upgrade it at the Space Centre.` });
+    if (a.mass > maxMass) extra.push({ lvl: 'err', text: `The launch pad and runway can only take ${maxMass} t (this is ${fmtNum(a.mass, 1)} t). Upgrade them at the Space Centre.` });
     const seats = designSeats(Hangar.design);
     if (seats > 0) {
       const av = availableCrew(s).sort((x, y) => crewRank(y) - crewRank(x));
@@ -607,7 +610,7 @@ function updateStats() {
       else {
         if (!av.some((c) => c.id === Hangar.crewId)) Hangar.crewId = av[0].id;
         const sel = $('crewSelect');
-        sel.innerHTML = av.map((c) => `<option value="${c.id}" ${c.id === Hangar.crewId ? 'selected' : ''}>${c.name} ${'★'.repeat(crewRank(c))}</option>`).join('');
+        sel.innerHTML = av.map((c) => `<option value="${c.id}" ${c.id === Hangar.crewId ? 'selected' : ''}>${ROLES[roleOf(c)].icon} ${c.name} ${'★'.repeat(crewRank(c))}</option>`).join('');
         const most = Math.min(seats, av.length);
         Hangar.crewN = clamp(Hangar.crewN || 1, 1, most);
         const cnt = $('crewCount');

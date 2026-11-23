@@ -76,11 +76,11 @@ function collectResult(s, p, exp, b, sit, bio) {
   p.held.push(r);
   return { value: subjectLeft(s, id, cap), result: r };
 }
-function transmitHeld(s, p, i) {
+function transmitHeld(s, p, i, bonus = 1) {
   const r = (p.held || [])[i];
   if (!r) return null;
   p.held.splice(i, 1);
-  return { gain: creditResult(s, r, TRANSMIT_FRACTION), result: r };
+  return { gain: creditResult(s, r, TRANSMIT_FRACTION, bonus), result: r };
 }
 /* Every result a part has: its own experiment's, and any carried ones. */
 function partResults(p) { return (p.result ? [p.result] : []).concat(p.held || []); }
@@ -95,17 +95,27 @@ function runExperiment(s, p, b, sit, bio) {
 }
 
 /* Credit a result. fraction 1 = recovered, TRANSMIT_FRACTION = transmitted. Returns science gained. */
-function creditResult(s, r, fraction) {
+function creditResult(s, r, fraction, bonus = 1) {
   const done = s.sci[r.id] || 0;
-  const gain = r.cap * (1 - done) * fraction;
+  const gain = r.cap * (1 - done) * fraction * bonus;
   s.sci[r.id] = done + (1 - done) * fraction;
   if (s.mode === 'career') s.science = Math.round((s.science + gain) * 10) / 10;
   return gain;
 }
+/* A scientist aboard adds to every result: 10%, plus 5% per rank. */
+function scienceBonus(s, crew) {
+  if (!s || s.mode !== 'career') return 1;
+  let b = 1;
+  for (const x of crew || []) {
+    const cm = x.id && s.crew.find((k) => k.id === x.id);
+    if (cm && roleOf(cm) === 'scientist') b = Math.max(b, 1.1 + 0.05 * crewRank(cm));
+  }
+  return b;
+}
 
-function transmit(s, p) {
+function transmit(s, p, bonus = 1) {
   if (!p.result) return 0;
-  const gain = creditResult(s, p.result, TRANSMIT_FRACTION);
+  const gain = creditResult(s, p.result, TRANSMIT_FRACTION, bonus);
   const r = p.result;
   p.result = null;
   if (EXPERIMENTS[r.exp].oneShot) p.spent = true;

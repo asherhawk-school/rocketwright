@@ -90,6 +90,30 @@ function renderHub() {
   $('noteResearch').textContent = affordable ? `${affordable} ready to research` : `${s.tech.length}/${TECH_NODES.length} researched`;
   const av = availableCrew(s).length;
   $('noteCrew').textContent = `${av} of ${s.crew.filter((c) => c.status !== 'lost').length} available`;
+  const lv = Object.keys(FACILITIES).map((k) => facLevel(s, k));
+  const can = Object.keys(FACILITIES).filter((k) => upgradeCost(s, k) != null && upgradeCost(s, k) <= s.funds).length;
+  $('noteUpgrades').textContent = can ? `${can} upgrade${can > 1 ? 's' : ''} affordable` : `Levels ${lv.join(' · ')}`;
+}
+
+/* ---------------- facility upgrades ---------------- */
+
+function showUpgrades() {
+  const s = Career.s;
+  const rows = Object.entries(FACILITIES).map(([id, f]) => {
+    const lv = facLevel(s, id), cost = upgradeCost(s, id);
+    const now = f.what(facLimit(s, id), lv), next = lv < 3 ? f.what(f.limit[lv], lv + 1) : null;
+    return `<div class="fac-row"><div class="fac-ico">${f.icon}</div><div class="fac-main"><b>${f.name}</b> <span class="pill">Level ${lv}</span>
+      <div class="muted">Now: ${esc(now)}</div>${next ? `<div class="fac-next">Level ${lv + 1}: ${esc(next)}</div>` : '<div class="t-done">Fully upgraded</div>'}</div>
+      ${cost != null ? `<button class="primary" data-up="${id}" ${cost > s.funds ? 'disabled' : ''}>Upgrade · ${fmtFunds(cost)}</button>` : ''}</div>`;
+  }).join('');
+  showModal(`<h2>Space Centre Upgrades <span class="muted small">${fmtFunds(s.funds)} to spend</span></h2>
+    <p class="muted">Bigger buildings let you build bigger rockets, run more contracts, plan manoeuvres and hire more astronauts.</p>${rows}`,
+  [{ label: 'Close', cls: 'primary', fn: () => { hideModal(); renderHub(); } }], 'wide');
+  $('modalCard').querySelectorAll('[data-up]').forEach((b) => b.addEventListener('click', () => {
+    const err = upgradeFacility(s, b.dataset.up);
+    if (err) toast(err); else { persist(); toast(`${FACILITIES[b.dataset.up].name} upgraded to level ${facLevel(s, b.dataset.up)}`); }
+    showUpgrades();
+  }));
 }
 
 /* ---------------- mission control ---------------- */
@@ -188,20 +212,25 @@ function showResearch(selId) {
 
 function showCrew() {
   const s = Career.s;
-  const rows = s.crew.map((c) => `<tr class="${c.status}"><td>${esc(c.name)}</td><td>${'★'.repeat(crewRank(c)) || '—'}</td>
+  const rows = s.crew.map((c) => `<tr class="${c.status}"><td>${esc(c.name)}</td><td title="${esc(ROLES[roleOf(c)].desc)}">${ROLES[roleOf(c)].icon} ${ROLES[roleOf(c)].name}</td><td>${'★'.repeat(crewRank(c)) || '—'}</td>
     <td>${c.flights}</td><td>${c.worlds.map((w) => BODY_BY_ID[w].name).join(', ') || '—'}</td>
     <td>${c.status === 'lost' ? 'Lost' : c.status === 'flying' ? 'Flying' : 'Available'}</td></tr>`).join('');
-  const cost = hireCost(s);
+  const cost = hireCost(s), room = s.crew.filter((c) => c.status !== 'lost').length < facLimit(s, 'astro');
+  const hire = (role) => () => {
+    if (!room) { toast('The Astronaut Office is full. Upgrade it to hire more.'); return; }
+    if (s.funds < cost) { toast('Not enough funds'); return; }
+    const c = hireCrew(s, false, role);
+    persist();
+    toast(`${c.name} joined the program as a ${ROLES[role].name.toLowerCase()}`);
+    showCrew();
+  };
   showModal(`<h2>Astronaut Office</h2>
     <p class="muted">Each capsule needs an astronaut. Experience grows with flights and new worlds visited.</p>
-    <table class="crew-table"><tr><th>Name</th><th>Rank</th><th>Flights</th><th>Worlds</th><th>Status</th></tr>${rows}</table>`,
-  [{ label: `Hire astronaut · ${fmtFunds(cost)}`, fn: () => {
-    if (s.funds < cost) { toast('Not enough funds'); return; }
-    const c = hireCrew(s, false);
-    persist();
-    toast(`${c.name} joined the program`);
-    showCrew();
-  } }, { label: 'Close', cls: 'primary', fn: () => { hideModal(); renderHub(); } }]);
+    <table class="crew-table"><tr><th>Name</th><th>Role</th><th>Rank</th><th>Flights</th><th>Worlds</th><th>Status</th></tr>${rows}</table>
+    <div class="role-help">${ROLE_ORDER.map((r) => `<div><b>${ROLES[r].icon} ${ROLES[r].name}</b> <span class="muted">${esc(ROLES[r].desc)}</span></div>`).join('')}</div>
+    <p class="muted">${room ? `Hiring costs ${fmtFunds(cost)}.` : `The office holds ${facLimit(s, 'astro')} astronauts. Upgrade it at the Space Centre to hire more.`}</p>`,
+  [...ROLE_ORDER.map((r) => ({ label: `Hire ${ROLES[r].name.toLowerCase()}`, fn: hire(r) })),
+    { label: 'Close', cls: 'primary', fn: () => { hideModal(); renderHub(); } }]);
 }
 
 /* ---------------- tracking station ---------------- */
@@ -390,6 +419,7 @@ function wireHub() {
   $('bldCrew').addEventListener('click', showCrew);
   $('bldMilestones').addEventListener('click', showMilestones);
   $('bldTracking').addEventListener('click', showTracking);
+  $('bldUpgrades').addEventListener('click', showUpgrades);
   $('bldTutorials').addEventListener('click', showTutorials);
   $('bldSettings').addEventListener('click', showSettings);
   $('btnHubHelp').addEventListener('click', showHelp);
