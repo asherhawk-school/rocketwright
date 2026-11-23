@@ -3,6 +3,8 @@
    how far you've got, pay an advance on accepting, a reward on completion, and a penalty if they expire. */
 
 const OFFER_COUNT = 4;
+const SURVEY_GROUND_R = 400, SURVEY_AIR_R = 1500;   // m from a survey site that counts as visiting it
+const SITE_WORDS = ['Amber', 'Birch', 'Cobalt', 'Dune', 'Ember Ridge', 'Flint', 'Garnet', 'Heron', 'Iris', 'Juniper', 'Kestrel Rock', 'Lumen'];
 const OFFER_LIFETIME = 30 * DAY;
 const r100 = (x) => Math.round(x / 100) * 100;
 
@@ -68,6 +70,33 @@ function contractBuilders(s) {
     return { type: 'science', title: `Science ${SITUATIONS[sit].label.toLowerCase()} ${b.name}'s ${biome}`,
       desc: `Transmit or recover any experiment result taken ${SITUATIONS[sit].label.toLowerCase()} the ${biome} biome of ${b.name}.`, p: { body: b.id, sit, biome },
       reward: r100(6000 * k), sci: Math.round(5 + 3 * f(b)), rep: 3 + f(b), days: 30 + 60 * f(b) };
+  }]);
+  // surveys: visit a few marked sites, on the ground or flying over them
+  const surveyable = bodies.filter((b) => !b.gas && (b === HOME || m['land_' + b.id] || m['orbit_' + b.id]));
+  B.push([1.6, () => {
+    const b = pick(s, surveyable.length ? surveyable : [HOME]);
+    const air = !!b.atmo && rand(s) < (b === HOME ? 0.6 : 0.35);
+    // near the Space Centre at home (a rover or plane trip), anywhere elsewhere
+    const c0 = b === HOME ? PAD_PHI + (rand(s) < 0.5 ? -1 : 1) * (40000 + rand(s) * 120000) / b.R : rand(s) * TAU;
+    const n = 2 + Math.floor(rand(s) * 3), word = pick(s, SITE_WORDS);
+    const sites = [];
+    for (let i = 0; i < n; i++) {
+      // spread out, at least 4 km apart
+      let phi = c0;
+      for (let k = 0; k < 30; k++) {
+        phi = c0 + ((rand(s) - 0.5) * 2 * Math.min(25000, b.R * 0.08)) / b.R;
+        if (sites.every((o) => Math.abs(wrapPi(o.phi - phi)) * b.R > 4000)) break;
+      }
+      // ground sites go on land, not in the sea
+      for (let k = 0; k < 20 && !air && b.ocean && terrainH(b, phi) < 2; k++) phi += 2000 / b.R;
+      sites.push({ name: `${word} ${i + 1}`, phi: wrapPi(phi) });
+    }
+    const lo = air ? (b === HOME ? 1000 : 2000) : 0, hi = air ? lo + 4000 + Math.round(rand(s) * 4) * 1000 : 0;
+    const what = air ? `Fly over ${n} marked sites on ${b.name} between ${fmtNum(lo / 1000)} and ${fmtNum(hi / 1000)} km above the ground`
+      : `Land (or walk) within ${SURVEY_GROUND_R} m of ${n} marked sites on ${b.name}`;
+    const k = b === HOME ? 0.5 : 1 + f(b);
+    return { type: 'survey', title: `Survey ${word} on ${b.name}`, desc: `${what}. The HUD points to the nearest one; beacons mark them up close.`,
+      p: { body: b.id, sites, air, lo, hi, done: [] }, reward: r100((air ? 9000 : 11000) * k + 1500 * n), sci: Math.round(4 + 2 * f(b) * n / 2), rep: 3 + f(b), days: 40 + 60 * f(b) };
   }]);
   const orbitable = bodies.filter((b) => b !== HOME || !m.orbit);
   if (orbitable.length) B.push([2, () => {
@@ -211,6 +240,17 @@ function checkContracts(s, ev) {
       case 'land': ok = ev.kind === 'land' && b.id === p.body && (!p.biome || ev.biome === p.biome); break;
       case 'science': ok = ev.kind === 'science' && b.id === p.body && ev.sit === p.sit && (!p.biome || ev.biome === p.biome); break;
       case 'asteroid': ok = ev.kind === 'tick' && b === HOME && ev.hasAsteroid && stableOrbit(ev, b) && ev.orbit.ra - b.R < p.maxAp; break;
+      case 'survey': {
+        if (ev.kind !== 'tick' || b.id !== p.body || ev.phi === undefined) break;
+        for (let i = 0; i < p.sites.length; i++) {
+          if (p.done.includes(i)) continue;
+          const d = Math.abs(wrapPi(ev.phi - p.sites[i].phi)) * b.R;
+          const hit = p.air ? !ev.landed && d < SURVEY_AIR_R && ev.radar >= p.lo && ev.radar <= p.hi : ev.landed && d < SURVEY_GROUND_R;
+          if (hit) { p.done.push(i); if (ev.hits) ev.hits.push(`${p.sites[i].name} surveyed (${p.done.length}/${p.sites.length})`); }
+        }
+        ok = p.done.length === p.sites.length;
+        break;
+      }
       case 'relay': ok = ev.kind === 'tick' && b.id === p.body && ev.hasRelay && stableOrbit(ev, b); break;
       case 'flag': ok = ev.kind === 'flag' && b.id === p.body; break;
       case 'rescue': ok = ev.kind === 'recover' && (ev.crew || []).includes(p.crewName); break;

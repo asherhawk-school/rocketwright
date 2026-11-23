@@ -119,6 +119,9 @@ then visit http://localhost:8000.
 - **Manoeuvre nodes**: click your path (or use “Node at Ap/Pe”) to plan a burn, drag its handles or use the editor, see the
   resulting orbit and encounters, the burn time and when to start; time warp stops before the burn, SAS points along it and the
   throttle cuts when it's done.
+- **Survey contracts**: visit two to four marked sites on a world, either landing (or walking) within 400 m of each, or
+  flying over them in a set height band. The contracts card points to the nearest site with its distance, map view marks
+  them, and a glowing beacon stands at each one up close.
 - **Alarm clock**: press C to set alarms before a manoeuvre burn, at apoapsis or periapsis, before the next sphere of
   influence change, or after an hour, six hours or a day. Time warp stops exactly when one goes off, in flight and while
   waiting at the Tracking Station, and the HUD counts down to the next one.
@@ -171,7 +174,7 @@ node tests/run.js
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
 career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, mining, refining and fuel transfer, the comms network (ground stations, range, line of sight, relays), launch clamps, action groups, floodlights and the claw, asteroids (spotting, drifting away, capture and mining),
-difficulty settings, crew moods and the flight log, alarms stopping time warp, power and shadows, reentry heating with and
+difficulty settings, crew moods and the flight log, alarms stopping time warp, survey sites, power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers

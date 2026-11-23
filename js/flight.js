@@ -978,7 +978,9 @@ function crewHasRole(role) {
 
 function flightEvent(ev) {
   if (!isCareer()) return;
+  ev.hits = [];
   const done = checkContracts(Career.s, ev);
+  for (const h of ev.hits) { flash(`📍 ${h}`, 3); playSound('dock'); persist(); }
   for (const c of done) {
     toast(`Contract complete: ${c.title} · +${fmtFunds(c.reward)}`);
     F.flightContracts.push(c.title);
@@ -1110,13 +1112,47 @@ function scienceAction(kindArg, uid) {
   renderSciencePanel();
 }
 
+/* Survey sites of active contracts, on the body below, not yet visited. */
+function surveySites() {
+  if (!isCareer() || !F.craft) return [];
+  const c = F.craft, b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t), out = [];
+  for (const k of Career.s.contracts) {
+    if (k.state !== 'active' || k.type !== 'survey' || k.p.body !== b.id) continue;
+    k.p.sites.forEach((st, i) => { if (!k.p.done.includes(i)) out.push({ key: `wp${k.id}-${i}`, body: b, phi: st.phi, name: st.name, air: k.p.air, lo: k.p.lo, hi: k.p.hi, kind: 'beacon' }); });
+  }
+  return out;
+}
+/* The closest one, with its distance along the ground and which way it is on screen (-1 left, +1 right). */
+function nearestSite() {
+  const c = F.craft, list = surveySites();
+  if (!list.length) return null;
+  const bp = bodyPos(list[0].body, F.t), me = Math.atan2(c.pos[1] - bp[1], c.pos[0] - bp[0]);
+  let best = null;
+  for (const st of list) {
+    const da = wrapPi(st.phi - me), d = Math.abs(da) * st.body.R;
+    if (!best || d < best.d) best = { ...st, d, dir: da > 0 ? -1 : 1 }; // screen-right is clockwise
+  }
+  return best;
+}
+/* Things standing on the ground near the craft that the world view should draw (survey beacons). */
+function surfaceMarkers() {
+  const c = F.craft;
+  if (!c) return [];
+  return surveySites().filter((st) => {
+    const bp = bodyPos(st.body, F.t);
+    return Math.abs(wrapPi(st.phi - Math.atan2(c.pos[1] - bp[1], c.pos[0] - bp[0]))) * st.body.R < 60000;
+  });
+}
+
 function renderContractHud() {
   const el = F.hud.hudContracts;
   if (!isCareer()) { el.classList.add('hidden'); return; }
   const act = Career.s.contracts.filter((x) => x.state === 'active' || (x.state === 'done' && F.flightContracts.includes(x.title)));
   el.classList.toggle('hidden', !act.length);
+  const wp = nearestSite();
   el.innerHTML = '<div class="card-title">Contracts</div>' + act.map((x) =>
-    `<div class="ct ${x.state === 'done' ? 'done' : ''}">${x.state === 'done' ? '✓' : '○'} ${x.title}</div>`).join('');
+    `<div class="ct ${x.state === 'done' ? 'done' : ''}">${x.state === 'done' ? '✓' : '○'} ${x.title}</div>`).join('') +
+    (wp ? `<div class="ct wp">📍 ${wp.dir < 0 ? '◀ ' : ''}${wp.name}: ${fmtDist(wp.d)}${wp.dir > 0 ? ' ▶' : ''}${wp.air ? ` · fly ${fmtNum(wp.lo / 1000)}–${fmtNum(wp.hi / 1000)} km up` : ' · land there'}</div>` : '');
 }
 
 /* Power, heat, target and node readouts. */
@@ -1307,7 +1343,7 @@ function checkMilestones(b) {
   if (c.dead) return;
   const bp = bodyPos(b, F.t);
   const alt = Math.hypot(c.pos[0] - bp[0], c.pos[1] - bp[1]) - b.R;
-  flightEvent({ kind: 'tick', body: b, alt, orbit: F.orbit, landed: !!c.landed, hasAntenna: c.parts.some((p) => p.def.antenna), hasRelay: c.parts.some((p) => p.def.relay), hasAsteroid: c.parts.some((p) => p.def.asteroid) });
+  flightEvent({ kind: 'tick', body: b, alt, phi: Math.atan2(c.pos[1] - bp[1], c.pos[0] - bp[0]), radar: c.radar, orbit: F.orbit, landed: !!c.landed, hasAntenna: c.parts.some((p) => p.def.antenna), hasRelay: c.parts.some((p) => p.def.relay), hasAsteroid: c.parts.some((p) => p.def.asteroid) });
   if (b === HOME) {
     F.flags.maxAlt = Math.max(F.flags.maxAlt, alt);
     if (!c.landed && alt > 40) award('liftoff');
@@ -1404,6 +1440,20 @@ function renderWorld() {
     gr.addColorStop(0, `rgba(${cr},${cg},${cb},0.55)`); gr.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
     ctx.fillStyle = gr;
     ctx.beginPath(); ctx.arc(hx, hy, ro, 0, TAU); ctx.fill();
+  }
+  // survey beacons: a tall glowing column at each site
+  for (const m of surfaceMarkers()) {
+    if (m.body !== b) continue;
+    const r = b.R + groundAlt(b, m.phi), x = bp[0] + r * Math.cos(m.phi) - cam[0], y = bp[1] + r * Math.sin(m.phi) - cam[1];
+    if (Math.hypot(x, y) > viewR + 2000) continue;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(m.phi - Math.PI / 2);
+    const hgt = m.air ? m.hi : 400, wid = Math.max(4, 3 / z);
+    const gr = ctx.createLinearGradient(0, 0, 0, hgt);
+    gr.addColorStop(0, 'rgba(125,255,168,0.7)'); gr.addColorStop(1, 'rgba(125,255,168,0)');
+    ctx.fillStyle = gr; ctx.fillRect(-wid / 2, 0, wid, hgt);
+    if (m.air) { ctx.fillStyle = 'rgba(125,255,168,0.18)'; ctx.fillRect(-SURVEY_AIR_R, m.lo, 2 * SURVEY_AIR_R, m.hi - m.lo); }
+    ctx.fillStyle = '#7dffa8'; ctx.beginPath(); ctx.arc(0, 0, Math.max(2, 4 / z), 0, TAU); ctx.fill();
+    ctx.restore();
   }
   // clouds
   if (b === HOME && alt < 30000 && z > 0.02) {
@@ -1707,6 +1757,15 @@ function renderMap() {
       circle(gx, gy, Math.max((F.target.R || 0) * z, 5)); ctx.stroke();
       ctx.fillText(`Closest ${fmtDist(ca.d - (F.target.R || 0))}`, cx2, cy2 - 12);
     }
+  }
+  // survey sites
+  for (const st of surveySites()) {
+    const sbp = bodyPos(st.body, t), r = st.body.R + groundAlt(st.body, st.phi);
+    const [mx, my] = S(sbp[0] + r * Math.cos(st.phi), sbp[1] + r * Math.sin(st.phi));
+    if (st.body.R * z < 20) continue;
+    ctx.fillStyle = '#7dffa8';
+    ctx.beginPath(); ctx.moveTo(mx, my - 6); ctx.lineTo(mx + 4, my); ctx.lineTo(mx, my + 6); ctx.lineTo(mx - 4, my); ctx.closePath(); ctx.fill();
+    if (st.body.R * z > 200) ctx.fillText(st.name, mx, my - 9);
   }
   // the signal path home, and the ground stations
   if (commnetOn()) {

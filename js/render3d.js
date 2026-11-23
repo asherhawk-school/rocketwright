@@ -842,6 +842,7 @@ function renderWorld3d() {
 
   // clouds
   syncClouds(S, b, focus, alt);
+  syncMarkers(S, focus);
 
   // crafts
   const pressure = atmo(b, alt).p;
@@ -921,6 +922,38 @@ function buildRunwayModel() {
   }
   // the dashes hold planet-sized coordinates; fine for a short-lived few boxes near home
   return (R3.flight.world.add(g), g);
+}
+
+/* Things standing on the ground near the craft (survey beacons, and more later), kept in step each frame. */
+function buildMarker(m) {
+  const g = new THREE.Group();
+  if (m.kind === 'beacon') {
+    const hgt = m.air ? m.hi : 400;
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, hgt, 10, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x7dffa8, transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide }));
+    beam.position.y = hgt / 2;
+    const base = new THREE.Mesh(new THREE.SphereGeometry(4, 12, 8), new THREE.MeshBasicMaterial({ color: 0x7dffa8 }));
+    g.add(beam, base);
+    g.userData.thick = [beam, base]; // widened when seen from far away
+  } else if (typeof buildAnomaly === 'function') g.add(buildAnomaly(m));
+  return g;
+}
+function syncMarkers(S, focus) {
+  if (!S.markers) { S.markers = new THREE.Group(); S.world.add(S.markers); S.markerObjs = new Map(); }
+  const want = typeof surfaceMarkers === 'function' ? surfaceMarkers() : [], seen = new Set();
+  for (const m of want) {
+    seen.add(m.key);
+    let o = S.markerObjs.get(m.key);
+    if (!o) { o = buildMarker(m); S.markerObjs.set(m.key, o); S.markers.add(o); }
+    const bp = bodyPos(m.body, F.t), r = m.body.R + groundAlt(m.body, m.phi);
+    o.position.set(bp[0] + r * Math.cos(m.phi) - focus[0], bp[1] + r * Math.sin(m.phi) - focus[1], 0);
+    o.rotation.set(0, 0, m.phi - Math.PI / 2);
+    if (o.userData.thick) {
+      const k = Math.max(1, S.camera.position.distanceTo(o.position) / 350);
+      for (const t of o.userData.thick) t.scale.set(k, t === o.userData.thick[0] ? 1 : k, k);
+    }
+  }
+  for (const [k, o] of S.markerObjs) if (!seen.has(k)) { S.markers.remove(o); disposeObj(o); S.markerObjs.delete(k); }
 }
 
 function syncClouds(S, b, focus, alt) {

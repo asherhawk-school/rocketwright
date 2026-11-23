@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'alarms.js', 'crew.js', 'asteroids.js', 'comms.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange, fireGroup, toggleLights, findGrab, undock, autoStages, asteroidTick, spawnAsteroid, heldRock, diff, completeContract, logEvent, crewMood, separatePiece, addAlarm, alarmList, alarmClip, nextAlarm, alarmPresets, removeAlarm };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange, fireGroup, toggleLights, findGrab, undock, autoStages, asteroidTick, spawnAsteroid, heldRock, diff, completeContract, logEvent, crewMood, separatePiece, addAlarm, alarmList, alarmClip, nextAlarm, alarmPresets, removeAlarm, surveySites, nearestSite };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -1750,6 +1750,51 @@ test('time warp stops exactly when an alarm goes off, and the alarm is cleared',
   const pre = G.alarmPresets().map((p) => p[0]);
   assert(pre.includes('Apoapsis') && pre.includes('Periapsis') && pre.includes('+1 day'), 'presets offered');
   assert(G.alarmClip(0, 100).a === null, 'nothing to clip');
+});
+
+console.log('\nSurveys and waypoints');
+test('survey contracts mark sites; visiting each (landed, or flying in the right height band) completes it', () => {
+  const s = G.newSave('career', 41);
+  Object.assign(s.milestones, { orbit: true, space: true, alt10k: true, land_pallid: true });
+  let ground = null, air = null;
+  for (let i = 0; i < 600 && !(ground && air); i++) {
+    const c = G.genContract(s);
+    if (c && c.type === 'survey') { if (c.p.air) air = air || c; else ground = ground || c; }
+  }
+  assert(ground && air, 'both kinds offered');
+  assert(ground.p.sites.length >= 2 && ground.p.sites.length <= 4, 'two to four sites');
+  const gb = G.BODY_BY_ID[ground.p.body];
+  for (const a of ground.p.sites) for (const c of ground.p.sites) if (a !== c) assert(Math.abs(G.wrapPi(a.phi - c.phi)) * gb.R > 3900, 'sites spread out');
+  const b = G.BODY_BY_ID[ground.p.body];
+  if (b.ocean) for (const st of ground.p.sites) assert(G.terrainH(b, st.phi) >= 0, 'ground sites on land');
+  for (const c of [ground, air]) { c.state = 'active'; s.contracts.push(c); }
+  const visit = (c, i, extra) => G.checkContracts(s, { kind: 'tick', body: G.BODY_BY_ID[c.p.body], phi: c.p.sites[i].phi + 100 / G.BODY_BY_ID[c.p.body].R, hits: [], ...extra });
+  // flying over a ground site, or landing far away, doesn't count
+  visit(ground, 0, { landed: false, radar: 50 });
+  assert(!ground.p.done.length, 'must land');
+  const ev = { kind: 'tick', body: b, phi: ground.p.sites[0].phi + 5000 / b.R, landed: true, hits: [] };
+  G.checkContracts(s, ev);
+  assert(!ground.p.done.length, 'too far');
+  let done = [];
+  ground.p.sites.forEach((_, i) => { done = visit(ground, i, { landed: true, radar: 0 }); });
+  assert(ground.state === 'done' && ground.p.done.length === ground.p.sites.length, 'ground survey complete');
+  // air survey: wrong height doesn't count, right height does
+  visit(air, 0, { landed: false, radar: air.p.hi + 2000 });
+  assert(!air.p.done.length, 'too high');
+  air.p.sites.forEach((_, i) => { done = visit(air, i, { landed: false, radar: (air.p.lo + air.p.hi) / 2 }); });
+  assert(air.state === 'done', 'air survey complete');
+});
+test('the HUD points to the nearest unvisited site', () => {
+  G.Career.s = G.newSave('career', 43);
+  const s = G.Career.s; s.vessels = []; s.vesselSeq = 1;
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Rover', { t0: 0 });
+  const R = G.HOME.R;
+  s.contracts.push({ id: 9, type: 'survey', state: 'active', title: 'Survey', p: { body: 'verdan', air: false, lo: 0, hi: 0, done: [],
+    sites: [{ name: 'Near', phi: G.PAD_PHI - 3000 / R }, { name: 'Far', phi: G.PAD_PHI + 20000 / R }] }, reward: 1, sci: 0, rep: 0, deadline: 1e12 });
+  const wp = G.nearestSite();
+  assert(wp.name === 'Near' && near(wp.d, 3000, 50) && wp.dir === 1, `nearest is ${wp.name} at ${wp.d}`);
+  s.contracts[s.contracts.length - 1].p.done.push(0);
+  assert(G.nearestSite().name === 'Far' && G.nearestSite().dir === -1, 'then the far one, to the left');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
