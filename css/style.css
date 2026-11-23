@@ -428,3 +428,5 @@ label.check input { margin-top: 2px; flex: none; width: auto; min-width: 0; }
 .alarm-row button { padding: 1px 6px; font-size: 11px; }
 .trk-alarms { margin: 8px 0; font-size: 13px; }
 @media (max-width: 520px) { #alarmPanel { left: 10px; right: 10px; width: auto; top: 120px; } }
+.code-row { display: flex; gap: 6px; margin: 10px 0; max-width: 260px; }
+.code-row input { flex: 1; min-width: 0; }

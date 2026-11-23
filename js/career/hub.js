@@ -423,6 +423,7 @@ function showSettings() {
         ['funds', 'Money rewards', [[0.5, 'Half'], [1, 'Normal'], [1.5, 'Generous']]], ['science', 'Science rewards', [[0.5, 'Half'], [1, 'Normal'], [1.5, 'Generous']]]]
         .map(([k, label, opts]) => `<label class="field">${label}<select data-diff="${k}">${opts.map(([v, n]) => `<option value="${v}" ${diff(k) === v ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`).join('')}
     </div>` : ''}
+    ${Career.s ? `<div class="code-row"><input id="codeInput" type="text" placeholder="Code" autocomplete="off" spellcheck="false" maxlength="40"><button id="codeBtn">Enter</button></div>` : ''}
     <p>Your game saves automatically in this browser. Export it to keep a copy or move it to another device.</p>
     <input type="file" id="importFile" accept=".json,application/json" class="hidden">`, [
     { label: 'Export save', cls: 'primary', fn: exportSave },
@@ -435,8 +436,30 @@ function showSettings() {
   $('volSlider').addEventListener('change', () => playSound('stage'));
   $('gfxSelect').addEventListener('change', (e) => { setGfx(e.target.value); buildPalette(); });
   if ($('optComm')) $('optComm').addEventListener('change', (e) => { Career.s.commnet = e.target.checked; persist(); });
+  if ($('codeBtn')) {
+    const go = () => { redeemCode($('codeInput').value); $('codeInput').value = ''; };
+    $('codeBtn').addEventListener('click', go);
+    $('codeInput').addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') go(); });
+  }
   if ($('optRevert')) $('optRevert').addEventListener('change', (e) => { Career.s.diff.revert = e.target.checked; persist(); });
   $('modalCard').querySelectorAll('[data-diff]').forEach((sel) => sel.addEventListener('change', () => { Career.s.diff[sel.dataset.diff] = +sel.value; persist(); }));
+}
+
+/* Codes are checked by their SHA-256 fingerprint, so the words themselves aren't in the source. */
+const CODES = { '2ab6c929296f0242e37f546ee0d4e44bcdb628e34f5ed36da9dc211f7b547463': 'money' };
+async function redeemCode(text) {
+  const t = String(text || '').trim().toUpperCase();
+  if (!t) return;
+  let h = '';
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+    h = [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) { /* no crypto: codes can't be checked */ }
+  if (CODES[h] !== 'money') { toast('Nothing happens.'); return; }
+  if (!isCareer()) { toast('Money only matters in a career game'); return; }
+  Career.s.funds += 1000000;
+  persist();
+  toast('💰 +¤1,000,000');
 }
 
 function exportSave() {
