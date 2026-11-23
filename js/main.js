@@ -214,6 +214,9 @@ function openMenu() {
     return;
   }
   if (canRecover()) btns.push({ label: 'Recover vessel', fn: recover });
+  if (canQuickSave()) btns.push({ label: 'Save here (F5)', fn: () => { if (quickSave()) hideModal(); } });
+  const qs = quickSaveInfo();
+  if (qs) btns.push({ label: `Load save · ${fmtClock(qs.t - F.launchT).slice(3)} (F9)`, fn: quickLoad });
   if (F.canRevert) {
     btns.push({ label: 'Revert to launch', fn: () => revertFlight(false) });
     btns.push({ label: 'Revert to hangar', fn: () => revertFlight(true) });
@@ -241,7 +244,8 @@ function showCrashModal() {
   const lost = F.crewLost.length ? `<p><b>${esc(F.crewLost.join(', '))}</b> ${F.crewLost.length > 1 ? 'were' : 'was'} lost.${isCareer() ? ' Reputation −10 each.' : ''}</p>` : '';
   showModal(`<h2>Vessel destroyed</h2><p>${esc(F.craftName)} was lost after ${fmtClock(F.t - F.launchT).slice(3)}. ${esc(F.deathReason || '')}.</p>${lost}
     <p class="muted">Tip: land under 6 m/s, or 12 m/s with landing legs. Deploy the parachute well before the ground.</p>`, [
-    ...(F.canRevert ? [{ label: 'Revert to launch', cls: 'primary', fn: () => revertFlight(false) }, { label: 'Revert to hangar', fn: () => revertFlight(true) }] : []),
+    ...(quickSaveInfo() ? [{ label: `Load save · ${fmtClock(quickSaveInfo().t - F.launchT).slice(3)}`, cls: 'primary', fn: quickLoad }] : []),
+    ...(F.canRevert ? [{ label: 'Revert to launch', cls: quickSaveInfo() ? '' : 'primary', fn: () => revertFlight(false) }, { label: 'Revert to hangar', fn: () => revertFlight(true) }] : []),
     ...(F.tutorial ? [{ label: 'Restart tutorial', cls: 'primary', fn: () => { const id = Tut.active.id; endTutorial(); startTutorial(id); } }] : []),
     { label: 'Space Centre', fn: () => { finishFlight(false); showHub(); } },
   ]);
@@ -317,6 +321,12 @@ function toggleMap() {
 function onKeyDown(e) {
   const tag = e.target.tagName;
   if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+  // quick save and load work even from the pause menu or the crash screen (and F5 must not reload the page)
+  if (F.running && (e.code === 'F5' || e.code === 'F9')) {
+    e.preventDefault();
+    if (!e.repeat) { if (e.code === 'F5') { if (quickSave() && modalOpen) hideModal(); } else quickLoad(); }
+    return;
+  }
   if (modalOpen) {
     if (e.code === 'Escape' && F.running && !F.endShown) hideModal();
     return;
@@ -407,6 +417,8 @@ function wireUi() {
   $('bBrakes').addEventListener('click', toggleBrakes);
   $('bMap').addEventListener('click', toggleMap);
   $('bMenu').addEventListener('click', openMenu);
+  $('bQSave').addEventListener('click', (e) => { e.currentTarget.blur(); quickSave(); });
+  $('bQLoad').addEventListener('click', (e) => { e.currentTarget.blur(); quickLoad(); });
   $('bWarpUp').addEventListener('click', () => changeWarp(1));
   $('bWarpDn').addEventListener('click', () => changeWarp(-1));
   $('bRecover').addEventListener('click', recover);

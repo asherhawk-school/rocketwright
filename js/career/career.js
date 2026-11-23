@@ -27,6 +27,7 @@ const isCareer = () => !!(Career.s && Career.s.mode === 'career');
 function setSave(s) {
   Career.s = s;
   if (typeof clearCheckpoint === 'function') clearCheckpoint(); // a new or imported game starts with no flight in progress
+  if (typeof clearQuickSave === 'function') clearQuickSave();
   persist();
 }
 function persist() {

@@ -26,7 +26,7 @@ function initFlightView() {
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
-    'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bGear', 'bBrakes', 'bRcs', 'hNext', 'hPitch',
+    'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bGear', 'bBrakes', 'bQSave', 'bQLoad', 'bRcs', 'hNext', 'hPitch',
     'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
@@ -1773,6 +1773,9 @@ function updateHud() {
   const side = Math.abs(rel) < 0.01 || Math.abs(rel) > Math.PI - 0.01 ? '' : rel > 0 ? '◀ ' : '▶ ';
   h.hPitch.textContent = `${side}PITCH ${pitch.toFixed(0)}°`;
   h.bRecover.classList.toggle('hidden', !(c.landed && c.landed.body === HOME && !c.dead && (F.flags.maxAlt > 100)));
+  h.bQSave.parentElement.classList.toggle('hidden', !!F.tutorial);
+  h.bQSave.disabled = !canQuickSave();
+  h.bQLoad.disabled = !quickSaveInfo();
   h.bMap.classList.toggle('on', F.map);
   h.mapHint.classList.toggle('hidden', !F.map);
   if (F.map) {

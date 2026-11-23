@@ -27,7 +27,8 @@ then visit http://localhost:8000.
   (reach an altitude, test a part, gather science, fly by, orbit, land, place a satellite) that scale with your progress. Launches cost
   money, and recovering your craft refunds most of it. Run experiments with six science instruments (each worth more on new worlds and in new
   situations), transmit or recover the results, and research a 14-node tech tree. Astronauts gain experience and can be lost.
-  Reverting a flight undoes it; saves can be exported and imported. **Sandbox mode** unlocks everything with no money.
+  Reverting a flight undoes it; a **quick save** (F5) lets you return to any moment of a flight (F9) as many times as you like;
+  saves can be exported and imported. **Sandbox mode** unlocks everything with no money.
 - **Hangar**: drag 90 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS, plus engine mounts
@@ -104,6 +105,7 @@ then visit http://localhost:8000.
 | Drag / right-drag; V | Swing the 3D camera; reset it |
 | , / . | Time warp slower / faster |
 | Mouse wheel, + / − | Zoom |
+| F5 / F9 | Save this moment of the flight / go back to it (also Save and Load buttons, the menu and the crash screen) |
 | Esc | Menu (revert, recover, back to hangar) |
 
 In the hangar: drag parts from the palette, click to select, drag a part to move it with everything attached,

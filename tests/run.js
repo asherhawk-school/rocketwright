@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -1037,6 +1037,42 @@ test('a gentle touchdown on the gear rolls on; a hard one breaks the gear off; g
   assert(hard.wheels.length < 2, 'hard landing kept its gear');
   const belly = drop(3, true);
   assert(belly.dead, 'belly landing at 70 m/s survived');
+});
+
+console.log('\nQuick save');
+test('a quick save mid-flight can be loaded again and again, even after a crash', () => {
+  const { F } = G;
+  const s = career(21);
+  G.clearQuickSave();
+  G.flightStart(G.PRESETS['Orbiter I'](), 'Saver', { t0: 0 });
+  const c0 = F.craft;
+  F.crew = [{ id: s.crew[0].id, name: s.crew[0].name, pod: c0.parts.find((p) => p.def.pod).uid }];
+  s.crew[0].status = 'flying';
+  // climb a little, then save
+  G.doStage(); c0.throttle = 1;
+  for (let i = 0; i < 400; i++) { c0.ctrl = 0; G.stepCraft(c0, G.PHYS_DT, true); F.t += G.PHYS_DT; }
+  F.node = G.makeNode(F.t + 300); F.node.pro = 120;
+  const alt0 = Math.hypot(...c0.pos) - G.HOME.R, fuel0 = c0.parts.reduce((a, p) => a + p.fuel, 0), t0 = F.t, funds0 = s.funds;
+  assert(G.canQuickSave() && G.quickSave() && G.quickSaveInfo(), 'saved');
+  for (let round = 0; round < 3; round++) {
+    // fly on, spend money, then crash
+    const c = F.craft;
+    for (let i = 0; i < 300; i++) { c.ctrl = 0; G.stepCraft(c, G.PHYS_DT, true); F.t += G.PHYS_DT; }
+    G.Career.s.funds -= 5000;
+    G.explode(c, true, 80);
+    assert(c.dead && G.Career.s.crew[0].status === 'lost' && !G.canQuickSave(), 'crashed');
+    assert(G.quickLoad(), 'loaded');
+    const k = F.craft, s2 = G.Career.s;
+    assert(!k.dead && k !== c && Math.abs(Math.hypot(...k.pos) - G.HOME.R - alt0) < 1e-6 && F.t === t0, `round ${round}: alt ${Math.hypot(...k.pos) - G.HOME.R}`);
+    assert(Math.abs(k.parts.reduce((a, p) => a + p.fuel, 0) - fuel0) < 1e-9 && k.throttle === 1 && k.stageIdx === 1, 'fuel, throttle, stage');
+    assert(s2.funds === funds0 && s2.crew[0].status === 'flying' && F.crew.length === 1 && !F.endShown && F.deadTimer === 0, 'save rolled back');
+    assert(F.node && F.node.pro === 120, 'node kept');
+  }
+  // a different flight can't load it
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Other', { t0: F.t });
+  assert(!G.quickSaveInfo(), 'save belongs to the other flight');
+  G.clearQuickSave();
+  G.Career.s = null;
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

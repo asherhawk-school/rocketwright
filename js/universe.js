@@ -222,6 +222,73 @@ function restoreCheckpoint(s) {
   return cp;
 }
 
+/* ---------------- quick save ----------------
+   One saved moment in the current flight that you can go back to as often as you like: the ship and every
+   part's state, nearby vessels, the clock, your plans (node, target, SAS) and the whole game save at that
+   moment (money, science, contracts, crew). It belongs to one flight of one game. */
+
+const QUICK_KEY = 'quick';
+let quickCache; // what's in storage, read once (it can be big)
+
+function clearQuickSave() { Store.set(QUICK_KEY, null); quickCache = null; }
+function quickSaveInfo() {
+  if (quickCache === undefined) quickCache = Store.get(QUICK_KEY, null);
+  const q = quickCache;
+  if (!q || !Career.s || q.created !== Career.s.created || q.vid !== F.vid) return null;
+  return q;
+}
+function canQuickSave() { return F.running && !F.tutorial && !Career.noPersist && Career.s && F.craft && !F.craft.dead && !F.endShown; }
+
+function quickSave() {
+  if (!canQuickSave()) { if (F.craft && F.craft.dead) flash('Can\'t save: the vessel was destroyed', 2); return false; }
+  const c = F.craft, tg = F.target;
+  quickCache = {
+    created: Career.s.created, vid: F.vid, t: F.t, name: F.craftName,
+    save: JSON.stringify(Career.s),
+    active: vesselFromCraft(c, F.t, activeMeta()),
+    others: F.others.filter((o) => !o.dead && o.meta).map((o) => vesselFromCraft(o, F.t, o.meta)),
+    flight: {
+      launchT: F.launchT, kind: F.kind, crew: JSON.parse(JSON.stringify(F.crew)), flags: JSON.parse(JSON.stringify(F.flags)),
+      dockedMeta: JSON.parse(JSON.stringify(F.dockedMeta || {})), node: F.node ? JSON.parse(JSON.stringify({ ...F.node, pred: null })) : null,
+      target: tg ? (tg.vid ? { vid: tg.vid, name: tg.name } : { body: tg.id }) : null, sas: F.sas, hold: F.hold,
+      throttle: c.throttle, wheelBrake: !!c.wheelBrake, zoom: F.zoom, flightMilestones: F.flightMilestones.slice(),
+    },
+  };
+  Store.set(QUICK_KEY, quickCache);
+  flash(`Saved at ${fmtClock(F.t - F.launchT)}. F9 (or Menu → Load) comes back here.`, 3);
+  return true;
+}
+
+function quickLoad() {
+  const q = quickSaveInfo();
+  if (!q || F.tutorial || !F.running) { flash('No save for this flight yet. Press F5 to save.', 2); return false; }
+  Career.s = JSON.parse(q.save);
+  persist();
+  const c = craftFromVessel(q.active), fl = q.flight;
+  c.throttle = fl.throttle || 0;
+  c.wheelBrake = !!fl.wheelBrake;
+  const others = (q.others || []).map((v) => {
+    const o = craftFromVessel(v);
+    o.meta = { id: v.id, name: v.name, crew: v.crew, launchT: v.launchT, flags: v.flags, kind: v.kind };
+    return o;
+  });
+  Object.assign(F, {
+    craft: c, debris: [], others, particles: [], t: q.t, launchT: fl.launchT, crew: fl.crew, crewLost: [], vid: q.vid,
+    kind: fl.kind, craftName: q.name, dockedMeta: fl.dockedMeta || {}, flags: fl.flags, flightMilestones: fl.flightMilestones || [],
+    node: fl.node, target: fl.target ? (fl.target.vid ? fl.target : BODY_BY_ID[fl.target.body] || null) : null,
+    sas: fl.sas || 'stab', hold: fl.hold, acc: 0, warp: 0, deadTimer: 0, endShown: false, deathReason: null, paused: false,
+    pred: null, encounter: null, orbit: null, predTick: 0, dvTick: 0, dvCache: null, sciOpen: false, mapPress: null,
+    lastBody: c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], q.t), zoom: fl.zoom || F.zoom,
+  });
+  for (const k in F.keys) F.keys[k] = false;
+  if (typeof hideModal === 'function') hideModal();
+  if (typeof updateSasButtons === 'function') updateSasButtons();
+  if (typeof fillTargetSelect === 'function') fillTargetSelect();
+  saveCheckpoint();
+  flash(`Loaded the save from ${fmtClock(q.t - fl.launchT)}`, 3);
+  return true;
+}
+
 /* Astronauts marked as flying but aboard no vessel (left behind by an interrupted flight) go back to work. */
 function repairCrew(s) {
   const aboard = new Set((s.vessels || []).flatMap((v) => (v.crew || []).filter((x) => x.id).map((x) => x.id)));
