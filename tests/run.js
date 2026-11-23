@@ -1939,5 +1939,28 @@ test('strategies cost money to start, are limited by the Administration level, a
   assert(s.funds - f0 === 30 * 300, 'patents pay for research');
 });
 
+console.log('\nRover wheels');
+test('wheels on both sides get a warning; a rover with wheels on one side lies on them, whichever side it is', () => {
+  const both = G.designFromStack(['probe', 'batteryDisc', 'tankM125']);
+  const body = both.parts.find((p) => p.id === 'tankM125').uid;
+  G.attachPart(both, 'roverWheel', body, 'side', 1, 0.3, true); // mirrored: one each side
+  assert(G.analyzeDesign(both).warnings.some((w) => /Wheels on both sides/.test(w.text)), 'warned');
+  for (const side of [1, -1]) {
+    const d = G.designFromStack(['probe', 'batteryDisc', 'tankM125']);
+    const t = d.parts.find((p) => p.id === 'tankM125').uid, pr = d.parts.find((p) => p.id === 'probe').uid;
+    G.attachPart(d, 'roverWheel', pr, 'side', side, -0.3, false);
+    G.attachPart(d, 'roverWheel', t, 'side', side, 0.8, false);
+    assert(!G.analyzeDesign(d).warnings.some((w) => /Wheels on both sides/.test(w.text)), 'no warning on one side');
+    G.Career.s = G.newSave('sandbox', 1);
+    G.flightStart(d, 'Rover', { t0: 0, site: 'runway' });
+    const c = G.F.craft, r = Math.hypot(c.pos[0], c.pos[1]), up = [c.pos[0] / r, c.pos[1] / r];
+    for (const w of c.wheels) {
+      const wp = c.toWorld(...G.wheelPoint(w)), wr2 = Math.hypot(wp[0], wp[1]);
+      assert(wr2 < r, `wheel on side ${side} is below the body`);
+    }
+    assert(c.landed && c.landed.wheels, 'standing on its wheels');
+  }
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

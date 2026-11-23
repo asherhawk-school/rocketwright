@@ -821,7 +821,7 @@ function analyzeDesign(d) {
     out.warnings.push({ lvl: 'info', text: 'Tip: a probe core only holds a little charge. Add batteries or solar panels.' });
   const firstUids = new Set(out.stages[0] || []);
   const first = parts.filter((p) => isEngine(p.def) && firstUids.has(p.uid));
-  if (!first.length) out.warnings.push({ lvl: 'warn', text: 'The first stage lights no engines.' });
+  if (!first.length) { if (!c.motors.length) out.warnings.push({ lvl: 'warn', text: 'The first stage lights no engines.' }); } // rovers drive instead
   else {
     if (out.rows[0] && out.rows[0].twr < 1) out.warnings.push({ lvl: 'warn', text: `Liftoff thrust-to-weight is ${out.rows[0].twr.toFixed(2)}. Below 1.00 the rocket can't leave the pad.` });
     let T = 0, Tx = 0, Ty = 0;
@@ -837,6 +837,9 @@ function analyzeDesign(d) {
   if (c.engines.some((e) => e.def.ecUse) && !parts.some((p) => p.def.solar || p.def.cellEC) && c.ecMax < 1000)
     out.warnings.push({ lvl: 'info', text: 'Tip: ion drives use a lot of power. Add solar panels, fuel cells or big batteries.' });
   out.seats = c.seats;
+  // on the runway the craft lies on one side, so wheels on the other side point at the sky
+  const wl = c.wheels.filter((w) => w.flip).length, wr = c.wheels.length - wl;
+  if (wl && wr) out.warnings.push({ lvl: 'warn', text: `Wheels on both sides: lying on the runway, the ${wl > wr ? 'left' : 'right'} side goes down${wl === wr ? '' : ' (it has more wheels)'} and the other wheels point at the sky. Put all the wheels on one side.` });
   const ci = parts.find((p) => p.def.chute), pod = parts.find((p) => p.def.pod);
   if (ci && pod && !ci.links.includes(pod.uid)) out.warnings.push({ lvl: 'info', text: 'Tip: the parachute belongs on top of the capsule.' });
   out.valid = hasPod;

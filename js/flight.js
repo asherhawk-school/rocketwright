@@ -69,7 +69,8 @@ function flightStart(design, name, opts = {}) {
   for (const k in F.keys) F.keys[k] = false;
   updateSasButtons();
   logEvent(`Launched from the ${F.site === 'runway' ? 'runway' : 'launch pad'}`);
-  flash(F.site === 'runway' ? `${F.craftName} is on the runway. SPACE starts the engines, Z for full throttle, A/D to pull up.`
+  flash(F.site === 'runway' ? (c.motors && c.motors.length && !c.engines.length ? `${F.craftName} is on the runway. ↑/↓ drive, K brakes.`
+    : `${F.craftName} is on the runway. SPACE starts the engines, Z for full throttle, A/D to pull up.`)
     : `${F.craftName} is on the pad. Press SPACE to launch!`, 5);
 }
 

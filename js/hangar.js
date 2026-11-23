@@ -176,7 +176,7 @@ function quickAdd(id) {
   }
   if (!snap) { hint('No free spot for that part. Drag it onto the rocket instead.'); return; }
   snapshot();
-  const uids = attachPart(d, id, snap.parent, snap.node, snap.side || 0, snap.ay || 0, Hangar.sym);
+  const uids = attachPart(d, id, snap.parent, snap.node, snap.side || 0, snap.ay || 0, Hangar.sym && !def.wheel);
   Hangar.sel = uids[0];
   hangarChanged();
 }
@@ -227,7 +227,9 @@ function findSnap(id, lx, ly) {
 function applyDrop(d, drag, snap) {
   if (snap.aside) return [setAside(d, drag.sub || newSub(d, drag.id), snap.x, snap.y)];
   const attach = (dd, parent) => {
-    const uids = parent == null ? attachPart(dd, drag.id, null) : attachPart(dd, drag.id, parent, snap.node, snap.side || 0, snap.ay || 0, Hangar.sym);
+    // wheels are never mirrored: one side of the craft is its underside on the runway
+    const sym = Hangar.sym && !PART_DEFS[drag.id].wheel;
+    const uids = parent == null ? attachPart(dd, drag.id, null) : attachPart(dd, drag.id, parent, snap.node, snap.side || 0, snap.ay || 0, sym);
     if (drag.sub) insertSubtree(dd, drag.sub, uids);
     return uids;
   };
@@ -435,6 +437,18 @@ function drawBuild() {
       }
     }
   }
+  // craft with wheels lie on that side on the runway: show where the ground will be
+  if (craft && craft.wheels.length && !turned) {
+    let n = 0, far = 0;
+    for (const w of craft.wheels) { const s = w.flip ? -1 : 1; n += s; far = Math.max(far, Math.abs(wheelPoint(w)[0] - craft.xc) + w.def.wheelR); }
+    const s = n < 0 ? -1 : 1, gx = craft.xc + s * far, b = craft.bounds;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(160,200,120,0.75)'; ctx.lineWidth = 2 / v.s; ctx.setLineDash([6 / v.s, 4 / v.s]);
+    ctx.beginPath(); ctx.moveTo(gx, b.minY - 0.6); ctx.lineTo(gx, b.maxY + 0.6); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(160,200,120,0.18)'; ctx.fillRect(gx, b.minY - 0.6, s * 1.2, b.maxY - b.minY + 1.2);
+    ctx.restore();
+    Hangar.groundLabel = { x: gx + s * 0.6, y: (b.minY + b.maxY) / 2, s };
+  } else Hangar.groundLabel = null;
   // ghost of the part being dragged
   const drag = Hangar.drag;
   if (drag && drag.over) {
@@ -462,6 +476,16 @@ function drawBuild() {
     ctx.globalAlpha = 1;
   }
   ctx.restore();
+  // which side is the ground on the runway
+  if (Hangar.groundLabel && !drag) {
+    const gl = Hangar.groundLabel;
+    ctx.save();
+    ctx.translate(v.ox + gl.x * v.s, v.oy - gl.y * v.s);
+    ctx.rotate(gl.s > 0 ? Math.PI / 2 : -Math.PI / 2);
+    ctx.font = '600 11px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(180,220,140,0.9)';
+    ctx.fillText('GROUND ON THE RUNWAY', 0, 4);
+    ctx.restore();
+  }
   // label the pieces on the floor
   ctx.font = '600 11px system-ui, sans-serif';
   ctx.textAlign = 'center';
