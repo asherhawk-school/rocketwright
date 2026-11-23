@@ -81,6 +81,9 @@ function goEva() {
   const x = F.crew.find((y) => c.byUid.has(y.pod) && !y.tourist);
   logEvent(`${x.name} went outside`);
   const e = spawnEva(c, x, F.t);
+  // they take a surface science kit along, if the ship has one left
+  const kit = c.parts.find((p) => p.def.kit && !p.used);
+  if (kit) { kit.used = true; e.parts[0].kits = 1; }
   F.crew = F.crew.filter((y) => y !== x);
   e.vid = newVesselId();
   e.meta = { id: e.vid, name: x.name, crew: [{ ...x, pod: e.parts[0].uid }], kind: 'eva', launchT: F.t, flags: JSON.parse(JSON.stringify(F.flags)) };
@@ -159,6 +162,52 @@ function evaStep(c, dt) {
   c.walkT = (c.walkT || 0) + dt;
 }
 function evaHop() { if (F.kind === 'eva' && F.craft.landed) F.evaHop = true; }
+
+/* ---------------- surface science stations ----------------
+   An astronaut carrying a science kit can set up a station on the ground (I). It works on its own for
+   STATION_DAYS, sending home science worth STATION_BASE × the world's science value (less if that biome was
+   already studied this way), credited whenever you're back at the Space Centre. */
+const STATION_DAYS = 60, STATION_BASE = 40;
+
+function deployStation() {
+  const e = F.craft, me = e && e.parts[0];
+  if (F.kind !== 'eva' || e.dead || !e.landed) { flash('Set up a science station while standing on the ground on a spacewalk', 2.5); return; }
+  if (!me.kits) { flash('Bring a Surface Science Kit: put one on the ship before going outside', 3); return; }
+  const b = e.landed.body, phi = Math.atan2(e.landed.ry, e.landed.rx);
+  if (b.ocean && terrainH(b, phi) < 0) { flash('A science station needs solid ground', 2); return; }
+  const st = oneTreeCraft('sciStation');
+  placeOnGround(st, b, phi + 1.4 / b.R, F.t);
+  const bio = biomeAt(b, phi), id = `station@${b.id}:${bio || ''}`, s = Career.s;
+  const cap = STATION_BASE * (BODY_SCI[b.id] || 1) * (1 - ((s && s.sci[id]) || 0));
+  st.parts[0].station = { body: b.id, biome: bio, id, t0: F.t, cap, got: 0 };
+  st.vid = newVesselId();
+  st.meta = { id: st.vid, name: `Science Station · ${b.name}${bio ? ` (${bio})` : ''}`, crew: [], kind: 'station', launchT: F.t,
+    flags: { space: false, maxAlt: 0, visited: [], landedOn: [] } };
+  F.others.push(st);
+  me.kits = 0;
+  logEvent(`Set up a science station on ${b.name}${bio ? ` in the ${bio}` : ''}`);
+  playSound('dock');
+  flash(isCareer() ? `Science station working: about ${fmtNum(cap, 0)} ⚗ over ${STATION_DAYS} days` : 'Science station set up', 4);
+  persist();
+}
+
+/* Credit what every science station has made since last time (career). */
+function stationTick(s) {
+  if (!s || !s.vessels || s.mode !== 'career') return 0;
+  let total = 0;
+  for (const v of s.vessels) {
+    const st = v.parts[0] && v.parts[0].station;
+    if (!st) continue;
+    const earned = st.cap * clamp((s.ut - st.t0) / (STATION_DAYS * 86400), 0, 1), delta = earned - st.got;
+    if (delta < 0.05) continue;
+    st.got = earned;
+    const g = delta * ((s.diff && s.diff.science) || 1);
+    s.science = Math.round((s.science + g) * 10) / 10;
+    s.sci[st.id] = Math.min(1, (s.sci[st.id] || 0) + delta / Math.max(st.cap, 1e-9) * (1 - (s.sci[st.id] || 0)));
+    total += g;
+  }
+  return total;
+}
 
 /* L: plant a flag where the astronaut stands. */
 function plantFlag() {

@@ -34,6 +34,7 @@ const TECH_NODES = [
   { id: 'aerodynamics', name: 'Aerodynamics', cost: 90, req: ['aviation'], col: 2, row: 6, parts: ['wingL', 'strake', 'canard', 'gear', 'intakeRad'] },
   { id: 'supersonic', name: 'Supersonic Flight', cost: 220, req: ['aerodynamics'], col: 3, row: 6, parts: ['jetTurbo'] },
   { id: 'rovers', name: 'Rovers', cost: 80, req: ['landing'], col: 3, row: 5, parts: ['roverWheel'] },
+  { id: 'labs', name: 'Field Science', cost: 240, req: ['command'], col: 6, row: 4, parts: ['lab', 'sciKit'] },
   { id: 'grappling', name: 'Grappling', cost: 200, req: ['command'], col: 5, row: 4, parts: ['claw'] },
   { id: 'comms', name: 'Communications', cost: 140, req: ['exploration'], col: 5, row: 2, parts: ['dishM', 'relayS'] },
   { id: 'deepcomms', name: 'Deep Space Networks', cost: 300, req: ['comms'], col: 6, row: 2, parts: ['dishL', 'relayL'] },

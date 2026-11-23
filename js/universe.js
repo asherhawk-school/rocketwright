@@ -15,7 +15,7 @@ function universe() {
 /* ---------------- serialisation ---------------- */
 
 const PART_KEYS = ['uid', 'id', 'x', 'top', 'bot', 'flip', 'inv', 'links', 'fuel', 'solid', 'mono', 'gas', 'ec', 'ablator', 'ignited', 'result', 'spent', 'sym', 'cfg',
-  'shell', 'open', 'area', 'torn', 'inflated', 'brake', 'cellOff', 'gearUp', 'held', 'ore', 'drilling', 'converting', 'lit', 'disarmed', 'grabbed'];
+  'shell', 'open', 'area', 'torn', 'inflated', 'brake', 'cellOff', 'gearUp', 'held', 'ore', 'drilling', 'converting', 'lit', 'disarmed', 'grabbed', 'labData', 'labSci', 'labSubj', 'used', 'kits', 'station'];
 
 function serialiseParts(parts) {
   return parts.map((p) => {
@@ -179,6 +179,7 @@ function recoverRecord(v) {
   const parts = deserialiseParts(v.parts);
   let refund = 0, sci = 0;
   for (const p of parts) for (const r of partResults(p)) sci += creditResult(s, r, 1, scienceBonus(s, v.crew));
+  for (const p of parts) if (p.labSci > 0 && s.mode === 'career') { const g = p.labSci * diff('science'); s.science = Math.round((s.science + g) * 10) / 10; sci += g; }
   if (isCareer() && v.landed) {
     const phi = Math.atan2(v.landed.ry, v.landed.rx);
     refund = parts.reduce((a, p) => a + partValue(p), 0) * recoveryFactor(phi, terrainH(HOME, phi) < 0);

@@ -146,6 +146,36 @@ function miningStep(c, dt, t, skill = 1) {
   if (changed) c.updateMass();
 }
 
+/* ---------------- research labs ----------------
+   Results analysed in a lab become data; a scientist aboard slowly turns data into science (using power). Data
+   is used up at half the rate science is made, so a lab roughly doubles what its results were worth. */
+const LAB_RATE = 2.5e-6;   // science per second, per point of data, per scientist rank step
+const LAB_EC = 5;          // charge per second while working
+function labStep(c, dt, skill) {
+  if (!skill) return;
+  for (const p of c.parts) {
+    if (!p.def.lab || !(p.labData > 0) || (p.labSci || 0) >= p.def.labSci) continue;
+    let make = Math.min(p.labData * LAB_RATE * skill * dt, p.def.labSci - (p.labSci || 0), p.labData * 2);
+    make *= ecDrain(c, LAB_EC * dt);
+    p.labSci = (p.labSci || 0) + make;
+    p.labData = Math.max(0, p.labData - make / 2);
+  }
+}
+/* Copy every result on the craft that the lab hasn't seen into it as data. Returns the data added. */
+function labAnalyse(c, p) {
+  let add = 0;
+  p.labSubj = p.labSubj || [];
+  for (const q of c.parts) for (const r of partResults(q)) {
+    if (p.labSubj.includes(r.id)) continue;
+    const room = p.def.labData - (p.labData || 0) - add;
+    if (room <= 0) break;
+    p.labSubj.push(r.id);
+    add += Math.min(room, r.cap);
+  }
+  p.labData = (p.labData || 0) + add;
+  return add;
+}
+
 /* Move fuel (or ore) between this part and the rest of the craft. Returns tonnes moved. */
 function transferProp(c, p, k, cap, pull) {
   const others = c.parts.filter((q) => q !== p && q.def[cap]);

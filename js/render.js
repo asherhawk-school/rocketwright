@@ -305,6 +305,25 @@ function drawPart(ctx, p, lw) {
       ctx.fillStyle = 'rgba(170,215,255,0.65)'; ctx.beginPath(); ctx.ellipse(-0.05, y0 + 1.1, 0.05, 0.03, -0.5, 0, TAU); ctx.fill();
       break;
     }
+    case 'scikit': { // a white case with a science stripe
+      ctx.fillStyle = '#e8ebef'; ctx.beginPath(); ctx.roundRect(-hw, bot, 2 * hw, h, 0.06); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = p.used ? '#8a9099' : '#4a7fd0'; ctx.fillRect(-hw, bot + h * 0.4, 2 * hw, h * 0.2);
+      break;
+    }
+    case 'sstation': { // a little science station: box, solar wing, dish
+      ctx.fillStyle = '#1d3a7a'; ctx.fillRect(hw * 0.3, bot + h * 0.55, hw * 1.6, h * 0.3); ctx.strokeRect(hw * 0.3, bot + h * 0.55, hw * 1.6, h * 0.3);
+      ctx.fillStyle = '#c9ccd1'; ctx.fillRect(-0.04, bot, 0.08, h * 0.7);
+      ctx.fillStyle = '#e8ebef'; ctx.fillRect(-hw * 0.6, bot, hw * 1.2, h * 0.45); ctx.strokeRect(-hw * 0.6, bot, hw * 1.2, h * 0.45);
+      ctx.fillStyle = '#7dffa8'; ctx.beginPath(); ctx.arc(0, bot + h * 0.22, 0.06, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#eef1f4'; ctx.beginPath(); ctx.arc(-hw * 0.2, top - 0.2, 0.25, 0, Math.PI); ctx.fill(); ctx.stroke();
+      break;
+    }
+    case 'lab': { // a two-seat lab with windows and a blue band
+      ctx.fillStyle = cylGrad(ctx, -hw, hw, '#9aa0a8', '#f2f4f7', '#7a8088'); ctx.fillRect(-hw, bot, 2 * hw, h); ctx.strokeRect(-hw, bot, 2 * hw, h);
+      ctx.fillStyle = '#4a7fd0'; ctx.fillRect(-hw, bot + h * 0.15, 2 * hw, 0.16); ctx.fillRect(-hw, top - h * 0.15 - 0.16, 2 * hw, 0.16);
+      ctx.fillStyle = '#1d3a5c'; for (const x of [-0.5, 0, 0.5]) { ctx.beginPath(); ctx.arc(x * hw, bot + h / 2, 0.16, 0, TAU); ctx.fill(); }
+      break;
+    }
     case 'flag': { // a pole with a blue banner and a rising-chevron emblem
       ctx.fillStyle = '#6b4a2e'; ctx.fillRect(-0.12, bot, 0.24, 0.06);
       ctx.fillStyle = '#c9ccd1'; ctx.fillRect(-0.035, bot, 0.07, h); ctx.strokeRect(-0.035, bot, 0.07, h);

@@ -277,6 +277,14 @@ function buildPart(p, owner) {
       add(sphere(0.22, 0, bot + 1.07, 0, M('white')), sphere(0.16, 0, bot + 1.06, 0.1, M('glass'), 1, 0.75, 0.7)); // helmet and visor
       break;
     }
+    case 'scikit': add(box(2 * hw, h, 2 * hw, 0, cy, 0, M('white')), box(2 * hw * 1.01, h * 0.2, 2 * hw * 1.01, 0, cy, 0, M(p.used ? 'grey' : 'blue'))); break;
+    case 'sstation': add(box(hw * 1.2, h * 0.45, hw * 1.2, 0, bot + h * 0.22, 0, M('white')), cyl(0.04, 0.04, h * 0.7, bot + h * 0.35, M('metal'), 6),
+      box(hw * 1.6, 0.04, hw * 0.9, hw * 1.1, bot + h * 0.7, 0, M('solar')), sphere(0.25, -hw * 0.2, top - 0.2, 0, M('white'), 1, 0.4, 1)); break;
+    case 'lab': {
+      add(cyl(hw, hw, h, cy, M('white')), band(hw, bot + h * 0.2, 0.16, M('blue')), band(hw, top - h * 0.2, 0.16, M('blue')));
+      for (const a of [-0.6, 0, 0.6]) { const w = box(0.32, 0.32, 0.06, hw * Math.sin(a), cy, hw * Math.cos(a), M('glass')); w.rotation.y = a; add(w); }
+      break;
+    }
     case 'flag': {
       add(cyl(0.035, 0.035, h, cy, M('metal'), 8), cyl(0.12, 0.12, 0.06, bot + 0.03, M('bronze'), 10));
       add(box(1.0, 0.6, 0.02, 0.535, top - 0.36, 0, M('blue')), box(0.3, 0.3, 0.03, 0.535, top - 0.36, 0, M('white')));

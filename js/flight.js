@@ -27,7 +27,7 @@ function initFlightView() {
   for (let i = 0; i < 80; i++) F.clouds.push({ phi: PAD_PHI + (rnd() - 0.5) * 0.5, alt: 1500 + rnd() * 5000, w: 250 + rnd() * 700, h: 60 + rnd() * 120 });
   for (const id of ['hBiome', 'hBiomeRow', 'hAlt', 'hSpd', 'hVs', 'hRadar', 'hRadarW', 'hBody', 'hAp', 'hPe', 'hTAp', 'hTPe', 'hPer', 'hEncRow', 'hEncLabel', 'hEnc', 'hEnc2Row', 'hEnc2Label', 'hEnc2',
     'hClock', 'hWarp', 'thrFill', 'thrPct', 'hDv', 'hDvT', 'hTwr', 'fLiq', 'fSol', 'fLiqRow', 'fSolRow', 'fMono', 'fMonoRow', 'fGas', 'fGasRow', 'bGear', 'bBrakes', 'bQSave', 'bQLoad', 'bRcs', 'hNext', 'hPitch',
-    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag', 'fOre', 'fOreRow', 'hSig', 'hSigRow', 'crewPanel', 'alarmPanel', 'alarmList', 'bAlarm']) F.hud[id] = document.getElementById(id);
+    'bRecover', 'bMap', 'msg', 'mapHint', 'bSci', 'sciPanel', 'sciList', 'sciWhere', 'hudContracts', 'hG', 'hEcc', 'heatWarn', 'fEc', 'fEcRow', 'fEcRate', 'hudTarget', 'tName', 'tDist', 'tClose', 'tCloseLabel', 'tPhase', 'tPhaseRow', 'tWin', 'tWinRow', 'mapTools', 'bNodeAp', 'bNodePe', 'nodePanel', 'nInfo', 'nPro', 'nRad', 'nTime', 'nBurn', 'tRel', 'tRelRow', 'tDock', 'tDockRow', 'bUndock', 'bSwitch', 'bEva', 'bFlag', 'fOre', 'fOreRow', 'hSig', 'hSigRow', 'crewPanel', 'alarmPanel', 'alarmList', 'bAlarm', 'bDeploy']) F.hud[id] = document.getElementById(id);
   resizeFlight();
   window.addEventListener('resize', resizeFlight);
 }
@@ -511,7 +511,7 @@ function stepCraft(c, dt, player) {
       c.settle = 0;
     } else {
       if (T > 0) emitExhaust(c, dt, at.p, bv);
-      if (player) { electricStep(c, dt, t, 0); miningStep(c, dt, t, miningSkill()); c.gforce = Math.hypot(g[0], g[1]) / G0; }
+      if (player) { electricStep(c, dt, t, 0); miningStep(c, dt, t, miningSkill()); labStep(c, dt, labSkill()); c.gforce = Math.hypot(g[0], g[1]) / G0; }
       heatStep(c, dt, 0, 0, 0);
       return;
     }
@@ -535,7 +535,7 @@ function stepCraft(c, dt, player) {
   // reaction wheels need power
   const wheels = player && !(ecTotal(c) > 0.01) ? 0 : c.torque;
   let tq = c.ctrl * (wheels + c.gimbalCap + c.rcsTorqueCap * rcs.k) + c.thrustTorque;
-  if (player) { electricStep(c, dt, t, Math.abs(c.ctrl) * wheels); miningStep(c, dt, t, miningSkill()); }
+  if (player) { electricStep(c, dt, t, Math.abs(c.ctrl) * wheels); miningStep(c, dt, t, miningSkill()); labStep(c, dt, labSkill()); }
   let kSpring = 0;
   const vrx = c.vel[0] - bv[0], vry = c.vel[1] - bv[1];
   const v = Math.hypot(vrx, vry);
@@ -826,6 +826,7 @@ function railsStep(simDt) {
   for (const p of c.parts) p.burn = 0;
   electricStep(c, simDt, F.t, 0);
   miningStep(c, simDt, F.t, miningSkill());
+  labStep(c, simDt, labSkill());
   for (const p of c.parts) p.temp = T_AMBIENT + (p.temp - T_AMBIENT) * Math.exp(-0.025 * simDt);
   if (c.landed) {
     F.t += simDt;
@@ -969,6 +970,16 @@ function describeEvent(e, now) {
 
 /* Let active contracts look at what just happened. */
 /* Is someone with this role aboard the craft being flown (career only; sandbox crews can do everything)? */
+/* Labs work only with a scientist aboard (career); higher ranks work faster. */
+function labSkill() {
+  if (!isCareer()) return 0;
+  let k = 0;
+  for (const x of F.crew || []) {
+    const cm = x.id && Career.s.crew.find((y) => y.id === x.id);
+    if (cm && roleOf(cm) === 'scientist') k += 1 + 0.5 * crewRank(cm);
+  }
+  return k;
+}
 /* Engineers make drills and refineries half as fast again (career). */
 function miningSkill() { return isCareer() && crewHasRole('engineer') ? 1.5 : 1; }
 function crewHasRole(role) {
@@ -1029,6 +1040,14 @@ function renderSciencePanel() {
       rows.push({ key: `${p.uid}:h${i}:${r.id}`, uid: p.uid, name: `Carrying: ${EXPERIMENTS[r.exp].name}`,
         status: `${sitText(r.sit, BODY_BY_ID[r.body], r.biome)} · ${left.toFixed(1)} ⚗ if recovered`, btns });
     });
+    if (p.def.lab) {
+      const btns = [['lab:analyse', 'Analyse results', false]];
+      if ((p.labSci || 0) > 0.05 && antenna) btns.push(['lab:tx', `Transmit ${fmtNum(p.labSci, 1)}`, false]);
+      const working = (p.labData || 0) > 0 && labSkill() > 0;
+      rows.push({ key: `lab${p.uid}`, uid: p.uid, name: p.def.name, btns,
+        status: `Data ${fmtNum(p.labData || 0, 1)} / ${p.def.labData} · science ${fmtNum(p.labSci || 0, 1)} / ${p.def.labSci}` +
+          (working ? ` · making ${fmtNum((p.labData || 0) * LAB_RATE * labSkill() * 86400, 1)}/day` : (p.labData || 0) > 0 ? ' · needs a scientist aboard' : '') });
+    }
     if (!p.def.exp) continue;
     const e = EXPERIMENTS[p.def.exp];
     let status;
@@ -1077,7 +1096,16 @@ function scienceAction(kindArg, uid) {
   if (!p || !s) return;
   const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
   const [kind, arg] = String(kindArg).split(':');
-  if (kind === 'erun') {
+  if (kind === 'lab') {
+    if (arg === 'analyse') { const n = labAnalyse(c, p); flash(n > 0 ? `${fmtNum(n, 1)} data added to the lab` : 'Nothing new for the lab to analyse', 2.5); }
+    else if (arg === 'tx' && hasSignal()) {
+      const gain = (p.labSci || 0) * ((s.diff && s.diff.science) || 1);
+      if (s.mode === 'career') s.science = Math.round((s.science + gain) * 10) / 10;
+      p.labSci = 0;
+      toast(`Transmitted lab science: +${fmtNum(gain, 1)}`);
+      persist();
+    }
+  } else if (kind === 'erun') {
     const sit = situationOf(c, b, F.t);
     const r = collectResult(s, p, arg, b, sit, sciBiome(c, b, F.t, sit));
     if (r) flash(`${EXPERIMENTS[arg].name}: collected (${r.value.toFixed(1)} ⚗ if recovered)`, 3);
@@ -2000,6 +2028,7 @@ function updateHud() {
     h.bEva.classList.toggle('on', F.kind === 'eva' && !!boardTarget());
   }
   h.bFlag.classList.toggle('hidden', !(F.kind === 'eva' && c.landed && !c.dead));
+  h.bDeploy.classList.toggle('hidden', !(F.kind === 'eva' && c.landed && !c.dead && c.parts[0].kits));
   h.bBrakes.classList.toggle('on', !!(c.wheelBrake || c.brakes.some((p) => p.brake)));
   const rel = wrapPi(c.angle - Math.atan2(ry, rx));
   const pitch = 90 - (Math.abs(rel) * 180) / Math.PI;

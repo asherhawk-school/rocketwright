@@ -278,6 +278,7 @@ function recover() {
     }
     p.result = null;
     p.held = [];
+    if (p.labSci > 0) { const g = p.labSci * diff('science'); if (isCareer()) addScience(g); sci += g; sciLines.push(`<li>${esc(p.def.name)} · +${g.toFixed(1)} ⚗</li>`); p.labSci = 0; }
   }
   flightEvent({ kind: 'recover', crew: crewNames(F.crew), flags: F.flags });
   if (isCareer()) {
@@ -316,7 +317,7 @@ function toggleRcs() {
 
 /* [ and ] switch between vessels close enough to see. */
 function cycleNearby(dir) {
-  const near = F.others.filter((o) => !o.dead && !(o.meta && (o.meta.kind === 'flag' || o.meta.kind === 'asteroid')));
+  const near = F.others.filter((o) => !o.dead && !(o.meta && ['flag', 'asteroid', 'station'].includes(o.meta.kind)));
   if (!near.length) { flash('No other vessels nearby', 2); return; }
   const o = near[dir > 0 ? 0 : near.length - 1];
   switchToVessel(o.vid);
@@ -361,6 +362,7 @@ function onKeyDown(e) {
     case 'Space': if (F.kind === 'eva') evaHop(); else doStage(); break;
     case 'KeyJ': evaKey(); break;
     case 'KeyC': toggleAlarms(); break;
+    case 'KeyI': deployStation(); break;
     case 'KeyL': if (F.kind === 'eva') plantFlag(); else toggleLights(); break;
     case 'KeyM': toggleMap(); break;
     case 'Comma': changeWarp(-1); break;
@@ -439,6 +441,7 @@ function wireUi() {
   $('bAlarm').addEventListener('click', toggleAlarms);
   $('alarmList').addEventListener('click', alarmClick);
   $('bFlag').addEventListener('click', plantFlag);
+  $('bDeploy').addEventListener('click', deployStation);
   $('bBrakes').addEventListener('click', toggleBrakes);
   $('bMap').addEventListener('click', toggleMap);
   $('bMenu').addEventListener('click', openMenu);

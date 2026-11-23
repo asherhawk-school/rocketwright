@@ -65,6 +65,8 @@ function showHub() {
   showScreen('hub');
   if (Career.restoreNote) { toast(Career.restoreNote); Career.restoreNote = null; }
   asteroidTick(universe());
+  const got = stationTick(Career.s);
+  if (got >= 0.1) toast(`Science stations sent home +${fmtNum(got, 1)} ⚗`);
   persist();
   if (isCareer()) {
     const failed = refreshContracts(Career.s);
@@ -247,6 +249,7 @@ function trackingLost(lost) {
 function showTracking() {
   const s = universe();
   asteroidTick(s);
+  stationTick(s);
   trackingLost(advanceAll(s.ut));
   persist();
   const rows = s.vessels.map((v) => {
@@ -254,9 +257,9 @@ function showTracking() {
     const home = v.landed && b === HOME;
     const crew = crewNames(v.crew);
     return `<div class="trk-row ${v.kind}">
-      <div><b>${esc(v.name)}</b>${v.kind === 'stranded' ? ' <span class="pill rep">needs rescue</span>' : v.kind === 'eva' ? ' <span class="pill">on a spacewalk</span>' : v.kind === 'flag' ? ' <span class="pill">flag</span>' : v.kind === 'asteroid' ? ` <span class="pill">asteroid${v.rockClass ? ` · class ${v.rockClass}` : ''}${v.expires ? ` · leaves in ${fmtDur(v.expires - s.ut)}` : ''}</span>` : ''}
+      <div><b>${esc(v.name)}</b>${v.kind === 'stranded' ? ' <span class="pill rep">needs rescue</span>' : v.kind === 'eva' ? ' <span class="pill">on a spacewalk</span>' : v.kind === 'flag' ? ' <span class="pill">flag</span>' : v.kind === 'station' && v.parts[0].station ? ` <span class="pill sci">science station · ${fmtNum(v.parts[0].station.got, 1)} / ${fmtNum(v.parts[0].station.cap, 1)} ⚗</span>` : v.kind === 'asteroid' ? ` <span class="pill">asteroid${v.rockClass ? ` · class ${v.rockClass}` : ''}${v.expires ? ` · leaves in ${fmtDur(v.expires - s.ut)}` : ''}</span>` : ''}
         <div class="muted">${esc(vesselSituation(v))} · ${fmtDur(s.ut - v.launchT)} since launch${crew.length ? ' · 👩‍🚀 ' + esc(crew.join(', ')) : ''}</div></div>
-      <div class="trk-btns">${v.kind === 'stranded' || v.kind === 'flag' || v.kind === 'asteroid' ? '' : `<button class="primary" data-fly="${v.id}">Fly</button>`}
+      <div class="trk-btns">${v.kind === 'stranded' || v.kind === 'flag' || v.kind === 'asteroid' || v.kind === 'station' ? '' : `<button class="primary" data-fly="${v.id}">Fly</button>`}
         ${home ? `<button data-rec="${v.id}">Recover</button>` : ''}
         ${v.flags && v.flags.log && v.flags.log.length ? `<button data-log="${v.id}">Log</button>` : ''}
         ${v.kind === 'stranded' ? '' : `<button data-del="${v.id}">Terminate</button>`}</div></div>`;
@@ -310,6 +313,8 @@ function showTracking() {
     const a = nextAlarm(s.ut);
     if (a && a.t <= s.ut + +b.dataset.wait) { s.ut = a.t; removeAlarm(a.id); toast(`⏰ ${a.text}`); }
     else s.ut += +b.dataset.wait;
+    const got = stationTick(s);
+    if (got >= 0.1) toast(`Science stations sent home +${fmtNum(got, 1)} ⚗`);
     trackingLost(advanceAll(s.ut));
     if (isCareer()) for (const c of refreshContracts(s)) toast(`Contract failed: ${c.title}`);
     persist();

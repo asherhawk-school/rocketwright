@@ -172,6 +172,7 @@ Object.assign(PART_DEFS.pod, { seats: 1 });
 Object.assign(PART_DEFS, {
   eva: { kind: 'eva', name: 'Astronaut', hidden: true, mass: 0.09, h: 1.3, w: 0.6, pod: true, torque: 0.25, ec: 20, mono: 0.004,
     rcs: true, rcsThrust: 0.25, isp: 80, maxTemp: 900, exps: ['evaReport', 'sample'], desc: 'An astronaut in a spacesuit with a small jetpack.' },
+  sciStation: { kind: 'sstation', name: 'Science Station', hidden: true, mass: 0.15, h: 1.3, w: 1.0, maxTemp: 1500, desc: 'Sends science home for weeks.' },
   flag: { kind: 'flag', name: 'Flag', hidden: true, mass: 0.01, h: 2.2, w: 0.15, maxTemp: 1200, desc: 'Planted to mark a visit.' },
 });
 /* Asteroids, by size class. Their ore (rockOre tonnes at most) can be drilled out once a claw holds them. */
@@ -231,6 +232,11 @@ Object.assign(PART_DEFS, {
     desc: 'Lights up the ground at night. L (or its part menu) switches lights on and off. Uses a little charge.' },
   claw: { kind: 'claw', name: 'Grabbing Claw', cat: 'Coupling', mass: 0.4, h: 1.0, w: 1.25, claw: true,
     desc: 'Latches onto any part of another vessel (or an asteroid) it touches slowly. Release it from its part menu.' },
+  // science labs and surface stations
+  lab: { kind: 'lab', name: 'Research Module', cat: 'Science', mass: 3.5, h: 2.6, w: 2, seats: 2, ec: 200, lab: true, labData: 750, labSci: 500,
+    desc: 'A two-seat lab. Analyse your results in it, and a scientist aboard slowly turns that data into extra science, using power. Transmit or recover what it makes.' },
+  sciKit: { kind: 'scikit', name: 'Surface Science Kit', cat: 'Science', radial: true, mass: 0.15, h: 0.6, w: 0.6, kit: true,
+    desc: 'An astronaut going outside takes it along, and can set up a science station on the ground (I) that sends science home for weeks.' },
   // communications
   dishM: { kind: 'dish', name: 'Long-Range Dish', cat: 'Science', radial: true, mass: 0.1, h: 0.9, w: 0.9, antenna: true, range: 5e10,
     desc: 'A folding dish that reaches 50 million km: the inner planets from Verdan.' },
@@ -303,7 +309,7 @@ const PART_COSTS = {
   probe: 700, battery: 150, batteryRing: 600, solar: 500, shield2: 600, shield125: 300, dockPort: 800, chuteRadial: 450,
   shield3: 1100, bloom: 2200, chuteDrogue: 400, chuteBig: 900, airbrake: 450, hearth: 9000, whisper: 7000, spindle: 3800, puff: 500,
   gasTank: 400, gasDrum: 1500, heron: 3800, cabin: 2500, fairing2: 600, fairing3: 1100, strut: 40, batteryDisc: 400, batteryBank: 1800,
-  fuelCell: 700, fuelCellL: 3000, clamp: 200, light: 100, claw: 3500, dishM: 2500, dishL: 9000, relayS: 4000, relayL: 14000, oreScanner: 1500, drill: 3000, oreTank: 1000, oreTankL: 2500, converter: 8000,
+  fuelCell: 700, fuelCellL: 3000, lab: 12000, sciKit: 1800, clamp: 200, light: 100, claw: 3500, dishM: 2500, dishL: 9000, relayS: 4000, relayL: 14000, oreScanner: 1500, drill: 3000, oreTank: 1000, oreTankL: 2500, converter: 8000,
   cockpit: 1400, fuselage: 500, tailCone: 200, intake: 400, intakeRad: 300, wingS: 300, wingL: 700, strake: 150, elevon: 400, canard: 350,
   jetFan: 3500, jetTurbo: 4500, gear: 500, skid: 150, roverWheel: 700,
 };

@@ -36,7 +36,7 @@ then visit http://localhost:8000.
 - **Space Centre upgrades**: every building starts at level 1 in career and can be upgraded twice: the Hangar (part count),
   Launch Pad and Runway (mass), Mission Control (active contracts), Tracking Station (manoeuvre nodes and faster time warp),
   Astronaut Office (crew size) and Research Lab (pricier research). Older careers start at level 2; sandbox is fully upgraded.
-- **Hangar**: drag 102 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
+- **Hangar**: drag 104 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS, plus engine mounts
   (twin, tri and quad) for clusters of engines side by side. Drop a part or a whole section on empty floor to **set it aside**
@@ -119,6 +119,10 @@ then visit http://localhost:8000.
 - **Manoeuvre nodes**: click your path (or use “Node at Ap/Pe”) to plan a burn, drag its handles or use the editor, see the
   resulting orbit and encounters, the burn time and when to start; time warp stops before the burn, SAS points along it and the
   throttle cuts when it's done.
+- **Science labs and surface stations**: the two-seat Research Module analyses your results into data, and a scientist
+  aboard slowly turns that data into extra science (about doubling what the results were worth), using power; transmit it
+  or bring it home. A Surface Science Kit goes outside with an astronaut, who can set up a science station on the ground
+  (I); it sends science home for 60 days, credited whenever you're back at the Space Centre.
 - **Tourists, stations and bases**: tourism contracts bring paying passengers to the Space Centre. They take any seats
   left after your crew, can't fly or go outside, and pay once you bring them all home after seeing space, orbiting Verdan,
   flying by Pallid or landing there. Station contracts ask for a craft in orbit with enough seats, a docking port, power and
@@ -157,6 +161,7 @@ then visit http://localhost:8000.
 | L | Lights on / off (plant a flag on a spacewalk) |
 | Alt+1–5, Backspace | Fire an action group; Abort |
 | C | Alarm clock |
+| I (on a spacewalk) | Set up a surface science station |
 | B | Science panel (career) |
 | M | Map view (F changes focus) |
 | Drag on the map | Pan around (a click without dragging adds a node, targets a vessel or focuses a planet) |
@@ -178,7 +183,7 @@ node tests/run.js
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
 career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, mining, refining and fuel transfer, the comms network (ground stations, range, line of sight, relays), launch clamps, action groups, floodlights and the claw, asteroids (spotting, drifting away, capture and mining),
-difficulty settings, crew moods and the flight log, alarms stopping time warp, survey sites, tourists, stations and bases, power and shadows, reentry heating with and
+difficulty settings, crew moods and the flight log, alarms stopping time warp, survey sites, tourists, stations and bases, labs and surface science stations, power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers
