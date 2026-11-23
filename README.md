@@ -100,6 +100,7 @@ then visit http://localhost:8000.
 | ↑ / ↓ (rover on the ground) | Drive forward / back |
 | B | Science panel (career) |
 | M | Map view (F changes focus) |
+| Drag on the map | Pan around (a click without dragging adds a node, targets a vessel or focuses a planet) |
 | Drag / right-drag; V | Swing the 3D camera; reset it |
 | , / . | Time warp slower / faster |
 | Mouse wheel, + / − | Zoom |

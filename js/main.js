@@ -306,6 +306,9 @@ function cycleNearby(dir) {
 
 function toggleMap() {
   F.map = !F.map;
+  F.mapPress = null;
+  F.mapPan = [0, 0];
+  document.getElementById('flight').classList.toggle('map-on', F.map);
   F.predTick = 0;
 }
 
@@ -364,8 +367,12 @@ function wireUi() {
   window.addEventListener('keyup', (e) => { F.keys[e.code] = false; });
   window.addEventListener('blur', () => { for (const k in F.keys) F.keys[k] = false; });
   $('game').addEventListener('pointerdown', (e) => { if (F.map && !F.paused) mapPointerDown(e.clientX, e.clientY); });
-  window.addEventListener('pointermove', (e) => { if (F.handleDrag) mapPointerMove(e.clientX, e.clientY, e.shiftKey); });
-  window.addEventListener('pointerup', () => { F.handleDrag = null; });
+  window.addEventListener('pointermove', (e) => {
+    if (F.handleDrag) mapPointerMove(e.clientX, e.clientY, e.shiftKey);
+    else if (F.mapPress) mapPanMove(e.clientX, e.clientY);
+  });
+  window.addEventListener('pointerup', (e) => { F.handleDrag = null; if (F.mapPress) mapPointerUp(e.clientX, e.clientY); });
+  window.addEventListener('pointercancel', () => { F.handleDrag = null; F.mapPress = null; });
   $('bNodeAp').addEventListener('click', () => addNodeAt('ap'));
   $('bNodePe').addEventListener('click', () => addNodeAt('pe'));
   $('bNodeDel').addEventListener('click', () => { F.node = null; if (F.sas === 'node') setSas('stab'); });

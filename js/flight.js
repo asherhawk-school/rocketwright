@@ -8,7 +8,7 @@ const PATH_COLORS = ['#4fd1ff', '#ffb347', '#c792ff', '#7dffa8'];
 
 const F = {
   running: false, paused: false, craft: null, debris: [], particles: [],
-  t: 0, acc: 0, warp: 0, zoom: 6, mapZoom: 0, map: false, mapFocus: 'soi',
+  t: 0, acc: 0, warp: 0, zoom: 6, mapZoom: 0, map: false, mapFocus: 'soi', mapPan: [0, 0], mapPress: null,
   rotOffset: 0, lastBody: null, sas: 'stab', hold: null, userRot: 0,
   keys: Object.create(null), pred: null, predTick: 0, orbit: null, encounter: null,
   flags: null, flightMilestones: [], deadTimer: 0, endShown: false,
@@ -54,11 +54,12 @@ function flightStart(design, name, opts = {}) {
   c.vel = [0, 0];
   c.landed = { body: HOME, rx: c.pos[0], ry: c.pos[1] };
   F.site = opts.site === 'runway' ? 'runway' : 'pad';
+  if (typeof document !== 'undefined' && document.getElementById('flight')) document.getElementById('flight').classList.remove('map-on');
   if (F.site === 'runway') placeOnRunway(c);
   Object.assign(F, {
     craft: c, debris: [], others: [], particles: [], t: opts.t0 || 0, launchT: opts.t0 || 0, crew: opts.crew || [], crewLost: [],
     vid: opts.vid || newVesselId(), canRevert: true, kind: 'ship', dockedMeta: {},
-    flightContracts: [], sciOpen: false, node: null, target: F.target && opts.keepTarget ? F.target : null, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi',
+    flightContracts: [], sciOpen: false, node: null, target: F.target && opts.keepTarget ? F.target : null, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi', mapPan: [0, 0], mapPress: null,
     deadTimer: 0, endShown: false, pred: null, encounter: null, orbit: null, lastBody: HOME, rotOffset: 0, paused: false,
     flags: { space: false, maxAlt: 0, visited: [], landedOn: [] }, flightMilestones: [], running: true,
     dvTick: 0, dvCache: null, rcsTx: 0, rcsTy: 0,
@@ -109,7 +110,7 @@ function flightLoadVessel(v, t) {
   Object.assign(F, {
     craft: c, debris: [], others: [], particles: [], t, launchT: v.launchT, crew: v.crew || [], crewLost: [],
     vid: v.id, canRevert: false, kind: v.kind || 'ship', design: null, craftName: v.name, dockedMeta: v.docked || {},
-    flightContracts: [], sciOpen: false, node: null, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi',
+    flightContracts: [], sciOpen: false, node: null, acc: 0, warp: 0, sas: 'stab', hold: null, map: false, mapZoom: 0, mapFocus: 'soi', mapPan: [0, 0], mapPress: null,
     deadTimer: 0, endShown: false, pred: null, encounter: null, orbit: null, lastBody: c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], t),
     rotOffset: 0, paused: false, flags: v.flags || { space: true, maxAlt: 0, visited: [], landedOn: [] }, flightMilestones: [], running: true,
     dvTick: 0, dvCache: null, rcsTx: 0, rcsTy: 0, predTick: 0,
@@ -1134,11 +1135,30 @@ function fillTargetSelect() {
       `<option value="v${id}" ${F.target && F.target.vid === id ? 'selected' : ''}>${esc(n)}</option>`).join('') + '</optgroup>' : '');
 }
 
-/* Map pointer: drag a node handle, click the path to add a node, or click a body to focus it. */
+/* Map pointer: press a node handle to drag it; press anywhere else to pan the map. Clicking (pressing and
+   letting go without moving) adds a node on the path, targets a vessel or focuses a planet. */
 function mapPointerDown(sx, sy) {
   for (const hd of F.nodeHandles || []) {
     if (Math.hypot(sx - hd.x, sy - hd.y) < 13) { F.handleDrag = { ...hd, lx: sx, ly: sy }; return true; }
   }
+  F.mapPress = { x: sx, y: sy, pan: F.mapPan.slice(), moved: false };
+  return false;
+}
+function mapPanMove(sx, sy) {
+  const p = F.mapPress;
+  if (!p) return;
+  const dx = sx - p.x, dy = sy - p.y;
+  if (!p.moved && Math.hypot(dx, dy) < 5) return;
+  p.moved = true;
+  const z = F.mapZoom || 1;
+  F.mapPan = [p.pan[0] - dx / z, p.pan[1] + dy / z];
+}
+function mapPointerUp(sx, sy) {
+  const p = F.mapPress;
+  F.mapPress = null;
+  if (p && !p.moved && F.map) mapTap(sx, sy);
+}
+function mapTap(sx, sy) {
   let best = null, bd = 9;
   for (const p of F.pathScreen || []) {
     const d = Math.hypot(sx - p.x, sy - p.y);
@@ -1370,6 +1390,7 @@ function cycleMapFocus() {
   const c = F.craft, sb = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
   const fb = mapFocusBody(sb);
   if (fb) F.mapZoom = fitZoom(fb);
+  F.mapPan = [0, 0];
 }
 /* Click a planet on the map to focus it. */
 function mapClick(sx, sy) {
@@ -1379,7 +1400,13 @@ function mapClick(sx, sy) {
     const d = Math.hypot(sx - m.x, sy - m.y);
     if (d < Math.max(14, m.r) && d < bd) { bd = d; best = m.b; }
   }
-  if (best) { F.mapFocus = best; F.mapZoom = fitZoom(best); }
+  // a new focus centres on that planet; clicking the one already in focus just re-centres it
+  if (best) {
+    const c = F.craft, sb = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
+    if (mapFocusBody(sb) !== best) F.mapZoom = fitZoom(best);
+    F.mapFocus = best;
+    F.mapPan = [0, 0];
+  }
 }
 
 function renderMap() {
@@ -1388,7 +1415,7 @@ function renderMap() {
   ctx.fillRect(0, 0, W, H);
   drawStars(0.55, 0);
   const sb = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], t);
-  const foc = mapFocusPos(sb);
+  const f0 = mapFocusPos(sb), foc = [f0[0] + F.mapPan[0], f0[1] + F.mapPan[1]];
   if (!F.mapZoom) F.mapZoom = fitZoom(sb);
   const z = F.mapZoom;
   const S = (x, y) => [W / 2 + (x - foc[0]) * z, H / 2 - (y - foc[1]) * z];
