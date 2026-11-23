@@ -1027,7 +1027,7 @@ function setupHangarScene() {
 }
 
 /* Draw the hangar's craft in 3D, lined up exactly with the 2D view (v) so building still works. */
-function drawHangar3d(craft, v, W, H) {
+function drawHangar3d(craft, v, W, H, loose = []) {
   const S = R3.hangar, r = S.renderer;
   if (r.domElement.width !== Math.round(W * r.getPixelRatio()) || r.domElement.height !== Math.round(H * r.getPixelRatio())) r.setSize(W, H, false);
   r.setClearColor(0x000000, 0);
@@ -1044,6 +1044,16 @@ function drawHangar3d(craft, v, W, H) {
     S.floor.position.set((b.minX + b.maxX) / 2, Math.min(b.minY, ...craft.legs.map((l) => l.footY)) - 0.05, 0);
     S.floor.scale.setScalar(Math.max(b.maxX - b.minX, 3) * 0.75);
   } else S.floor.visible = false;
+  // pieces set aside on the floor: one model each, kept between redraws like the rocket's
+  const keys = R3.hangarLoose || (R3.hangarLoose = []);
+  loose.forEach((c, i) => {
+    const k = keys[i] || (keys[i] = {});
+    Object.assign(k, { parts: c.parts, shells: c.shells, byUid: c.byUid });
+    const m = craftModel(S.crafts, k, 0.3);
+    if (!m.root.parent) S.scene.add(m.root);
+    m.root.position.set(0, 0, 0); m.root.rotation.set(0, 0, 0); m.inner.position.set(0, 0, 0);
+  });
+  for (const k of keys.splice(loose.length)) dropModel(S.crafts, k, S.scene);
   const cx = craft ? (craft.bounds.minX + craft.bounds.maxX) / 2 : 0, cy = craft ? (craft.bounds.minY + craft.bounds.maxY) / 2 : 0;
   const sx = v.ox + cx * v.s, sy = v.oy - cy * v.s;
   const cam = S.camera;

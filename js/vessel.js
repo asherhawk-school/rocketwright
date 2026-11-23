@@ -2,9 +2,10 @@
 /* Rocketwright — craft model: a tree of parts joined by stack nodes (top/bottom) and side attachment.
 
    Design (what the hangar edits and saves):
-     { v: 2, parts: [{ uid, id, parent, node: 'top'|'bottom'|'side'|null, side: ±1, ay, sym }], nextUid, stageOf }
+     { v: 2, parts: [{ uid, id, parent, node: 'top'|'bottom'|'side'|null, side: ±1, ay, sym }], nextUid, stageOf, loose? }
      - node 'side': the part sits beside its parent; `ay` is how far below the parent's top its own top is.
      - `sym` groups mirrored copies; `stageOf` maps uid -> stage number (null = automatic staging).
+     - `loose` (optional) holds pieces set aside on the hangar floor; see setAside().
    Layout turns a design into "geo parts" with local coordinates (x lateral, y up, root top at 0),
    which are also the live parts a Craft flies with. */
 
@@ -108,10 +109,69 @@ function insertSubtree(d, sub, newRoots) {
       if (r.uid === sub.rootUid) continue;
       const uid = d.nextUid++;
       map.set(r.uid, uid);
-      d.parts.push({ uid, id: r.id, parent: null, node: r.node, side: mirror ? -r.side : r.side, ay: r.ay, sym: null, _p: r.parent });
+      d.parts.push({ uid, id: r.id, parent: null, node: r.node, side: mirror ? -r.side : r.side, ay: r.ay, sym: null, _p: r.parent, ...(r.cfg ? { cfg: { ...r.cfg } } : {}) });
     }
     for (const p of d.parts) if (p._p !== undefined) { p.parent = map.get(p._p); delete p._p; }
+    // the moved root keeps its settings too
+    const root = sub.recs.find((r) => r.uid === sub.rootUid);
+    if (root && root.cfg) designPart(d, nr).cfg = { ...root.cfg };
   }
+}
+
+/* ---------------- parts set aside ----------------
+   `design.loose` holds pieces left on the hangar floor to work on later: [{ x, y, parts }]. Each piece is a
+   part tree of its own (its root has parent null) whose root's top centre sits at (x, y), in the same metres
+   as the rocket. Pieces share the design's uid counter, save with the craft and are never launched. */
+
+/* Which tree a part is in: -1 for the rocket, the piece's index if it is set aside, null if it is nowhere. */
+function pieceIndexOf(d, uid) {
+  if (designPart(d, uid)) return -1;
+  const i = (d.loose || []).findIndex((pc) => pc.parts.some((p) => p.uid === uid));
+  return i < 0 ? null : i;
+}
+function anyPart(d, uid) {
+  const i = pieceIndexOf(d, uid);
+  return i == null ? null : i < 0 ? designPart(d, uid) : d.loose[i].parts.find((p) => p.uid === uid);
+}
+/* Run `fn` on the design that holds `uid` (the rocket, or a set-aside piece seen as a design of its own). */
+function editOwner(d, uid, fn) {
+  const i = pieceIndexOf(d, uid);
+  if (i == null) return null;
+  if (i < 0) return fn(d);
+  const pc = d.loose[i], v = { v: 2, parts: pc.parts, nextUid: d.nextUid, stageOf: null };
+  const out = fn(v);
+  d.nextUid = v.nextUid;
+  pc.parts = v.parts;
+  if (!pc.parts.some((p) => p.parent == null)) d.loose.splice(i, 1);
+  return out;
+}
+/* A brand-new part, as an extracted subtree. */
+function newSub(d, id) {
+  const uid = d.nextUid++;
+  return { recs: [{ uid, id, parent: null, node: null, side: 0, ay: 0, sym: null }], rootUid: uid, rootSide: 0 };
+}
+/* Leave a subtree on the floor with its root's top centre at (x, y). A piece taken from the left side is
+   stored as if it were on the right, so it looks the same whichever side it goes back on. Returns its root uid. */
+function setAside(d, sub, x, y) {
+  const recs = sub.recs.map((r) => ({ ...r }));
+  const root = recs.find((r) => r.uid === sub.rootUid);
+  if (sub.rootSide < 0) for (const r of recs) if (r !== root) r.side = -(r.side || 0);
+  Object.assign(root, { parent: null, node: null, side: sub.rootSide ? 1 : 0, sym: null });
+  (d.loose || (d.loose = [])).push({ x, y, parts: recs });
+  return root.uid;
+}
+/* Pick a whole piece up off the floor (as an extracted subtree). */
+function takePiece(d, i) {
+  const pc = d.loose.splice(i, 1)[0], root = pc.parts.find((p) => p.parent == null);
+  return { recs: pc.parts, rootUid: root.uid, rootSide: root.side || 0 };
+}
+/* Lay out every set-aside piece where it sits on the floor. */
+function layoutLoose(d) {
+  return (d.loose || []).map((pc, i) => {
+    const geo = layoutDesign({ parts: pc.parts });
+    for (const g of geo) { g.x += pc.x; g.top += pc.y; g.bot += pc.y; }
+    return { i, parts: geo };
+  });
 }
 
 /* Old saves were a flat top-to-bottom list of ids; fins and legs were stack parts back then. */
@@ -137,6 +197,10 @@ function migrateDesign(x) {
   if (Array.isArray(x)) return designFromStack(x);
   if (x && x.v === 2 && Array.isArray(x.parts)) {
     x.parts = x.parts.filter((p) => PART_DEFS[p.id]);
+    if (Array.isArray(x.loose)) {
+      x.loose = x.loose.map((pc) => ({ ...pc, parts: (pc.parts || []).filter((p) => PART_DEFS[p.id]) })).filter((pc) => pc.parts.some((p) => p.parent == null));
+      if (!x.loose.length) delete x.loose;
+    } else delete x.loose;
     return x;
   }
   return newDesign();

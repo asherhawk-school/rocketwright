@@ -70,10 +70,24 @@ function redo() {
   hangarChanged();
 }
 
+/* Lay out the rocket (with its stats) and the pieces set aside on the floor. */
+function reanalyze() {
+  const D = Hangar.design;
+  Hangar.a = analyzeDesign(D);
+  Hangar.loose = layoutLoose(D).map((l) => ({ i: l.i, craft: new Craft(cloneParts(l.parts)) }));
+}
+/* A laid-out part by uid, on the rocket or set aside. */
+function geoPart(uid) {
+  const a = Hangar.a, m = a && a.parts.find((g) => g.uid === uid);
+  if (m) return m;
+  for (const l of Hangar.loose || []) { const g = l.craft.byUid.get(uid); if (g) return g; }
+  return null;
+}
+
 function hangarChanged() {
   Store.set('current', { name: Hangar.name, design: Hangar.design });
-  Hangar.a = analyzeDesign(Hangar.design);
-  if (Hangar.sel != null && !designPart(Hangar.design, Hangar.sel)) Hangar.sel = null;
+  reanalyze();
+  if (Hangar.sel != null && !anyPart(Hangar.design, Hangar.sel)) Hangar.sel = null;
   drawBuild();
   updateStats();
   // craft on wheels start on the runway unless you pick otherwise
@@ -85,7 +99,8 @@ function hangarChanged() {
 function removeSel() {
   if (Hangar.sel == null) return;
   snapshot();
-  removePartTree(Hangar.design, Hangar.sel);
+  const uid = Hangar.sel;
+  editOwner(Hangar.design, uid, (d) => removePartTree(d, uid));
   Hangar.sel = null;
   hangarChanged();
 }
@@ -97,7 +112,7 @@ function hint(text) {
   clearTimeout(hint.t);
   hint.t = setTimeout(() => { el.classList.remove('flash'); el.textContent = DEFAULT_HINT; }, 2600);
 }
-const DEFAULT_HINT = 'Drag parts onto the rocket · click a part to select · drag it to move · Del removes · Ctrl+Z undoes';
+const DEFAULT_HINT = 'Drag parts onto the rocket · drop one on empty floor to set it aside · click to select · drag to move · Del removes · Ctrl+Z undoes';
 
 const onCentre = (g) => Math.abs(g.x) < 0.01;
 
@@ -140,15 +155,15 @@ function quickAdd(id) {
 
 /* Find where a dragged part would attach, given the cursor in craft-local metres. */
 function findSnap(id, lx, ly) {
-  const d = Hangar.design, def = PART_DEFS[id];
-  if (!d.parts.length) return { parent: null };
-  const geo = layoutDesign(d);
+  const D = Hangar.design, def = PART_DEFS[id];
+  // the rocket, then every piece set aside on the floor (parts can be built onto those too)
+  const trees = [{ d: D, geo: layoutDesign(D) }, ...layoutLoose(D).map((l) => ({ d: { parts: D.loose[l.i].parts }, geo: l.parts }))];
   const thr = 48 / Hangar.view.s;
   let best = null, bestD = thr;
   const consider = (c, dist) => { if (dist < bestD) { bestD = dist; best = c; } };
   const vOut = (g) => (ly > g.top ? ly - g.top : ly < g.bot ? g.bot - ly : 0);
   const snapAy = (v) => Math.round(v * 10) / 10;
-  for (const g of geo) {
+  for (const { d, geo } of trees) for (const g of geo) {
     const gd = g.def;
     if (!def.radial) {
       if (!gd.radial) {
@@ -176,19 +191,20 @@ function findSnap(id, lx, ly) {
       consider({ parent: g.uid, node: 'side', side: s, ay }, Math.abs(lx - cx) + vOut(g));
     }
   }
-  return best;
+  if (!best && !D.parts.length) return { parent: null }; // the first part starts the rocket
+  return best || { aside: true, x: lx, y: ly + def.h / 2 }; // anywhere else: leave it on the floor
 }
 
 /* Apply a drag (new part or moved subassembly) to design `d` at `snap`. Returns the new root uids. */
 function applyDrop(d, drag, snap) {
-  if (snap.parent == null) {
-    const uids = attachPart(d, drag.id, null);
-    if (drag.sub) insertSubtree(d, drag.sub, uids);
+  if (snap.aside) return [setAside(d, drag.sub || newSub(d, drag.id), snap.x, snap.y)];
+  const attach = (dd, parent) => {
+    const uids = parent == null ? attachPart(dd, drag.id, null) : attachPart(dd, drag.id, parent, snap.node, snap.side || 0, snap.ay || 0, Hangar.sym);
+    if (drag.sub) insertSubtree(dd, drag.sub, uids);
     return uids;
-  }
-  const uids = attachPart(d, drag.id, snap.parent, snap.node, snap.side || 0, snap.ay || 0, Hangar.sym);
-  if (drag.sub) insertSubtree(d, drag.sub, uids);
-  return uids;
+  };
+  if (snap.parent == null) return attach(d, null);
+  return editOwner(d, snap.parent, (dd) => attach(dd, snap.parent));
 }
 
 /* ---------------- pointer handling ---------------- */
@@ -201,15 +217,17 @@ function beginPress(e, info) {
 
 function startDrag(press) {
   if (press.kind === 'move') {
-    const rec = designPart(Hangar.design, press.uid);
-    if (!rec || rec.parent == null) return false; // the root part stays put
+    const D = Hangar.design, uid = press.uid, at = pieceIndexOf(D, uid), rec = anyPart(D, uid);
+    if (!rec || (at < 0 && rec.parent == null)) return false; // the rocket's root part stays put
+    // hold the part where it was grabbed, so it doesn't jump to the cursor
+    const g = geoPart(uid), grab = g && press.lx !== undefined ? [g.x - press.lx, (g.top + g.bot) / 2 - press.ly] : [0, 0];
     snapshot();
-    const sub = extractSubtree(Hangar.design, press.uid);
-    Hangar.drag = { kind: 'move', id: rec.id, sub, snap: null, lx: 0, ly: 0, saved: Hangar.undo[Hangar.undo.length - 1] };
+    const sub = rec.parent == null ? takePiece(D, at) : editOwner(D, uid, (d) => extractSubtree(d, uid));
+    Hangar.drag = { kind: 'move', id: rec.id, sub, snap: null, lx: 0, ly: 0, grab, saved: Hangar.undo[Hangar.undo.length - 1] };
     Hangar.sel = null;
-    Hangar.a = analyzeDesign(Hangar.design);
+    reanalyze();
   } else {
-    Hangar.drag = { kind: 'new', id: press.id, sub: null, snap: null, lx: 0, ly: 0 };
+    Hangar.drag = { kind: 'new', id: press.id, sub: null, snap: null, lx: 0, ly: 0, grab: [0, 0] };
   }
   document.body.classList.add('dragging');
   return true;
@@ -226,10 +244,11 @@ function onPointerMove(e) {
   if (!v) return;
   const lx = (e.clientX - rect.left - v.ox) / v.s, ly = (v.oy - (e.clientY - rect.top)) / v.s;
   if (Hangar.drag) {
+    const dr = Hangar.drag;
     const over = e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom;
-    Hangar.drag.lx = lx; Hangar.drag.ly = ly;
-    Hangar.drag.over = over;
-    Hangar.drag.snap = over ? findSnap(Hangar.drag.id, lx, ly) : null;
+    dr.lx = lx + dr.grab[0]; dr.ly = ly + dr.grab[1];
+    dr.over = over;
+    dr.snap = over ? findSnap(dr.id, dr.lx, dr.ly) : null;
     drawBuild();
   } else if (!p && e.target === $('buildCanvas')) {
     const h = hitPart(lx, ly);
@@ -247,6 +266,7 @@ function onPointerUp() {
       if (drag.kind === 'new') snapshot();
       const uids = applyDrop(Hangar.design, drag, drag.snap);
       Hangar.sel = uids[0];
+      if (drag.snap.aside) hint('Set aside for later. It won\'t be launched. Drag it onto the rocket when you\'re ready.');
     } else if (drag.kind === 'move') {
       Hangar.design = JSON.parse(drag.saved); // dropped nowhere: put it back
       Hangar.undo.pop();
@@ -260,7 +280,7 @@ function onPointerUp() {
 }
 
 function hitPart(lx, ly) {
-  const parts = Hangar.a ? Hangar.a.parts : [];
+  const parts = (Hangar.a ? Hangar.a.parts : []).concat(...(Hangar.loose || []).map((l) => l.craft.parts));
   for (let i = parts.length - 1; i >= 0; i--) {
     const g = parts[i], hw = maxWidth(g.def) / 2 + 0.1;
     if (lx >= g.x - hw && lx <= g.x + hw && ly <= g.top + 0.05 && ly >= g.bot - 0.05) return g.uid;
@@ -277,7 +297,7 @@ function onCanvasDown(e) {
   const lx = (e.clientX - rect.left - v.ox) / v.s, ly = (v.oy - (e.clientY - rect.top)) / v.s;
   const hit = hitPart(lx, ly);
   if (hit == null) { Hangar.sel = null; drawBuild(); return; }
-  beginPress(e, { kind: 'move', uid: hit });
+  beginPress(e, { kind: 'move', uid: hit, lx, ly });
 }
 
 /* ---------------- drawing ---------------- */
@@ -300,41 +320,63 @@ function drawBuild() {
 
   const a = Hangar.a;
   const craft = a && a.parts.length ? new Craft(cloneParts(a.parts)) : null;
-  // fit the view, but hold it still while dragging so the rocket doesn't jump around
+  const loose = (Hangar.loose || []).map((l) => l.craft); // pieces set aside on the floor
+  const partOf = (u) => { for (const c of [craft, ...loose]) if (c && c.byUid.has(u)) return c.byUid.get(u); return null; };
+  // fit the view (rocket and set-aside pieces), but hold it still while dragging so nothing jumps around
   if (!Hangar.drag || !Hangar.view) {
-    let b = craft ? { ...craft.bounds } : { minX: -2, maxX: 2, minY: -6, maxY: 0 };
-    if (craft) for (const l of craft.legs) { b.minX = Math.min(b.minX, l.footX - 0.5); b.maxX = Math.max(b.maxX, l.footX + 0.5); b.minY = Math.min(b.minY, l.footY); }
+    let b = null;
+    for (const c of [craft, ...loose]) {
+      if (!c) continue;
+      const cb = c.bounds;
+      b = b ? { minX: Math.min(b.minX, cb.minX), maxX: Math.max(b.maxX, cb.maxX), minY: Math.min(b.minY, cb.minY), maxY: Math.max(b.maxY, cb.maxY) } : { ...cb };
+      for (const l of c.legs) { b.minX = Math.min(b.minX, l.footX - 0.5); b.maxX = Math.max(b.maxX, l.footX + 0.5); b.minY = Math.min(b.minY, l.footY); }
+    }
+    if (!b) b = { minX: -2, maxX: 2, minY: -6, maxY: 0 };
     const bw = b.maxX - b.minX, bh = b.maxY - b.minY;
     const s = Math.min(40, (H - 120) / (bh + 4), (W - 60) / (bw + 8));
     Hangar.view = { s, ox: W / 2 - ((b.minX + b.maxX) / 2) * s, oy: H / 2 + ((b.minY + b.maxY) / 2) * s, W, H };
   }
   const v = Hangar.view;
-  if (g3) drawHangar3d(craft, v, W, H);
+  if (g3) drawHangar3d(craft, v, W, H, loose);
   ctx.save();
   ctx.setTransform(dpr * v.s, 0, 0, -dpr * v.s, dpr * v.ox, dpr * v.oy);
   const lw = 1 / v.s;
-  if (craft && turned) { ctx.restore(); $('selTools').classList.add('hidden'); return; } // overlays only line up from the front
-  if (craft) {
-    const order = craft.parts.slice().sort((p, q) => (p.def.radial ? 1 : 0) - (q.def.radial ? 1 : 0));
+  if ((craft || loose.length) && turned) { ctx.restore(); $('selTools').classList.add('hidden'); return; } // overlays only line up from the front
+  const selBox = (p, col, dash) => {
+    const hw = maxWidth(p.def) / 2 + 0.12;
+    ctx.strokeStyle = col; ctx.lineWidth = 2 / v.s;
+    ctx.setLineDash(dash ? [4 / v.s, 3 / v.s] : []);
+    ctx.strokeRect(p.x - hw, p.bot - 0.08, 2 * hw, p.def.h + 0.16);
+    ctx.setLineDash([]);
+  };
+  // a dashed frame round each piece set aside, so it's clear it isn't part of the rocket
+  const asideFrame = (b) => {
+    ctx.strokeStyle = 'rgba(255,196,77,0.55)'; ctx.lineWidth = 1.5 / v.s;
+    ctx.setLineDash([6 / v.s, 4 / v.s]);
+    ctx.strokeRect(b.minX - 0.35, b.minY - 0.35, b.maxX - b.minX + 0.7, b.maxY - b.minY + 0.7);
+    ctx.setLineDash([]);
+  };
+  for (const c of loose) {
     if (!g3) {
-      for (const p of order) drawPart(ctx, p, lw);
-      for (const f of craft.shells) drawShell(ctx, f, lw, 0.28);
+      for (const p of c.parts.slice().sort((p, q) => (p.def.radial ? 1 : 0) - (q.def.radial ? 1 : 0))) drawPart(ctx, p, lw);
+      for (const f of c.shells) drawShell(ctx, f, lw, 0.28);
     }
-    const box = (p, col, dash) => {
-      const hw = maxWidth(p.def) / 2 + 0.12;
-      ctx.strokeStyle = col; ctx.lineWidth = 2 / v.s;
-      ctx.setLineDash(dash ? [4 / v.s, 3 / v.s] : []);
-      ctx.strokeRect(p.x - hw, p.bot - 0.08, 2 * hw, p.def.h + 0.16);
-      ctx.setLineDash([]);
-    };
-    if (Hangar.hover != null && Hangar.hover !== Hangar.sel && !Hangar.drag) { const p = craft.byUid.get(Hangar.hover); if (p) box(p, 'rgba(255,255,255,0.35)', false); }
-    if (Hangar.sel != null) {
-      const p = craft.byUid.get(Hangar.sel);
-      if (p) {
-        box(p, '#4fd1ff', true);
-        if (p.sym) for (const q of craft.parts) if (q.sym === p.sym && q !== p) box(q, 'rgba(79,209,255,0.45)', true);
-      }
+    asideFrame(c.bounds);
+  }
+  if (craft && !g3) {
+    for (const p of craft.parts.slice().sort((p, q) => (p.def.radial ? 1 : 0) - (q.def.radial ? 1 : 0))) drawPart(ctx, p, lw);
+    for (const f of craft.shells) drawShell(ctx, f, lw, 0.28);
+  }
+  if (!Hangar.drag) {
+    if (Hangar.hover != null && Hangar.hover !== Hangar.sel) { const p = partOf(Hangar.hover); if (p) selBox(p, 'rgba(255,255,255,0.35)', false); }
+    const p = Hangar.sel != null ? partOf(Hangar.sel) : null;
+    if (p) {
+      selBox(p, '#4fd1ff', true);
+      const own = [craft, ...loose].find((c) => c && c.byUid.get(p.uid) === p);
+      if (p.sym) for (const q of own.parts) if (q.sym === p.sym && q !== p) selBox(q, 'rgba(79,209,255,0.45)', true);
     }
+  }
+  if (craft) {
     if (Hangar.showMarkers && !Hangar.drag) {
       // centre of mass
       const r = 0.45;
@@ -358,9 +400,15 @@ function drawBuild() {
     ctx.globalAlpha = 0.6;
     if (drag.snap) {
       const tmp = cloneDesign(Hangar.design);
-      const before = new Set(tmp.parts.map((p) => p.uid));
+      const all = (d) => layoutDesign(d).concat(...layoutLoose(d).map((l) => l.parts));
+      const before = new Set(all(tmp).map((p) => p.uid));
       applyDrop(tmp, drag, drag.snap);
-      for (const g of layoutDesign(tmp)) if (!before.has(g.uid)) drawPart(ctx, g, lw);
+      const added = all(tmp).filter((g) => !before.has(g.uid));
+      for (const g of added) drawPart(ctx, g, lw);
+      if (drag.snap.aside && added.length) {
+        ctx.globalAlpha = 0.9;
+        asideFrame({ minX: Math.min(...added.map((g) => g.x - maxWidth(g.def) / 2)), maxX: Math.max(...added.map((g) => g.x + maxWidth(g.def) / 2)), minY: Math.min(...added.map((g) => g.bot)), maxY: Math.max(...added.map((g) => g.top)) });
+      }
     } else {
       const def = PART_DEFS[drag.id];
       const g = { def, x: drag.lx, top: drag.ly + def.h / 2, bot: drag.ly - def.h / 2, flip: false, fuel: def.fuel || 0, solid: 0, mono: 0 };
@@ -373,13 +421,25 @@ function drawBuild() {
     ctx.globalAlpha = 1;
   }
   ctx.restore();
+  // label the pieces on the floor
+  ctx.font = '600 11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,196,77,0.85)';
+  for (const c of loose) {
+    const b = c.bounds;
+    ctx.fillText('SET ASIDE', v.ox + ((b.minX + b.maxX) / 2) * v.s, v.oy - (b.minY - 0.35) * v.s + 14);
+  }
+  if (drag && drag.over && drag.snap && drag.snap.aside) {
+    ctx.fillText('Let go to set it aside', v.ox + drag.lx * v.s, v.oy - (drag.ly - PART_DEFS[drag.id].h / 2 - 0.35) * v.s + 14);
+  }
+  ctx.textAlign = 'left';
 
   // selection toolbar
   const tools = $('selTools');
-  const sp = craft && Hangar.sel != null && !drag ? craft.byUid.get(Hangar.sel) : null;
+  const sp = Hangar.sel != null && !drag ? partOf(Hangar.sel) : null;
   if (sp) {
     tools.classList.remove('hidden');
-    $('selName').textContent = sp.def.name + (sp.sym ? ' (×2)' : '');
+    $('selName').textContent = sp.def.name + (sp.sym ? ' (×2)' : '') + (pieceIndexOf(Hangar.design, sp.uid) >= 0 ? ' · set aside' : '');
     if (Hangar.settingsFor !== sp.uid) buildPartSettings(sp);
     const sx = v.ox + (sp.x + maxWidth(sp.def) / 2) * v.s + 14, sy = v.oy - sp.top * v.s;
     tools.style.left = clamp(sx, 4, W - 260) + 'px';
@@ -392,7 +452,7 @@ function buildPartSettings(p) {
   Hangar.settingsFor = p.uid;
   const box = $('selSettings');
   box.innerHTML = '';
-  const rec = designPart(Hangar.design, p.uid);
+  const rec = anyPart(Hangar.design, p.uid);
   for (const key of partSettingKeys(p.def)) {
     const sd = SETTING_DEFS[key], val = cfgVal(rec || p, key);
     const row = document.createElement('label');
@@ -402,10 +462,10 @@ function buildPartSettings(p) {
     input.addEventListener('pointerdown', () => snapshot());
     input.addEventListener('keydown', () => snapshot());
     input.addEventListener('input', () => {
-      setPartCfg(Hangar.design, p.uid, key, +input.value);
+      editOwner(Hangar.design, p.uid, (d) => setPartCfg(d, p.uid, key, +input.value));
       out.textContent = sd.fmt(+input.value);
       Store.set('current', { name: Hangar.name, design: Hangar.design });
-      Hangar.a = analyzeDesign(Hangar.design);
+      reanalyze();
       drawBuild();
       updateStats();
     });
@@ -454,10 +514,12 @@ function stageGap(where) {
 function updateStats() {
   const a = Hangar.a || analyzeDesign(Hangar.design);
   const count = Hangar.design.parts.length;
+  const looseCount = (Hangar.design.loose || []).reduce((n, pc) => n + pc.parts.length, 0);
   $('statSummary').innerHTML = `
     <div class="kv"><span>Mass</span><b>${fmtNum(a.mass, 2)} t</b></div>
     <div class="kv"><span>Height × width</span><b>${fmtNum(a.height, 1)} × ${fmtNum(a.width, 1)} m</b></div>
     <div class="kv"><span>Parts</span><b>${count}</b></div>
+    ${looseCount ? `<div class="kv" title="Parts on the floor beside the rocket. They aren't launched and cost nothing until you attach them."><span>Set aside</span><b>${looseCount} part${looseCount === 1 ? '' : 's'} · not launched</b></div>` : ''}
     ${isCareer() ? `<div class="kv"><span>Cost</span><b>${fmtFunds(designCost(Hangar.design))}</b></div>` : ''}
     <div class="kv big-kv"><span>Total Δv (vacuum)</span><b>${fmtNum(a.total)} m/s</b></div>`;
   const list = $('stageList');

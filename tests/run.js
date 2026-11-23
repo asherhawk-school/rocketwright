@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -1073,6 +1073,88 @@ test('a quick save mid-flight can be loaded again and again, even after a crash'
   assert(!G.quickSaveInfo(), 'save belongs to the other flight');
   G.clearQuickSave();
   G.Career.s = null;
+});
+
+console.log('\nSetting parts aside');
+test('a section set aside keeps its parts and settings, and leaves the rocket alone', () => {
+  const d = G.PRESETS['Heavy Lifter']();
+  const n = d.parts.length;
+  const rd = d.parts.find((p) => p.id === 'radDec' && p.side < 0);
+  const srb = d.parts.find((p) => p.parent === rd.uid);
+  G.setPartCfg(d, srb.uid, 'srbLimit', 60);
+  const sub = G.extractSubtree(d, rd.uid); // takes both mirrored boosters off; one comes along
+  const root = G.setAside(d, sub, 8, -2);
+  assert(d.parts.length === n - 6, 'rocket should lose both booster sets');
+  assert(d.loose.length === 1 && d.loose[0].parts.length === 3, 'one decoupler, booster and nose set aside');
+  assert(G.pieceIndexOf(d, root) === 0 && G.pieceIndexOf(d, d.parts[0].uid) === -1, 'piece lookup');
+  const geo = G.layoutLoose(d)[0].parts;
+  const r = geo.find((g) => g.uid === root);
+  assert(near(r.x, 8, 1e-9) && near(r.top, -2, 1e-9), 'piece sits where it was dropped');
+  // taken from the left, it is stored facing right: the booster is on the decoupler's right
+  assert(geo.find((g) => g.id === 'srb').x > r.x, 'piece faces right');
+  assert(G.cfgVal(G.anyPart(d, geo.find((g) => g.id === 'srb').uid), 'srbLimit') === 60, 'settings kept');
+});
+test('set-aside parts are not launched, costed or counted for seats', () => {
+  const d = G.PRESETS['Orbiter I']();
+  const cost = G.designCost(d), parts = d.parts.length;
+  G.setAside(d, G.newSub(d, 'heron'), 6, 0);
+  G.setAside(d, G.newSub(d, 'tankXL'), -6, 0);
+  assert(G.designCost(d) === cost && d.parts.length === parts && G.designSeats(d) === 1, 'loose parts leaked into the rocket');
+  const a = G.analyzeDesign(d);
+  assert(a.valid && a.parts.length === parts, 'analysis only sees the rocket');
+  const c = new G.Craft(G.cloneParts(G.layoutDesign(d)));
+  assert(!c.parts.some((p) => p.id === 'heron' || p.id === 'tankXL'), 'launched craft has set-aside parts');
+});
+test('you can build onto a set-aside piece, then put it back on the rocket', () => {
+  const d = G.PRESETS['Orbiter I']();
+  const tank = G.setAside(d, G.newSub(d, 'tankM'), 6, 0);
+  // build onto it: an engine below and fins on its sides
+  const eng = G.editOwner(d, tank, (pd) => G.attachPart(pd, 'wren', tank, 'bottom', 0, 0, false))[0];
+  G.editOwner(d, tank, (pd) => G.attachPart(pd, 'fins', tank, 'side', 1, 0.5, true));
+  assert(d.loose[0].parts.length === 4, 'piece grew to 4 parts');
+  assert(G.pieceIndexOf(d, eng) === 0, 'engine belongs to the piece');
+  const uids = new Set([...d.parts, ...d.loose[0].parts].map((p) => p.uid));
+  assert(uids.size === d.parts.length + 4, 'uids stay unique across rocket and pieces');
+  // pick the whole piece up and attach it under the rocket's capsule's decoupler stack
+  const sub = G.takePiece(d, 0);
+  assert(!d.loose.length, 'piece removed from the floor');
+  const pod = d.parts.find((p) => p.id === 'pod');
+  const top = G.attachPart(d, 'tankM', pod.uid, 'top', 0, 0, false);
+  G.insertSubtree(d, sub, top);
+  const fins = d.parts.filter((p) => p.id === 'fins');
+  assert(d.parts.filter((p) => p.id === 'wren').length === 2 && fins.length >= 4, 'piece rejoined with its children');
+  assert(G.layoutDesign(d).length === d.parts.length, 'every part is connected');
+});
+test('deleting a set-aside piece, and pulling a part off one', () => {
+  const d = G.PRESETS['Sky Hopper']();
+  const t = G.setAside(d, G.newSub(d, 'tankL'), 5, 0);
+  const e = G.editOwner(d, t, (pd) => G.attachPart(pd, 'ox', t, 'bottom', 0, 0, false))[0];
+  const sub = G.editOwner(d, e, (pd) => G.extractSubtree(pd, e));
+  assert(sub.recs.length === 1 && d.loose[0].parts.length === 1, 'engine pulled off the piece');
+  G.setAside(d, sub, 9, 0);
+  assert(d.loose.length === 2, 'engine now a piece of its own');
+  G.editOwner(d, t, (pd) => G.removePartTree(pd, t));
+  assert(d.loose.length === 1 && d.loose[0].parts[0].id === 'ox', 'deleting a piece root removes the piece');
+});
+test('set-aside pieces save with the craft and survive loading', () => {
+  const d = G.PRESETS['Orbiter I']();
+  G.setAside(d, G.newSub(d, 'heron'), 6, 1);
+  const back = G.migrateDesign(JSON.parse(JSON.stringify(d)));
+  assert(back.loose && back.loose.length === 1 && back.loose[0].parts[0].id === 'heron' && back.loose[0].x === 6, 'piece lost on reload');
+  const bad = G.migrateDesign({ v: 2, parts: d.parts, nextUid: d.nextUid, loose: [{ x: 0, y: 0, parts: [{ uid: 999, id: 'nope', parent: null }] }] });
+  assert(!bad.loose, 'pieces of unknown parts are dropped');
+  const old = G.migrateDesign(JSON.parse(JSON.stringify(G.PRESETS['Orbiter I']())));
+  assert(!old.loose, 'older crafts have nothing set aside');
+});
+test('moving a part keeps its settings', () => {
+  const d = G.PRESETS['Orbiter I']();
+  const tank = d.parts.find((p) => p.id === 'tankM');
+  G.setPartCfg(d, tank.uid, 'fill', 40);
+  const sub = G.extractSubtree(d, tank.uid);
+  const pod = d.parts.find((p) => p.id === 'pod');
+  const nu = G.attachPart(d, 'tankM', pod.uid, 'bottom', 0, 0, false);
+  G.insertSubtree(d, sub, nu);
+  assert(G.cfgVal(G.anyPart(d, nu[0]), 'fill') === 40, 'fill level lost when moved');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

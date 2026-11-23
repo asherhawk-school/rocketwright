@@ -32,7 +32,9 @@ then visit http://localhost:8000.
 - **Hangar**: drag 90 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS, plus engine mounts
-  (twin, tri and quad) for clusters of engines side by side.
+  (twin, tri and quad) for clusters of engines side by side. Drop a part or a whole section on empty floor to **set it aside**
+  for later: it waits beside the rocket (you can keep building onto it), isn't launched or paid for, saves with the craft, and
+  goes back on when you drag it onto the rocket.
 - **Advanced parts**: a 3-seat Heron capsule and a 4-seat crew cabin (fly several astronauts at once), shell fairings that cover a
   payload and split open, an atomic engine, an ion drive that burns argon and electricity, an aerospike that works well at any
   altitude, a small monopropellant engine, big batteries and fuel cells, struts, a 3 m heat shield, an inflatable heat shield,
@@ -109,7 +111,7 @@ then visit http://localhost:8000.
 | Esc | Menu (revert, recover, back to hangar) |
 
 In the hangar: drag parts from the palette, click to select, drag a part to move it with everything attached,
-Del removes, Ctrl+Z / Ctrl+Shift+Z undo and redo, X toggles symmetry.
+drop it on empty floor to set it aside for later, Del removes, Ctrl+Z / Ctrl+Shift+Z undo and redo, X toggles symmetry.
 
 ## Tests
 
@@ -123,7 +125,8 @@ career rules (research, science values, contracts, recovery, crew loss), power a
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers
-driving, braking and settling, and landing on gear (gently, hard, and gear up).
+driving, braking and settling, landing on gear (gently, hard, and gear up), quick saves, and setting parts aside in the
+hangar (building onto them, putting them back, and keeping them out of launches).
 
 ## Code layout
 
