@@ -31,10 +31,15 @@ function launchDesign(design, name, crewId, crewN = 1, site = 'pad') {
     if (analyzeDesign(design).mass > facLimit(s, 'pad')) { toast('Too heavy for the launch pad. Upgrade it first.'); return; }
     const seats = designSeats(design);
     if (seats > 0) {
-      const lead = s.crew.find((c) => c.id === crewId && c.status === 'available') || availableCrew(s)[0];
-      if (!lead) { toast('No astronauts available. Hire one in the Astronaut Office.'); return; }
-      const rest = availableCrew(s).filter((c) => c !== lead).sort((x, y) => crewRank(y) - crewRank(x));
-      crew = [lead, ...rest].slice(0, clamp(crewN || 1, 1, seats));
+      const tourists = waitingTourists(s), probe = design.parts.some((p) => PART_DEFS[p.id] && PART_DEFS[p.id].probe);
+      const lead = availableCrew(s).find((c) => c.id === crewId) || availableCrew(s)[0];
+      if (!lead && !(probe && tourists.length)) { toast('No astronauts available. Hire one in the Astronaut Office.'); return; }
+      if (lead) {
+        const rest = availableCrew(s).filter((c) => c !== lead).sort((x, y) => crewRank(y) - crewRank(x));
+        crew = [lead, ...rest].slice(0, clamp(crewN || 1, 1, seats));
+      }
+      // waiting tourists take the seats left over
+      crew = crew.concat(tourists.slice(0, seats - crew.length));
       for (const c of crew) c.status = 'flying';
     }
     s.funds -= cost;
@@ -53,7 +58,7 @@ function launchDesign(design, name, crewId, crewN = 1, site = 'pad') {
     // capsules fill first, then cabins
     const seatList = [];
     for (const p of [...F.craft.parts.filter((q) => q.def.pod), ...F.craft.parts.filter((q) => !q.def.pod)]) for (let i = 0; i < (p.def.seats || 0); i++) seatList.push(p.uid);
-    F.crew = crew.map((c, i) => ({ id: c.id, name: c.name, pod: seatList[i] }));
+    F.crew = crew.map((c, i) => ({ id: c.id, name: c.name, pod: seatList[i], ...(c.role === 'tourist' ? { tourist: true } : {}) }));
     for (const c of crew) c.vessel = F.vid;
     F.revertCrew = crew[0].id;
     F.revertCrewN = crew.length;
@@ -274,7 +279,7 @@ function recover() {
     p.result = null;
     p.held = [];
   }
-  flightEvent({ kind: 'recover', crew: crewNames(F.crew) });
+  flightEvent({ kind: 'recover', crew: crewNames(F.crew), flags: F.flags });
   if (isCareer()) {
     const L = c.landed, phi = Math.atan2(L.ry, L.rx);
     factor = recoveryFactor(phi, terrainH(HOME, phi) < 0);

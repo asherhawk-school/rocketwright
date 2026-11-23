@@ -702,8 +702,9 @@ function updateStats() {
     const seats = designSeats(Hangar.design);
     if (seats > 0) {
       const av = availableCrew(s).sort((x, y) => crewRank(y) - crewRank(x));
-      if (!av.length) extra.push({ lvl: 'err', text: 'No astronauts available. Hire one in the Astronaut Office.' });
-      else {
+      const probeFlies = Hangar.design.parts.some((p) => PART_DEFS[p.id].probe) && waitingTourists(s).length;
+      if (!av.length && !probeFlies) extra.push({ lvl: 'err', text: 'No astronauts available. Hire one in the Astronaut Office.' });
+      else if (av.length) {
         if (!av.some((c) => c.id === Hangar.crewId)) Hangar.crewId = av[0].id;
         const sel = $('crewSelect');
         sel.innerHTML = av.map((c) => `<option value="${c.id}" ${c.id === Hangar.crewId ? 'selected' : ''}>${ROLES[roleOf(c)].icon} ${c.name} ${'★'.repeat(crewRank(c))}</option>`).join('');
@@ -715,12 +716,14 @@ function updateStats() {
         $('crewRow').classList.remove('hidden');
       }
     }
+    const tw = waitingTourists(s).length;
+    if (seats > 0 && tw) extra.push({ lvl: 'info', text: `${tw} tourist${tw > 1 ? 's' : ''} waiting: they take any seats left after your crew.` });
     for (const x of extra) {
       const d = document.createElement('div');
       d.className = 'warn ' + x.lvl;
       d.textContent = x.text;
       w.prepend(d);
-      ok = false;
+      if (x.lvl === 'err') ok = false;
     }
     $('btnLaunch').textContent = `LAUNCH · ${fmtFunds(cost)}`;
   } else $('btnLaunch').textContent = 'LAUNCH';

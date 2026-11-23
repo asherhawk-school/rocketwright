@@ -119,6 +119,10 @@ then visit http://localhost:8000.
 - **Manoeuvre nodes**: click your path (or use “Node at Ap/Pe”) to plan a burn, drag its handles or use the editor, see the
   resulting orbit and encounters, the burn time and when to start; time warp stops before the burn, SAS points along it and the
   throttle cuts when it's done.
+- **Tourists, stations and bases**: tourism contracts bring paying passengers to the Space Centre. They take any seats
+  left after your crew, can't fly or go outside, and pay once you bring them all home after seeing space, orbiting Verdan,
+  flying by Pallid or landing there. Station contracts ask for a craft in orbit with enough seats, a docking port, power and
+  an antenna; base contracts want the same landed on another world.
 - **Survey contracts**: visit two to four marked sites on a world, either landing (or walking) within 400 m of each, or
   flying over them in a set height band. The contracts card points to the nearest site with its distance, map view marks
   them, and a glowing beacon stands at each one up close.
@@ -174,7 +178,7 @@ node tests/run.js
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
 career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, mining, refining and fuel transfer, the comms network (ground stations, range, line of sight, relays), launch clamps, action groups, floodlights and the claw, asteroids (spotting, drifting away, capture and mining),
-difficulty settings, crew moods and the flight log, alarms stopping time warp, survey sites, power and shadows, reentry heating with and
+difficulty settings, crew moods and the flight log, alarms stopping time warp, survey sites, tourists, stations and bases, power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers

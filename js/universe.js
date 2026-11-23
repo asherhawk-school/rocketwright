@@ -134,7 +134,7 @@ function crewHome(list, flags) {
       cm = { id: s.crew.length + 1, name: x.name, status: 'available', flights: 0, worlds: [] };
       s.crew.push(cm);
     }
-    if (!cm || cm.status === 'lost') continue;
+    if (!cm || cm.status === 'lost' || cm.status === 'left') continue;
     cm.status = 'available';
     cm.vessel = null;
     cm.flights++;
@@ -185,7 +185,7 @@ function recoverRecord(v) {
     s.funds += refund;
   }
   crewHome(v.crew, v.flags);
-  const done = isCareer() ? checkContracts(s, { kind: 'recover', crew: crewNames(v.crew) }) : [];
+  const done = isCareer() ? checkContracts(s, { kind: 'recover', crew: crewNames(v.crew), flags: v.flags }) : [];
   s.vessels = s.vessels.filter((x) => x !== v);
   return { refund, sci, done };
 }

@@ -70,6 +70,7 @@ const ROLES = {
   pilot: { name: 'Pilot', icon: '🧭', desc: 'Unlocks SAS modes as they gain rank: prograde and retrograde, then radial and manoeuvre, then target.' },
   engineer: { name: 'Engineer', icon: '🔧', desc: 'Repacks used or torn parachutes once you\'re down, and runs drills and converters better.' },
   scientist: { name: 'Scientist', icon: '🧪', desc: 'Resets used experiments so they can be run again, and adds to the science you collect.' },
+  tourist: { name: 'Tourist', icon: '🎒', desc: 'A paying passenger. Can\'t fly the craft or go outside.' },
 };
 const ROLE_ORDER = ['pilot', 'engineer', 'scientist'];
 const roleOf = (c) => (c && c.role) || 'pilot';
@@ -157,16 +158,23 @@ function hireCrew(s, free, role) {
   const used = new Set(s.crew.map((c) => c.name));
   const name = CREW_POOL.find((n) => !used.has(n)) || `Recruit ${s.crew.length + 1}`;
   if (!free) {
-    if (s.crew.filter((c) => c.status !== 'lost').length >= facLimit(s, 'astro')) return null;
+    if (rosterSize(s) >= facLimit(s, 'astro')) return null;
     if (s.funds < hireCost(s)) return null;
     s.funds -= hireCost(s);
   }
-  const c = { id: s.crew.length + 1, name, role: ROLES[role] ? role : ROLE_ORDER[s.crew.length % 3], status: 'available', flights: 0, worlds: [] };
+  const c = { id: nextCrewId(s), name, role: ROLES[role] ? role : ROLE_ORDER[s.crew.length % 3], status: 'available', flights: 0, worlds: [] };
   s.crew.push(c);
   s.hired++;
   return c;
 }
-const availableCrew = (s) => s.crew.filter((c) => c.status === 'available');
+/* Astronauts ready to fly (tourists only ride along, in seats left over). */
+const availableCrew = (s) => s.crew.filter((c) => c.status === 'available' && c.role !== 'tourist');
+const waitingTourists = (s) => s.crew.filter((c) => c.status === 'available' && c.role === 'tourist');
+/* Astronauts on the books (not lost, not tourists): what the Astronaut Office has room for. */
+const rosterSize = (s) => s.crew.filter((c) => c.status !== 'lost' && c.status !== 'left' && c.role !== 'tourist').length;
+const nextCrewId = (s) => s.crew.reduce((m, c) => Math.max(m, c.id), 0) + 1;
+const TOURIST_NAMES = ['Opal Wrenfield', 'Barnaby Quist', 'Delphine Moss', 'Augustin Pell', 'Clementine Ash', 'Rufus Thornby', 'Marisol Vane',
+  'Percival Hart', 'Ottilie Brook', 'Lazlo Fenwick', 'Imogen Calloway', 'Theo Marchbank', 'Winifred Sallow', 'Cosmo Dunmore'];
 function crewRank(c) { return Math.min(5, Math.floor(c.flights / 2) + c.worlds.length); }
 
 /* ---------- milestones pay in career ---------- */

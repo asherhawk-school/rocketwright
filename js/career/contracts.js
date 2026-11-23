@@ -98,6 +98,38 @@ function contractBuilders(s) {
     return { type: 'survey', title: `Survey ${word} on ${b.name}`, desc: `${what}. The HUD points to the nearest one; beacons mark them up close.`,
       p: { body: b.id, sites, air, lo, hi, done: [] }, reward: r100((air ? 9000 : 11000) * k + 1500 * n), sci: Math.round(4 + 2 * f(b) * n / 2), rep: 3 + f(b), days: 40 + 60 * f(b) };
   }]);
+  // tourists who pay to see space, orbit, or visit Pallid
+  if (m.liftoff) B.push([1.3, () => {
+    const goals = [['space', 'see space', 1]];
+    if (m.space) goals.push(['orbit', 'orbit Verdan', 2]);
+    if (m.orbit) goals.push(['flyby:pallid', 'fly by Pallid', 3.5]);
+    if (m.land_pallid) goals.push(['land:pallid', 'land on Pallid', 6]);
+    const [goal, label, k] = pick(s, goals);
+    const taken = new Set(s.crew.map((c) => c.name).concat(s.contracts.filter((c) => c.type === 'tourism').flatMap((c) => c.p.names)));
+    const free = TOURIST_NAMES.filter((n) => !taken.has(n));
+    const n = Math.min(free.length, 1 + Math.floor(rand(s) * 3));
+    if (!n) return null;
+    const names = [];
+    for (let i = 0; i < n; i++) names.push(free.splice(Math.floor(rand(s) * free.length), 1)[0]);
+    return { type: 'tourism', title: `Tourists: ${label} (${n})`, p: { names, goal },
+      desc: `${names.join(', ')} will pay to ${label}${goal === 'space' ? ' (above 70 km)' : ''}. Take ${n > 1 ? 'them all in one flight' : 'them'} and bring them home safely. Tourists can't fly, so take a pilot (they fill the free seats) or a probe core.`,
+      reward: r100(4000 * k * n + 3000), sci: 0, rep: 2 + n, days: 60 + 30 * k };
+  }]);
+  // space stations and surface bases
+  if (m.orbit && s.tech.includes('docking')) B.push([0.9, () => {
+    const b = pick(s, bodies.filter((x) => x === HOME || m['orbit_' + x.id] || m['soi_' + x.id]));
+    const seats = 3 + Math.floor(rand(s) * 4);
+    return { type: 'station', title: `Space station at ${b.name}`, p: { body: b.id, seats },
+      desc: `Build a station in a stable orbit around ${b.name} with at least ${seats} seats, a docking port, solar panels or fuel cells, and an antenna. Dock modules together in orbit if you need to.`,
+      reward: r100(30000 * (1 + f(b)) + 4000 * seats), sci: 10, rep: 10 + f(b), days: 120 + 60 * f(b) };
+  }]);
+  const baseable = away.filter((b) => !b.gas && m['land_' + b.id]);
+  if (baseable.length) B.push([0.8, () => {
+    const b = pick(s, baseable), seats = 2 + Math.floor(rand(s) * 3);
+    return { type: 'base', title: `Surface base on ${b.name}`, p: { body: b.id, seats },
+      desc: `Land a base on ${b.name} with at least ${seats} seats, solar panels or fuel cells, and an antenna.`,
+      reward: r100(40000 * (1 + f(b)) + 5000 * seats), sci: 12, rep: 12 + f(b), days: 150 + 60 * f(b) };
+  }]);
   const orbitable = bodies.filter((b) => b !== HOME || !m.orbit);
   if (orbitable.length) B.push([2, () => {
     const b = pick(s, orbitable);
@@ -203,13 +235,31 @@ function acceptContract(s, id) {
   c.deadline = s.ut + c.days * DAY;
   s.funds += c.advance;
   if (c.type === 'rescue') c.p.vid = spawnStranded(s, BODY_BY_ID[c.p.body], c.p.alt, c.p.crewName, rand(s) * TAU).id;
+  // tourists arrive at the Space Centre and wait for a seat
+  if (c.type === 'tourism') for (const name of c.p.names) s.crew.push({ id: nextCrewId(s), name, role: 'tourist', status: 'available', flights: 0, worlds: [], contract: c.id });
   return null;
 }
 function declineContract(s, id) {
   const c = s.contracts.find((x) => x.id === id && x.state === 'offered');
   if (c) c.state = 'declined';
 }
+/* Did a flight give tourists what they paid for? */
+function touristGoalMet(goal, flags) {
+  const [k, body] = goal.split(':');
+  if (k === 'space') return !!flags.space || (flags.maxAlt || 0) > 70000;
+  if (k === 'orbit') return (flags.orbited || []).includes('verdan');
+  if (k === 'flyby') return (flags.visited || []).includes(body);
+  if (k === 'land') return (flags.landedOn || []).includes(body);
+  return false;
+}
+/* Tourists go home when their contract ends, one way or the other. */
+function touristsLeave(s, c) {
+  if (c.type !== 'tourism') return;
+  for (const t of s.crew) if (t.role === 'tourist' && t.contract === c.id && t.status !== 'lost') t.status = 'left';
+}
+
 function completeContract(s, c) {
+  touristsLeave(s, c);
   c.state = 'done';
   c.doneAt = s.ut;
   s.funds += Math.round(c.reward * ((s.diff && s.diff.funds) || 1));
@@ -217,6 +267,7 @@ function completeContract(s, c) {
   s.rep = clamp(s.rep + c.rep, -100, 1000);
 }
 function failContract(s, c) {
+  touristsLeave(s, c);
   c.state = 'failed';
   if (c.type === 'rescue' && s.vessels) s.vessels = s.vessels.filter((v) => !(v.crew || []).some((x) => x.name === c.p.crewName && x.stranded));
   s.funds -= c.penalty;
@@ -251,6 +302,9 @@ function checkContracts(s, ev) {
         ok = p.done.length === p.sites.length;
         break;
       }
+      case 'tourism': ok = ev.kind === 'recover' && p.names.every((n) => (ev.crew || []).includes(n)) && touristGoalMet(p.goal, ev.flags || {}); break;
+      case 'station': ok = ev.kind === 'tick' && b.id === p.body && stableOrbit(ev, b) && ev.seats >= p.seats && ev.hasDock && ev.hasPower && ev.hasAntenna; break;
+      case 'base': ok = ev.kind === 'tick' && b.id === p.body && ev.landed && ev.seats >= p.seats && ev.hasPower && ev.hasAntenna; break;
       case 'relay': ok = ev.kind === 'tick' && b.id === p.body && ev.hasRelay && stableOrbit(ev, b); break;
       case 'flag': ok = ev.kind === 'flag' && b.id === p.body; break;
       case 'rescue': ok = ev.kind === 'recover' && (ev.crew || []).includes(p.crewName); break;

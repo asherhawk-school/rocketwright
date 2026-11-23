@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'alarms.js', 'crew.js', 'asteroids.js', 'comms.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange, fireGroup, toggleLights, findGrab, undock, autoStages, asteroidTick, spawnAsteroid, heldRock, diff, completeContract, logEvent, crewMood, separatePiece, addAlarm, alarmList, alarmClip, nextAlarm, alarmPresets, removeAlarm, surveySites, nearestSite };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange, fireGroup, toggleLights, findGrab, undock, autoStages, asteroidTick, spawnAsteroid, heldRock, diff, completeContract, logEvent, crewMood, separatePiece, addAlarm, alarmList, alarmClip, nextAlarm, alarmPresets, removeAlarm, surveySites, nearestSite, touristGoalMet, availableCrew, waitingTourists, rosterSize, canEva };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -1795,6 +1795,51 @@ test('the HUD points to the nearest unvisited site', () => {
   assert(wp.name === 'Near' && near(wp.d, 3000, 50) && wp.dir === 1, `nearest is ${wp.name} at ${wp.d}`);
   s.contracts[s.contracts.length - 1].p.done.push(0);
   assert(G.nearestSite().name === 'Far' && G.nearestSite().dir === -1, 'then the far one, to the left');
+});
+
+console.log('\nTourists, stations and bases');
+test('tourist contracts bring passengers to the Space Centre; recovering them after the trip pays, then they leave', () => {
+  const s = G.newSave('career', 51);
+  Object.assign(s.milestones, { liftoff: true, space: true });
+  let c = null;
+  for (let i = 0; i < 300 && !c; i++) { const k = G.genContract(s); if (k && k.type === 'tourism') c = k; }
+  assert(c, 'tourism offered');
+  s.contracts.push(c);
+  assert(G.acceptContract(s, c.id) === null, 'accepted');
+  const ts = G.waitingTourists(s);
+  assert(ts.length === c.p.names.length && ts.every((t) => t.role === 'tourist'), 'tourists waiting');
+  assert(G.availableCrew(s).length === 3 && G.rosterSize(s) === 3, 'not counted as astronauts');
+  const flags = c.p.goal === 'space' ? { maxAlt: 80000 } : { orbited: ['verdan'], maxAlt: 90000, space: true };
+  assert(!G.checkContracts(s, { kind: 'recover', crew: c.p.names.slice(1), flags }).length || c.p.names.length === 1, 'all of them must come');
+  assert(!G.checkContracts(s, { kind: 'recover', crew: c.p.names, flags: { maxAlt: 1000 } }).length, 'must get what they paid for');
+  const funds = s.funds;
+  assert(G.checkContracts(s, { kind: 'recover', crew: c.p.names, flags }).includes(c) && s.funds > funds, 'paid');
+  assert(!G.waitingTourists(s).length && s.crew.filter((x) => x.status === 'left').length === c.p.names.length, 'they went home');
+  assert(G.touristGoalMet('land:pallid', { landedOn: ['pallid'] }) && !G.touristGoalMet('flyby:pallid', { visited: [] }), 'goals');
+});
+test('a capsule with only tourists aboard cannot be flown, and tourists never go outside', () => {
+  G.Career.s = G.newSave('career', 52);
+  const s = G.Career.s; s.vessels = []; s.vesselSeq = 1;
+  G.flightStart(G.PRESETS['Sky Hopper'](), 'Joyride', { t0: 0 });
+  const F = G.F, c = F.craft, pod = c.parts.find((p) => p.def.seats);
+  F.tutorial = null;
+  F.crew = [{ id: 9, name: 'Opal Wrenfield', pod: pod.uid, tourist: true }];
+  assert(!G.hasControl(c) && !G.canEva(), 'tourist only: no control, no spacewalk');
+  F.crew.push({ id: 1, name: s.crew[0].name, pod: pod.uid });
+  assert(G.hasControl(c) && G.canEva(), 'with a pilot aboard it flies');
+});
+test('station and base contracts check seats, docking port, power and antenna', () => {
+  const s = G.newSave('career', 53);
+  const st = { id: 1, type: 'station', state: 'active', p: { body: 'verdan', seats: 4 }, reward: 1, sci: 0, rep: 0, deadline: 1e12 };
+  const bs = { id: 2, type: 'base', state: 'active', p: { body: 'pallid', seats: 2 }, reward: 1, sci: 0, rep: 0, deadline: 1e12 };
+  s.contracts.push(st, bs);
+  const orbit = { e: 0.01, rp: G.HOME.R + 200000, ra: G.HOME.R + 210000 };
+  const full = { kind: 'tick', orbit, landed: false, seats: 4, hasDock: true, hasPower: true, hasAntenna: true };
+  assert(!G.checkContracts(s, { ...full, body: G.HOME, seats: 3 }).length, 'too few seats');
+  assert(!G.checkContracts(s, { ...full, body: G.HOME, hasDock: false }).length, 'needs a port');
+  assert(G.checkContracts(s, { ...full, body: G.HOME }).includes(st), 'station done');
+  assert(!G.checkContracts(s, { ...full, body: G.MOON, landed: false, orbit: null }).length, 'base must be landed');
+  assert(G.checkContracts(s, { kind: 'tick', body: G.MOON, landed: true, seats: 2, hasPower: true, hasAntenna: true }).includes(bs), 'base done');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

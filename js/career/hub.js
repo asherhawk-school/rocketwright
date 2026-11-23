@@ -91,7 +91,7 @@ function renderHub() {
   const affordable = open.filter((n) => n.cost <= s.science).length;
   $('noteResearch').textContent = affordable ? `${affordable} ready to research` : `${s.tech.length}/${TECH_NODES.length} researched`;
   const av = availableCrew(s).length;
-  $('noteCrew').textContent = `${av} of ${s.crew.filter((c) => c.status !== 'lost').length} available`;
+  $('noteCrew').textContent = `${av} of ${rosterSize(s)} available` + (waitingTourists(s).length ? ` · ${waitingTourists(s).length} tourists waiting` : '');
   const lv = Object.keys(FACILITIES).map((k) => facLevel(s, k));
   const can = Object.keys(FACILITIES).filter((k) => upgradeCost(s, k) != null && upgradeCost(s, k) <= s.funds).length;
   $('noteUpgrades').textContent = can ? `${can} upgrade${can > 1 ? 's' : ''} affordable` : `Levels ${lv.join(' · ')}`;
@@ -214,10 +214,10 @@ function showResearch(selId) {
 
 function showCrew() {
   const s = Career.s;
-  const rows = s.crew.map((c) => `<tr class="${c.status}"><td>${esc(c.name)}</td><td title="${esc(ROLES[roleOf(c)].desc)}">${ROLES[roleOf(c)].icon} ${ROLES[roleOf(c)].name}</td><td>${'★'.repeat(crewRank(c)) || '—'}</td>
+  const rows = s.crew.filter((c) => c.status !== 'left').map((c) => `<tr class="${c.status}"><td>${esc(c.name)}</td><td title="${esc(ROLES[roleOf(c)].desc)}">${ROLES[roleOf(c)].icon} ${ROLES[roleOf(c)].name}</td><td>${'★'.repeat(crewRank(c)) || '—'}</td>
     <td>${c.flights}</td><td>${c.worlds.map((w) => BODY_BY_ID[w].name).join(', ') || '—'}</td>
     <td>${c.status === 'lost' ? 'Lost' : c.status === 'flying' ? 'Flying' : 'Available'}</td></tr>`).join('');
-  const cost = hireCost(s), room = s.crew.filter((c) => c.status !== 'lost').length < facLimit(s, 'astro');
+  const cost = hireCost(s), room = rosterSize(s) < facLimit(s, 'astro');
   const hire = (role) => () => {
     if (!room) { toast('The Astronaut Office is full. Upgrade it to hire more.'); return; }
     if (s.funds < cost) { toast('Not enough funds'); return; }

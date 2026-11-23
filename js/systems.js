@@ -170,7 +170,9 @@ function transferProp(c, p, k, cap, pull) {
 
 /* Can anyone fly this craft right now? A crew can; a probe core needs power. */
 function hasControl(c) {
-  if (c.hasPod) return true;
+  // a capsule full of tourists (and no probe core) can't be flown
+  const touristsOnly = typeof F !== 'undefined' && c === F.craft && F.crew && F.crew.length && F.crew.every((x) => x.tourist);
+  if (c.hasPod && !touristsOnly) return true;
   if (!c.hasProbe || c.powered === false || !(ecTotal(c) > 0.01)) return false;
   // with the comms network on, the probe being flown also needs a signal
   return !(typeof F !== 'undefined' && c === F.craft && typeof commnetOn === 'function' && commnetOn() && F.comm && !F.comm.ok);

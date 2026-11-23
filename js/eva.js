@@ -62,7 +62,7 @@ function takeOver(o) {
 
 function canEva() {
   const c = F.craft;
-  return F.running && !F.tutorial && !c.dead && F.kind !== 'eva' && !!universe() && F.crew.some((x) => c.byUid.has(x.pod));
+  return F.running && !F.tutorial && !c.dead && F.kind !== 'eva' && !!universe() && F.crew.some((x) => c.byUid.has(x.pod) && !x.tourist);
 }
 
 /* J: climb out (from a ship) or climb back in (on a spacewalk). */
@@ -78,7 +78,7 @@ function goEva() {
   const b = c.landed ? c.landed.body : soiBody(c.pos[0], c.pos[1], F.t);
   if (b.gas || b.star) { flash(`Not here: ${b.name} would swallow them`, 2); return; }
   if (!c.landed && (c.q || 0) > HATCH_MAX_Q) { flash('Too much air rushing past to open the hatch', 2.5); return; }
-  const x = F.crew.find((y) => c.byUid.has(y.pod));
+  const x = F.crew.find((y) => c.byUid.has(y.pod) && !y.tourist);
   logEvent(`${x.name} went outside`);
   const e = spawnEva(c, x, F.t);
   F.crew = F.crew.filter((y) => y !== x);

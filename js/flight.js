@@ -1343,7 +1343,9 @@ function checkMilestones(b) {
   if (c.dead) return;
   const bp = bodyPos(b, F.t);
   const alt = Math.hypot(c.pos[0] - bp[0], c.pos[1] - bp[1]) - b.R;
-  flightEvent({ kind: 'tick', body: b, alt, phi: Math.atan2(c.pos[1] - bp[1], c.pos[0] - bp[0]), radar: c.radar, orbit: F.orbit, landed: !!c.landed, hasAntenna: c.parts.some((p) => p.def.antenna), hasRelay: c.parts.some((p) => p.def.relay), hasAsteroid: c.parts.some((p) => p.def.asteroid) });
+  flightEvent({ kind: 'tick', body: b, alt, phi: Math.atan2(c.pos[1] - bp[1], c.pos[0] - bp[0]), radar: c.radar, orbit: F.orbit, landed: !!c.landed, hasAntenna: c.parts.some((p) => p.def.antenna), hasRelay: c.parts.some((p) => p.def.relay), hasAsteroid: c.parts.some((p) => p.def.asteroid),
+    seats: c.parts.reduce((n, p) => n + (p.def.seats && !p.def.eva ? p.def.seats : 0), 0), hasDock: c.parts.some((p) => p.def.dock),
+    hasPower: c.parts.some((p) => p.def.solar || p.def.cellEC) });
   if (b === HOME) {
     F.flags.maxAlt = Math.max(F.flags.maxAlt, alt);
     if (!c.landed && alt > 40) award('liftoff');
