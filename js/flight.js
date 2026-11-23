@@ -993,7 +993,7 @@ function flightEvent(ev) {
   const done = checkContracts(Career.s, ev);
   for (const h of ev.hits) { flash(`📍 ${h}`, 3); playSound('dock'); persist(); }
   for (const c of done) {
-    toast(`Contract complete: ${c.title} · +${fmtFunds(c.reward)}`);
+    toast(`Contract complete: ${c.title} · +${fmtFunds(c.paid ? c.paid.funds : c.reward)}`);
     F.flightContracts.push(c.title);
   }
   if (done.length) persist();

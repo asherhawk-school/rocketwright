@@ -36,6 +36,10 @@ then visit http://localhost:8000.
 - **Space Centre upgrades**: every building starts at level 1 in career and can be upgraded twice: the Hangar (part count),
   Launch Pad and Runway (mass), Mission Control (active contracts), Tracking Station (manoeuvre nodes and faster time warp),
   Astronaut Office (crew size) and Research Lab (pricier research). Older careers start at level 2; sandbox is fully upgraded.
+- **Administration and strategies**: a seventh building lets you run strategies that trade rewards around: Fundraising
+  Drive (contract science paid as money), Science Outreach (money as science), Bulk Buying (cheaper parts, smaller
+  contract payments), Recovery Teams, Patent Licensing (research pays money) and Publicity Tours (more reputation). Each costs
+  money to start, and the building's level sets how many run at once.
 - **Hangar**: drag 104 parts onto your rocket. They snap to top and bottom stack nodes or to the sides of other parts,
   with 2× mirror symmetry, undo/redo, and centre-of-mass and centre-of-thrust markers. Parts come in 1.25 m, 2 m and 3 m sizes, with adapters,
   nose cones, side boosters, radial and crossfeed decouplers, side tanks and engines, fins, legs and RCS, plus engine mounts
@@ -187,7 +191,7 @@ node tests/run.js
 Headless checks for staging, fuel flow, symmetry, save migration, autopilot flights of the example rockets to orbit,
 spheres of influence, frame accelerations, stable orbits around nested moons, interplanetary encounter prediction,
 career rules (research, science values, contracts, recovery, crew loss), biomes (coverage, per-biome science and contracts), spacewalks (walking, hopping, flags, samples, boarding), astronaut roles and building upgrades, mining, refining and fuel transfer, the comms network (ground stations, range, line of sight, relays), launch clamps, action groups, floodlights and the claw, asteroids (spotting, drifting away, capture and mining),
-difficulty settings, crew moods and the flight log, alarms stopping time warp, survey sites, tourists, stations and bases, labs and surface science stations, anomalies, power and shadows, reentry heating with and
+difficulty settings, crew moods and the flight log, alarms stopping time warp, survey sites, tourists, stations and bases, labs and surface science stations, anomalies, strategies, power and shadows, reentry heating with and
 without a heat shield, flying a manoeuvre node to its planned orbit, saving and reloading vessels, vessels lost on rails,
 docking and undocking, rescue contracts, parachutes tearing and drogues, air brakes, inflatable shields, ion drives,
 fairings, fuel cells, crew seats, the runway, planes taking off (and not without wings), jets needing oxygen and intakes, rovers

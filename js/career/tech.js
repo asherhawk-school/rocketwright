@@ -62,5 +62,6 @@ function research(s, id) {
   if (s.science < n.cost) return `Needs ${n.cost} science`;
   s.science = Math.round((s.science - n.cost) * 10) / 10;
   s.tech.push(id);
+  if (hasStrategy('patents', s)) s.funds += n.cost * 300;
   return null;
 }

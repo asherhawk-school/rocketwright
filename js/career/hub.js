@@ -96,7 +96,31 @@ function renderHub() {
   $('noteCrew').textContent = `${av} of ${rosterSize(s)} available` + (waitingTourists(s).length ? ` · ${waitingTourists(s).length} tourists waiting` : '');
   const lv = Object.keys(FACILITIES).map((k) => facLevel(s, k));
   const can = Object.keys(FACILITIES).filter((k) => upgradeCost(s, k) != null && upgradeCost(s, k) <= s.funds).length;
+  $('noteAdmin').textContent = s.strategies && s.strategies.length ? s.strategies.map((k) => STRATEGIES[k].name).join(', ') : `No strategies · room for ${facLimit(s, 'admin')}`;
   $('noteUpgrades').textContent = can ? `${can} upgrade${can > 1 ? 's' : ''} affordable` : `Levels ${lv.join(' · ')}`;
+}
+
+/* ---------------- administration ---------------- */
+
+function showAdmin() {
+  const s = Career.s, room = facLimit(s, 'admin'), on = s.strategies || [];
+  const cards = Object.entries(STRATEGIES).map(([k, st]) => {
+    const active = on.includes(k);
+    const btn = active ? `<button data-stop="${k}">Cancel</button>`
+      : `<button class="primary" data-start="${k}" ${on.length >= room || s.funds < st.cost ? 'disabled' : ''}>Start · ${fmtFunds(st.cost)}</button>`;
+    return `<div class="fac-row ${active ? 'on' : ''}"><div class="fac-ico">${st.icon}</div><div class="fac-main"><b>${st.name}</b>${active ? ' <span class="pill">active</span>' : ''}
+      <div class="muted">${esc(st.desc)}</div></div>${btn}</div>`;
+  }).join('');
+  showModal(`<h2>Administration <span class="muted small">${on.length} of ${room} strategies running</span></h2>
+    <p class="muted">Strategies trade one kind of reward for another. Starting one costs money; cancelling gives nothing back. Upgrade the building to run more at once.</p>${cards}`,
+  [{ label: 'Close', cls: 'primary', fn: () => { hideModal(); renderHub(); } }], 'wide');
+  const card = $('modalCard');
+  card.querySelectorAll('[data-start]').forEach((b) => b.addEventListener('click', () => {
+    const err = startStrategy(s, b.dataset.start);
+    if (err) toast(err); else { persist(); toast(`${STRATEGIES[b.dataset.start].name} started`); }
+    showAdmin();
+  }));
+  card.querySelectorAll('[data-stop]').forEach((b) => b.addEventListener('click', () => { stopStrategy(s, b.dataset.stop); persist(); showAdmin(); }));
 }
 
 /* ---------------- facility upgrades ---------------- */
@@ -451,6 +475,7 @@ function wireHub() {
   $('bldMilestones').addEventListener('click', showMilestones);
   $('bldTracking').addEventListener('click', showTracking);
   $('bldUpgrades').addEventListener('click', showUpgrades);
+  $('bldAdmin').addEventListener('click', showAdmin);
   $('bldTutorials').addEventListener('click', showTutorials);
   $('bldSettings').addEventListener('click', showSettings);
   $('btnHubHelp').addEventListener('click', showHelp);

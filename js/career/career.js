@@ -22,6 +22,7 @@ function newSave(mode, seed) {
   s.levels = Object.fromEntries(Object.keys(FACILITIES).map((k) => [k, mode === 'career' ? 1 : 3]));
   s.commnet = mode === 'career'; // probes need a signal (can be changed in Settings)
   s.diff = { ...DIFF_DEFAULTS };
+  s.strategies = [];
   if (mode === 'career') for (const r of ROLE_ORDER) hireCrew(s, true, r);
   return s;
 }
@@ -31,6 +32,8 @@ function migrateSave(s) {
   if (s.commnet === undefined) s.commnet = false; // older games keep flying as before
   s.diff = { ...DIFF_DEFAULTS, ...(s.diff || {}) };
   if (!s.levels) s.levels = Object.fromEntries(Object.keys(FACILITIES).map((k) => [k, s.mode === 'career' ? 2 : 3]));
+  for (const k of Object.keys(FACILITIES)) if (!s.levels[k]) s.levels[k] = s.mode === 'career' ? 1 : 3; // buildings added later
+  if (!s.strategies) s.strategies = [];
   return s;
 }
 
@@ -49,6 +52,7 @@ const FACILITIES = {
   tracking: { name: 'Tracking Station', icon: '🛰️', costs: [35000, 200000], limit: [8, 9, 10],
     what: (x, lv) => `${lv < 2 ? 'No manoeuvre nodes' : 'Manoeuvre nodes'} · time warp up to ${fmtNum(WARP_STEPS[x])}×` },
   astro: { name: 'Astronaut Office', icon: '👩‍🚀', costs: [20000, 120000], limit: [5, 12, Infinity], what: (x) => isFinite(x) ? `Up to ${x} astronauts` : 'Any number of astronauts' },
+  admin: { name: 'Administration', icon: '🏛️', costs: [25000, 150000], limit: [1, 2, 3], what: (x) => `${x} active ${x > 1 ? 'strategies' : 'strategy'}` },
   lab: { name: 'Research Lab', icon: '🔬', costs: [30000, 200000], limit: [100, 300, Infinity], what: (x) => isFinite(x) ? `Research nodes costing up to ⚗ ${x}` : 'Research any node' },
 };
 const WARP_STEPS = [1, 2, 3, 4, 10, 50, 100, 1000, 10000, 100000, 1000000];
@@ -64,6 +68,31 @@ function upgradeFacility(s, id) {
   s.levels[id] = facLevel(s, id) + 1;
   return null;
 }
+
+/* ---------- strategies (Administration) ----------
+   Standing policies that trade one kind of reward for another. Each costs money to start, and the
+   Administration building's level sets how many can run at once. Cancelling one gives no refund. */
+const STRATEGIES = {
+  fundraising: { name: 'Fundraising Drive', icon: '💰', cost: 15000, desc: 'Half the science from contracts is paid as money instead (¤1,000 per science).' },
+  outreach: { name: 'Science Outreach', icon: '📚', cost: 15000, desc: 'A fifth of the money from contracts becomes science instead (1 science per ¤1,500).' },
+  bargains: { name: 'Bulk Buying', icon: '🏷️', cost: 25000, desc: 'Parts cost 15% less, but contracts pay 10% less money.' },
+  recovery: { name: 'Recovery Teams', icon: '🚁', cost: 20000, desc: 'Recovered craft return 15% more of their value (never more than all of it).' },
+  patents: { name: 'Patent Licensing', icon: '📜', cost: 20000, desc: 'Every research node you unlock also pays ¤300 for each science it cost.' },
+  publicity: { name: 'Publicity Tours', icon: '📣', cost: 30000, desc: 'Contracts and milestones earn half as much reputation again.' },
+};
+function hasStrategy(k, s = Career.s) { return !!(s && s.mode === 'career' && (s.strategies || []).includes(k)); }
+function startStrategy(s, k) {
+  const st = STRATEGIES[k];
+  if (!st) return 'Unknown strategy';
+  s.strategies = s.strategies || [];
+  if (s.strategies.includes(k)) return 'Already running';
+  if (s.strategies.length >= facLimit(s, 'admin')) return 'Upgrade Administration to run more strategies at once';
+  if (s.funds < st.cost) return `Needs ${fmtFunds(st.cost)}`;
+  s.funds -= st.cost;
+  s.strategies.push(k);
+  return null;
+}
+function stopStrategy(s, k) { s.strategies = (s.strategies || []).filter((x) => x !== k); }
 
 /* ---------- astronaut roles ---------- */
 const ROLES = {
@@ -133,7 +162,10 @@ function partUnlocked(id) {
   const node = PART_TECH[id];
   return !node || Career.s.tech.includes(node);
 }
-function designCost(d) { return d.parts.reduce((a, p) => a + (PART_DEFS[p.id] ? PART_DEFS[p.id].cost : 0), 0); }
+function designCost(d) {
+  const c = d.parts.reduce((a, p) => a + (PART_DEFS[p.id] ? PART_DEFS[p.id].cost : 0), 0);
+  return Math.round(hasStrategy('bargains') ? c * 0.85 : c);
+}
 function lockedParts(d) { return [...new Set(d.parts.filter((p) => !partUnlocked(p.id)).map((p) => p.id))]; }
 
 /* What a recovered part is worth: tanks lose the value of the fuel you burned. */
@@ -147,8 +179,9 @@ function partValue(p) {
 /* Recovery pays less the further you land from the launch site. */
 function recoveryFactor(phi, water) {
   const d = Math.abs(wrapPi(phi - PAD_PHI));
-  const f = d < 0.004 ? 1 : clamp(0.98 - (d / Math.PI) * 0.9, 0.08, 0.98);
-  return water ? f * 0.9 : f;
+  let f = d < 0.004 ? 1 : clamp(0.98 - (d / Math.PI) * 0.9, 0.08, 0.98);
+  if (water) f *= 0.9;
+  return hasStrategy('recovery') ? Math.min(1, f * 1.15) : f;
 }
 
 /* ---------- crew ---------- */
@@ -180,10 +213,11 @@ function crewRank(c) { return Math.min(5, Math.floor(c.flights / 2) + c.worlds.l
 /* ---------- milestones pay in career ---------- */
 
 function milestoneReward(id) {
-  if (id.startsWith('anomaly_')) { const a = ANOMALY_BY_ID[id.slice(8)]; return { funds: 10000 * (BODY_SCI[a ? a.body : ''] || 1) * diff('funds'), rep: 8 }; }
+  if (id.startsWith('anomaly_')) { const a = ANOMALY_BY_ID[id.slice(8)]; return { funds: 10000 * (BODY_SCI[a ? a.body : ''] || 1) * diff('funds'), rep: 8 * (hasStrategy('publicity') ? 1.5 : 1) }; }
   const [k, bid] = id.split('_');
   const f = bid ? (BODY_SCI[bid] || 1) : 1;
   const base = { liftoff: 1000, alt10k: 2000, space: 5000, orbit: 10000, splash: 4000 }[id];
-  if (base) return { funds: base * diff('funds'), rep: 2 };
-  return { funds: { soi: 4000, orbit: 8000, land: 12000, return: 15000, flag: 6000 }[k] * f * diff('funds'), rep: 3 + f };
+  const rp = hasStrategy('publicity') ? 1.5 : 1;
+  if (base) return { funds: base * diff('funds'), rep: 2 * rp };
+  return { funds: { soi: 4000, orbit: 8000, land: 12000, return: 15000, flag: 6000 }[k] * f * diff('funds'), rep: (3 + f) * rp };
 }

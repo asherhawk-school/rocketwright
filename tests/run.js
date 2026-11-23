@@ -18,7 +18,7 @@ vm.createContext(sandbox);
 let src = '';
 for (const f of ['data.js', 'vessel.js', 'systems.js', 'navigation.js', 'docking.js', 'alarms.js', 'crew.js', 'asteroids.js', 'anomalies.js', 'comms.js', 'eva.js', 'sound.js', 'career/career.js', 'career/science.js', 'career/tech.js', 'career/contracts.js', 'universe.js', 'flight.js', 'partmenu.js', 'tutorials.js']) src += fs.readFileSync(path.join(root, 'js', f), 'utf8') + '\n';
 // expose a few lexical globals for the tests
-src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange, fireGroup, toggleLights, findGrab, undock, autoStages, asteroidTick, spawnAsteroid, heldRock, diff, completeContract, logEvent, crewMood, separatePiece, addAlarm, alarmList, alarmClip, nextAlarm, alarmPresets, removeAlarm, surveySites, nearestSite, touristGoalMet, availableCrew, waitingTourists, rosterSize, canEva, labStep, labAnalyse, labSkill, deployStation, stationTick, STATION_DAYS, BODY_SCI, ANOMALIES, ANOMALY_BY_ID, anomalyTick, anomalyFound, milestoneName, surfaceMarkers };';
+src += '\nthis.__g = { F, PRESETS, PART_DEFS, HOME, MOON, newDesign, attachPart, removePartTree, extractSubtree, insertSubtree, designFromStack, migrateDesign, layoutDesign, analyzeDesign, resolveStages, stageListFrom, autoStages, Craft, cloneParts, simulateStages, flightStart, doStage, stepCraft, railsStep, orbitElements, soiBody, bodyPos, bodyState, wrapPi, clamp, PHYS_DT, WARPS, isEngine, BODIES, BODY_BY_ID, SUN, OCHRE, GALE, TEMPEST, predictPath, loadMilestones, Store, physStep, findEncounter, Career, newSave, designCost, lockedParts, research, PART_TECH, TECH_NODES, runExperiment, creditResult, transmit, subjectCap, situationOf, refreshContracts, acceptContract, checkContracts, genContract, reachableBodies, recoveryFactor, flightUpdate, HOME, MOON, DAY, explode, partUnlocked, ecTotal, electricStep, solarInput, inShadow, hasControl, heatStep, destroyPart, makeNode, updateNode, burnTime, dvMapRows, launchDv, transferWindow, controlInput, propagate, stepLimitG: stepLimit, vesselFromCraft, craftFromVessel, advanceVessel, advanceAll, flightLoadVessel, universe, findDock, dockCrafts, dockedPairs, undockParts, portFacing, spawnStranded, crewHome, crewNames, TUTORIALS, playSound, recoverRecord, saveCheckpoint, clearCheckpoint, restoreCheckpoint, repairCrew, loadSave, setSave, persist, Store, setPartCfg, cfgVal, normalizeStages, screenToCraft, partAt, fireDecoupler, designSeats, shellH, jettisonFairing, toggleBrakes, stageLabel, ecDrain, toggleGear, liftCoef, jetFactor, wheelPoint, terrainH, PAD_PHI, RUNWAY_START, RUNWAY_END, quickSave, quickLoad, quickSaveInfo, clearQuickSave, canQuickSave, setAside, takePiece, layoutLoose, editOwner, pieceIndexOf, anyPart, newSub, cloneDesign, biomeAt, biomeNames, BIOMES, sciBiome, subjectId, situationOf, goEva, boardNearby, boardTarget, evaKey, evaHop, plantFlag, placeOnGround, collectResult, partResults, recoverRecord, migrateSave, upgradeFacility, facLevel, facLimit, hireCrew, maxActive, sasAllowed, maxWarp, nodesAllowed, crewHasRole, scienceBonus, partActions, ROLES, oreAt, miningStep, transferProp, drillOnGround, oreBelow, propRoom, ORE_YIELD, linkToHome, commnetOn, hasSignal, stationNodes, partsRange, fireGroup, toggleLights, findGrab, undock, autoStages, asteroidTick, spawnAsteroid, heldRock, diff, completeContract, logEvent, crewMood, separatePiece, addAlarm, alarmList, alarmClip, nextAlarm, alarmPresets, removeAlarm, surveySites, nearestSite, touristGoalMet, availableCrew, waitingTourists, rosterSize, canEva, labStep, labAnalyse, labSkill, deployStation, stationTick, STATION_DAYS, BODY_SCI, ANOMALIES, ANOMALY_BY_ID, anomalyTick, anomalyFound, milestoneName, surfaceMarkers, startStrategy, stopStrategy, hasStrategy, STRATEGIES };';
 vm.runInContext(src, sandbox);
 const G = sandbox.__g;
 G.F.H = 800; G.F.W = 1200; G.F.hud = {};
@@ -1913,6 +1913,30 @@ test('landing next to an anomaly discovers it once: milestone, money and science
   assert(s.science === sci2, 'only once');
   assert(G.milestoneName('anomaly_pillar') === 'Found The Black Pillar', 'named');
   assert(F.flags.log.some((e) => /Discovered The Black Pillar/.test(e.text)), 'logged');
+});
+
+console.log('\nAdministration and strategies');
+test('strategies cost money to start, are limited by the Administration level, and change rewards', () => {
+  G.Career.s = G.newSave('career', 91);
+  const s = G.Career.s;
+  s.funds = 1e6;
+  assert(G.startStrategy(s, 'fundraising') === null && G.hasStrategy('fundraising'), 'started');
+  assert(s.funds === 1e6 - G.STRATEGIES.fundraising.cost, 'paid for it');
+  assert(/Upgrade Administration/.test(G.startStrategy(s, 'patents')), 'level 1 runs one');
+  // fundraising: half the contract science comes as money
+  let f0 = s.funds, sc0 = s.science;
+  G.completeContract(s, { reward: 10000, sci: 10, rep: 2 });
+  assert(s.funds - f0 === 15000 && near(s.science - sc0, 5, 1e-9), 'science partly paid as money');
+  G.stopStrategy(s, 'fundraising');
+  G.upgradeFacility(s, 'admin');
+  assert(G.startStrategy(s, 'bargains') === null && G.startStrategy(s, 'patents') === null, 'level 2 runs two');
+  const d = G.PRESETS['Orbiter I']();
+  const full = d.parts.reduce((a, p) => a + G.PART_DEFS[p.id].cost, 0);
+  assert(G.designCost(d) === Math.round(full * 0.85), 'bulk buying: cheaper parts');
+  f0 = s.funds;
+  s.science = 100; s.tech.push('general');
+  G.research(s, 'advanced');
+  assert(s.funds - f0 === 30 * 300, 'patents pay for research');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

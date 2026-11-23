@@ -262,9 +262,14 @@ function completeContract(s, c) {
   touristsLeave(s, c);
   c.state = 'done';
   c.doneAt = s.ut;
-  s.funds += Math.round(c.reward * ((s.diff && s.diff.funds) || 1));
-  s.science = Math.round((s.science + c.sci * ((s.diff && s.diff.science) || 1)) * 10) / 10;
-  s.rep = clamp(s.rep + c.rep, -100, 1000);
+  let funds = c.reward * ((s.diff && s.diff.funds) || 1) * (hasStrategy('bargains', s) ? 0.9 : 1);
+  let sci = c.sci * ((s.diff && s.diff.science) || 1);
+  if (hasStrategy('fundraising', s)) { funds += sci * 0.5 * 1000; sci *= 0.5; }
+  if (hasStrategy('outreach', s)) { sci += (funds * 0.2) / 1500; funds *= 0.8; }
+  c.paid = { funds: Math.round(funds), sci: Math.round(sci * 10) / 10 };
+  s.funds += Math.round(funds);
+  s.science = Math.round((s.science + sci) * 10) / 10;
+  s.rep = clamp(s.rep + c.rep * (hasStrategy('publicity', s) ? 1.5 : 1), -100, 1000);
 }
 function failContract(s, c) {
   touristsLeave(s, c);
